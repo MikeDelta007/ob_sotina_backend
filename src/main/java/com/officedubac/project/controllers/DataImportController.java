@@ -1,0 +1,187 @@
+package com.officedubac.project.controllers;
+
+import com.officedubac.project.dto.*;
+import com.officedubac.project.models.*;
+import com.officedubac.project.repository.CandidatRepository;
+import com.officedubac.project.repository.NotificationRepository;
+import com.officedubac.project.services.*;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+@CrossOrigin("*")
+@RestController
+@RequestMapping("/api/v1/import-data")
+@RequiredArgsConstructor
+@Tag(name="Data Import Controller", description = "Endpoints responsables de la gestion des imports de données")
+
+public class DataImportController
+{
+    @Autowired
+    private final ImportDataService importDataService;
+    @Autowired
+    private final ParametrageService parametrageService;
+    @Autowired
+    private final TirageJuryMatService tirageJuryMatService;
+
+    @Autowired
+    private final DecompteFeuilleJuryService decompteFeuilleJuryService;
+
+
+    //SOTINA
+    @PostMapping("/data-candidats")
+    public String importCdtsByFile(@RequestParam("file") MultipartFile file)
+    {
+        String message;
+        try
+        {
+            // Sauvegarder le fichier temporairement
+            File tempFile = File.createTempFile("data_cdt_", ".xlsx");
+            file.transferTo(tempFile);
+            // Appeler le service
+            boolean ok = parametrageService.importCdtByFile(tempFile.getAbsolutePath());
+            // Supprimer le fichier temporaire après import
+            tempFile.delete();
+            if (ok)
+            {
+                message = "Les données ont été chargées avec succés.";
+            }
+            else
+            {
+                message = "Aucune donnée n\'a été chargée";
+            }
+            return message;
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+            return "Erreur lors de l'import : " + e.getMessage();
+        }
+    }
+
+    //SOTINA
+    @Operation(summary="")
+    @GetMapping(value="/candidats-by-aca")
+    public ResponseEntity<Map<String, List<SourceCandidat>>> candidats() throws Exception
+    {
+        return ResponseEntity.ok(this.tirageJuryMatService.getCdtsByAcademie());
+    }
+
+    @Operation(summary="")
+    @GetMapping(value="/repCP-by-aca")
+    public ResponseEntity<Map<String, List<RepartitionTirageCEP>>> repCP() throws Exception
+    {
+        return ResponseEntity.ok(this.tirageJuryMatService.getRepCPByAcademie());
+    }
+
+    @Operation(summary="")
+    @GetMapping(value="/repCP-all")
+    public ResponseEntity<List<RepartitionTirageCEP>> repCP_() throws Exception
+    {
+        return ResponseEntity.ok(this.tirageJuryMatService.getRepCP_());
+    }
+
+    @Operation(summary="")
+    @GetMapping(value="/repCS-by-aca")
+    public ResponseEntity<Map<String, List<RepartitionTirageCES>>> repCS() throws Exception
+    {
+        return ResponseEntity.ok(this.tirageJuryMatService.getRepCSByAcademie());
+    }
+
+    //SOTINA
+    @PostMapping("/fusion-repartition")
+    public ResponseEntity<Void> fusionTirage()
+    {
+        this.tirageJuryMatService.unionCollections();
+        return ResponseEntity.ok().build();
+    }
+
+    //SOTINA
+    @PostMapping("/repartition-cep")
+    public ResponseEntity<List<RepartitionTirageCEPDTO>> repartitionTirageCEP()
+    {
+        return ResponseEntity.ok(this.tirageJuryMatService.repartitionParCEP());
+    }
+
+    //SOTINA
+    @PostMapping("/repartition-cs")
+    public ResponseEntity<List<RepartitionTirageCSDTO>> repartitionTirageCS()
+    {
+        return ResponseEntity.ok(this.tirageJuryMatService.repartitionParCS());
+    }
+
+    @PostMapping("/feuille-cep/{session}")
+    public ResponseEntity<List<RepartitionFeuilleCEPDTO>> repartitionFeuillesCEP(@PathVariable int session)
+    {
+        return ResponseEntity.ok(this.decompteFeuilleJuryService.repartitionParCEP(session));
+    }
+
+    //SOTINA
+    @PostMapping("/feuille-cs/{session}")
+    public ResponseEntity<List<RepartitionFeuilleCESDTO>> repartitionFeuilleCS(@PathVariable int session)
+    {
+        return ResponseEntity.ok(this.decompteFeuilleJuryService.repartitionParCS(session));
+    }
+
+    @Operation(summary="")
+    @GetMapping(value="/feuilleCP-by-aca")
+    public ResponseEntity<Map<String, List<RepartitionFeuilleCEP>>> repFCP() throws Exception
+    {
+        return ResponseEntity.ok(this.decompteFeuilleJuryService.getRepCPByAcademie());
+    }
+
+    @Operation(summary="")
+    @GetMapping(value="/feuilleCS-by-aca")
+    public ResponseEntity<Map<String, List<RepartitionFeuilleCES>>> repFCS() throws Exception
+    {
+        return ResponseEntity.ok(this.decompteFeuilleJuryService.getRepCSByAcademie());
+    }
+
+    @PostMapping("/checkRedoublantOrFraude/{tableNum}/{exYearBac}")
+    public ResponseEntity<BaseMorte> checkRedOrFraud(@PathVariable int tableNum, @PathVariable int exYearBac)
+    {
+        return ResponseEntity.ok(this.importDataService.checkRedoublantOrFraude(tableNum, exYearBac));
+    }
+
+    @PatchMapping("/updateDureeMention")
+    public ResponseEntity<BaseMorte> checkRedoublantByEtatCivil_(@RequestParam String idBm, @RequestParam int dureeMention)
+    {
+        return ResponseEntity.ok(this.importDataService.updateArchive(idBm, dureeMention));
+    }
+
+    @PostMapping("/checkRedoublantByEtatCivil/{codeCentreEtatCivil}/{yearRegistryNum}")
+    public ResponseEntity<BaseMorte> checkRedoublantByEtatCivil(@PathVariable String codeCentreEtatCivil, @PathVariable int yearRegistryNum, @RequestParam String registryNum)
+    {
+        return ResponseEntity.ok(this.importDataService.checkRedoublantByEtatCivil(codeCentreEtatCivil, yearRegistryNum, registryNum));
+    }
+
+    @GetMapping("/get-archives/{page}/{size}")
+    public ResponseEntity<?> getArchives(
+            @PathVariable int page,
+            @PathVariable int size,
+            @RequestParam(required = false) String search
+    ) {
+        Page<BaseMorte> p = this.importDataService.getDataBaseMorte(page, size, search);
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("content", p.getContent());
+        res.put("totalElements", p.getTotalElements());
+        res.put("totalPages", p.getTotalPages());
+        res.put("size", p.getSize());
+        res.put("page", p.getNumber());
+
+        return ResponseEntity.ok(res);
+    }
+
+}

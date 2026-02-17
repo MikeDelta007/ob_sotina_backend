@@ -1,0 +1,9 @@
+- Tirage par Discipline, Série et par Académie
+Par exemple : Si Math S
+
+- Pour chaque Discipline le nombre de candidat total par académie 
+(calcul vertical + majoration) au 1er Tour (1,2) et au 2nd tour (0,6)
+
+- Scinder en deux tableaux (discipline & lv1, 2..., eco, pc/svt)
+
+- Possibilité de changer le tirage A4 vers A3 si nombre page epreuve supérieur à un seuil dynamique
