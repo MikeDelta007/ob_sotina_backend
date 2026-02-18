@@ -7,7 +7,12 @@ import com.officedubac.project.repository.*;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.openxml4j.opc.OPCPackage;
 import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.util.XMLHelper;
+import org.apache.poi.xssf.eventusermodel.XSSFReader;
+import org.apache.poi.xssf.model.SharedStringsTable;
+import org.apache.poi.xssf.usermodel.XSSFRichTextString;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -16,6 +21,10 @@ import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.xml.sax.Attributes;
+import org.xml.sax.InputSource;
+import org.xml.sax.XMLReader;
+import org.xml.sax.helpers.DefaultHandler;
 
 import java.io.FileInputStream;
 import java.io.InputStream;
@@ -842,66 +851,172 @@ public class ParametrageService
 
     //SOTINA
     public boolean importCdtByFile(String filePath) {
-        try (InputStream file = new FileInputStream(filePath);
-             Workbook workbook = new XSSFWorkbook(file)) {
 
-            Sheet sheet = workbook.getSheetAt(0);
-            List<SourceCandidat> batchList = new ArrayList<>();
-            DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        final int BATCH_SIZE = 500;
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
-            for (Row row : sheet) {
-                if (row.getRowNum() == 0) continue; // ignorer les en-têtes
+        try (OPCPackage opcPackage = OPCPackage.open(filePath)) {
 
-                SourceCandidat sc = new SourceCandidat();
+            XSSFReader reader = new XSSFReader(opcPackage);
+            SharedStringsTable sst = (SharedStringsTable) reader.getSharedStringsTable();
+            XMLReader parser = XMLHelper.newXMLReader();
 
-                // Prénom / Nom
-                sc.setFirstname(getCellValueSafe(row.getCell(0)));
-                sc.setLastname(getCellValueSafe(row.getCell(1)));
+            List<SourceCandidat> batchList = new ArrayList<>(BATCH_SIZE);
 
-                // Date de naissance
-                String dateStr = getCellValueSafe(row.getCell(2));
-                if (dateStr != null && !dateStr.isEmpty()) {
-                    try {
-                        sc.setDate_birth(LocalDate.parse(dateStr, formatter));
-                    } catch (DateTimeParseException ex) {
-                        System.err.println("Date invalide à la ligne " + (row.getRowNum() + 1) + ": " + dateStr);
+            DefaultHandler handler = new DefaultHandler() {
+
+                private String lastContents;
+                private boolean isString;
+                private int currentColumn = -1;
+                private SourceCandidat currentCandidat;
+                private int currentRowNumber = 0;
+
+                @Override
+                public void startElement(String uri, String localName, String qName, Attributes attributes) {
+
+                    if ("row".equals(qName)) {
+
+                        String rowNum = attributes.getValue("r");
+                        currentRowNumber = rowNum != null ? Integer.parseInt(rowNum) : 0;
+
+                        // 🔥 Ignorer la première ligne
+                        if (currentRowNumber == 1) {
+                            currentCandidat = null;
+                            return;
+                        }
+
+                        currentCandidat = new SourceCandidat();
                     }
+
+                    if ("c".equals(qName) && currentCandidat != null) {
+
+                        String cellType = attributes.getValue("t");
+                        isString = "s".equals(cellType);
+
+                        String cellRef = attributes.getValue("r");
+                        currentColumn = getColumnIndex(cellRef);
+                    }
+
+                    lastContents = "";
                 }
 
-                sc.setPlace_birth(getCellValueSafe(row.getCell(3)));
-                sc.setNationality(getCellValueSafe(row.getCell(4)));
-                sc.setAge(safeParseInteger(row.getCell(9)));
-                sc.setTableNum(safeParseInteger(row.getCell(5)));
-                sc.setSession(safeParseInteger(row.getCell(66)));
-                sc.setJury(safeParseInteger(row.getCell(6)));
-                sc.setSerie(getCellValueSafe(row.getCell(7)));
-                sc.setGender(getCellValueSafe(row.getCell(8)));
-                sc.setEtablissement(getCellValueSafe(row.getCell(11)));
-                sc.setCentreEcritPrincipal(getCellValueSafe(row.getCell(25)));
-                sc.setCentreEcritSecondaire(getCellValueSafe(row.getCell(27)));
-                sc.setCentreExamen(getCellValueSafe(row.getCell(12)));
-                sc.setMatiere1(getCellValueSafe(row.getCell(14)));
-                sc.setMatiere2(getCellValueSafe(row.getCell(15)));
-                sc.setMatiere3(getCellValueSafe(row.getCell(16)));
-                sc.setEprFacListA(getCellValueSafe(row.getCell(18)));
-                sc.setEprFacListB(getCellValueSafe(row.getCell(19)));
-                sc.setAcaEtab(getCellValueSafe(row.getCell(51)));
-                sc.setAcaCentEcrit(getCellValueSafe(row.getCell(52)));
+                @Override
+                public void characters(char[] ch, int start, int length) {
+                    lastContents += new String(ch, start, length);
+                }
 
-                batchList.add(sc);
+                @Override
+                public void endElement(String uri, String localName, String qName) {
+
+                    if (currentCandidat == null) return; // 🔥 ignore ligne 1
+
+                    if ("v".equals(qName)) {
+
+                        String value = lastContents;
+
+                        if (isString) {
+                            int idx = Integer.parseInt(value);
+                            value = sst.getItemAt(idx).getString();
+                        }
+
+                        mapValueToCandidat(currentCandidat, currentColumn, value, formatter);
+                    }
+
+                    if ("row".equals(qName)) {
+
+                        batchList.add(currentCandidat);
+
+                        if (batchList.size() >= BATCH_SIZE) {
+                            mongoTemplate.insert(batchList, SourceCandidat.class);
+                            batchList.clear();
+                        }
+                    }
+                }
+            };
+
+
+            parser.setContentHandler(handler);
+
+            try (InputStream sheet = reader.getSheetsData().next()) {
+                parser.parse(new InputSource(sheet));
             }
 
-            // Sauvegarder toutes les lignes d’un coup
-            sourceCandidatRepository.saveAll(batchList);
+            if (!batchList.isEmpty()) {
+                mongoTemplate.insert(batchList, SourceCandidat.class);
+            }
+
             return true;
 
-        }
-        catch (Exception e)
-        {
+        } catch (Exception e) {
             e.printStackTrace();
+            return false;
         }
-        return false;
     }
+
+
+    private void mapValueToCandidat(SourceCandidat sc,
+                                    int columnIndex,
+                                    String value,
+                                    DateTimeFormatter formatter) {
+
+        if (value == null || value.isEmpty()) return;
+
+        switch (columnIndex) {
+
+            case 0 -> sc.setFirstname(value);
+            case 1 -> sc.setLastname(value);
+
+            case 2 -> {
+                try {
+                    sc.setDate_birth(LocalDate.parse(value, formatter));
+                } catch (Exception ignored) {}
+            }
+
+            case 3 -> sc.setPlace_birth(value);
+            case 4 -> sc.setNationality(value);
+            case 5 -> sc.setTableNum(parseInteger(value));
+            case 6 -> sc.setJury(parseInteger(value));
+            case 7 -> sc.setSerie(value);
+            case 8 -> sc.setGender(value);
+            case 9 -> sc.setAge(parseInteger(value));
+            case 11 -> sc.setEtablissement(value);
+            case 12 -> sc.setCentreExamen(value);
+            case 14 -> sc.setMatiere1(value);
+            case 15 -> sc.setMatiere2(value);
+            case 16 -> sc.setMatiere3(value);
+            case 18 -> sc.setEprFacListA(value);
+            case 19 -> sc.setEprFacListB(value);
+            case 25 -> sc.setCentreEcritPrincipal(value);
+            case 27 -> sc.setCentreEcritSecondaire(value);
+            case 51 -> sc.setAcaEtab(value);
+            case 52 -> sc.setAcaCentEcrit(value);
+            case 66 -> sc.setSession(parseInteger(value));
+        }
+    }
+
+    private Integer parseInteger(String value) {
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private int getColumnIndex(String cellReference) {
+        int column = 0;
+        for (int i = 0; i < cellReference.length(); i++) {
+            char c = cellReference.charAt(i);
+            if (Character.isLetter(c)) {
+                column = column * 26 + (c - 'A' + 1);
+            } else {
+                break;
+            }
+        }
+        return column - 1;
+    }
+
+
+
 
 
     public User updateUser(String idUsr, UserDTO userDTO)

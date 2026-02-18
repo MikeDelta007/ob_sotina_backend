@@ -13,6 +13,9 @@ import com.officedubac.project.repository.SourceCandidatRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 
@@ -492,14 +495,12 @@ public class TirageJuryMatService
     }
 
 
-    public Map<String, List<SourceCandidat>> getCdtsByAcademie()
-    {
-        List<SourceCandidat> allUsers = sourceCandidatRepository.findAll();
-        return allUsers
-                .stream()
-                .filter(p -> p.getAcaCentEcrit() != null)
-                .collect(Collectors.groupingBy(s -> s.getAcaCentEcrit()));
+    public Page<SourceCandidat> getCdtsByAcademie(int page, int size) {
+
+        Pageable pageable = PageRequest.of(page, size);
+        return sourceCandidatRepository.findByAcaCentEcritIsNotNull(pageable);
     }
+
 
     public Map<String, List<RepartitionTirageCEP>> getRepCPByAcademie()
     {

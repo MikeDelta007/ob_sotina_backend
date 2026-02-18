@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @CrossOrigin("*")
 @RestController
@@ -71,12 +72,31 @@ public class DataImportController
     }
 
     //SOTINA
-    @Operation(summary="")
-    @GetMapping(value="/candidats-by-aca")
-    public ResponseEntity<Map<String, List<SourceCandidat>>> candidats() throws Exception
-    {
-        return ResponseEntity.ok(this.tirageJuryMatService.getCdtsByAcademie());
+    @Operation(summary = "Récupérer les candidats groupés par académie (paginé)")
+    @GetMapping("/candidats-by-aca/{page}/{size}")
+    public ResponseEntity<?> candidats(
+            @PathVariable int page,
+            @PathVariable int size
+    ) {
+        // Page de candidats avec pagination
+        Page<SourceCandidat> pageResult = tirageJuryMatService.getCdtsByAcademie(page, size);
+
+        // Transformer la page en Map<String, List<SourceCandidat>> groupé par académie
+        Map<String, List<SourceCandidat>> grouped = pageResult.getContent()
+                .stream()
+                .collect(Collectors.groupingBy(SourceCandidat::getAcaCentEcrit));
+
+        // Préparer le retour paginé
+        Map<String, Object> res = new HashMap<>();
+        res.put("content", grouped);                       // données groupées par académie
+        res.put("totalElements", pageResult.getTotalElements()); // nombre total d'enregistrements
+        res.put("totalPages", pageResult.getTotalPages());
+        res.put("size", pageResult.getSize());
+        res.put("page", pageResult.getNumber());
+
+        return ResponseEntity.ok(res);
     }
+
 
     @Operation(summary="")
     @GetMapping(value="/repCP-by-aca")

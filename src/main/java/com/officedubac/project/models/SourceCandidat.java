@@ -25,10 +25,10 @@ public class SourceCandidat
     private LocalDate date_birth;//2
     private String place_birth;//3
     private String nationality;//4
-    private int age;//5
-    private int tableNum;//6
-    private int session;//7
-    private int jury;//8
+    private Integer age;//5
+    private Integer tableNum;//6
+    private Integer session;//7
+    private Integer jury;//8
     private String serie;//9
     private String gender;//10
     private String etablissement;//11
