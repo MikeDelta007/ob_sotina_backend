@@ -42,5 +42,4 @@ public class SourceCandidat
     private String eprFacListB;//18
     private String acaEtab;//19
     private String acaCentEcrit;//19
-
 }

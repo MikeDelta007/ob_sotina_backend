@@ -9,9 +9,9 @@ import org.springframework.stereotype.Repository;
 import java.util.List;
 
 @Repository
-public interface SourceCandidatRepository extends MongoRepository<SourceCandidat, String>
+public interface SourceCandidatRepository extends MongoRepository<SourceCandidat, String>, SourceCandidatCustomRepository
 {
     List<SourceCandidat> findBySession(int session);
     List<SourceCandidat> findByCentreEcritSecondaireIsNotNull();
-    Page<SourceCandidat> findByAcaCentEcritIsNotNull(Pageable pageable);
+    List<SourceCandidat> findByAcaCentEcrit(String aca);
 }

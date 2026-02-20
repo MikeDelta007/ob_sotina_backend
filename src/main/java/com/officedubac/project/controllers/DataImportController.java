@@ -72,30 +72,24 @@ public class DataImportController
     }
 
     //SOTINA
-    @Operation(summary = "Récupérer les candidats groupés par académie (paginé)")
-    @GetMapping("/candidats-by-aca/{page}/{size}")
-    public ResponseEntity<?> candidats(
+    @GetMapping("/get-all-candidats/{page}/{size}")
+    public ResponseEntity<?> getCandidats(
             @PathVariable int page,
             @PathVariable int size
     ) {
-        // Page de candidats avec pagination
-        Page<SourceCandidat> pageResult = tirageJuryMatService.getCdtsByAcademie(page, size);
+        Page<SourceCandidatDTO> p = this.tirageJuryMatService.getListCandidats(page, size);
 
-        // Transformer la page en Map<String, List<SourceCandidat>> groupé par académie
-        Map<String, List<SourceCandidat>> grouped = pageResult.getContent()
-                .stream()
-                .collect(Collectors.groupingBy(SourceCandidat::getAcaCentEcrit));
-
-        // Préparer le retour paginé
         Map<String, Object> res = new HashMap<>();
-        res.put("content", grouped);                       // données groupées par académie
-        res.put("totalElements", pageResult.getTotalElements()); // nombre total d'enregistrements
-        res.put("totalPages", pageResult.getTotalPages());
-        res.put("size", pageResult.getSize());
-        res.put("page", pageResult.getNumber());
+        res.put("content", p.getContent());
+        res.put("totalElements", p.getTotalElements());
+        res.put("totalPages", p.getTotalPages());
+        res.put("size", p.getSize());
+        res.put("page", p.getNumber());
 
         return ResponseEntity.ok(res);
     }
+
+
 
 
     @Operation(summary="")
@@ -141,17 +135,17 @@ public class DataImportController
         return ResponseEntity.ok(this.tirageJuryMatService.repartitionParCS());
     }
 
-    @PostMapping("/feuille-cep/{session}")
-    public ResponseEntity<List<RepartitionFeuilleCEPDTO>> repartitionFeuillesCEP(@PathVariable int session)
+    @PostMapping("/feuille-cep")
+    public ResponseEntity<List<RepartitionFeuilleCEPDTO>> repartitionFeuillesCEP()
     {
-        return ResponseEntity.ok(this.decompteFeuilleJuryService.repartitionParCEP(session));
+        return ResponseEntity.ok(this.decompteFeuilleJuryService.repartitionParCEP());
     }
 
     //SOTINA
-    @PostMapping("/feuille-cs/{session}")
-    public ResponseEntity<List<RepartitionFeuilleCESDTO>> repartitionFeuilleCS(@PathVariable int session)
+    @PostMapping("/feuille-cs")
+    public ResponseEntity<List<RepartitionFeuilleCESDTO>> repartitionFeuilleCS()
     {
-        return ResponseEntity.ok(this.decompteFeuilleJuryService.repartitionParCS(session));
+        return ResponseEntity.ok(this.decompteFeuilleJuryService.repartitionParCS());
     }
 
     @Operation(summary="")

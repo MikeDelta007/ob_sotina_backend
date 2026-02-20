@@ -15,11 +15,13 @@ import java.util.Map;
 public class RepartitionTirageCEPDTO
 {
     private Integer jury;
+    private Integer session;
     private String centreEcrit;
     private String academia;
 
     private Long effectif;
     private Long frenchL;
+
     private Long frenchS;
     private Long frenchLA;
     private Long frenchSA;
@@ -52,5 +54,10 @@ public class RepartitionTirageCEPDTO
     private Long russe;
     private Long pcL;
     private Long svtL;
+    private Long gelec;
+    private Long gemec;
+    private Long mo;
+    private Long ses;
+    private Long gcf;
 
 }

@@ -14,6 +14,7 @@ import java.util.Map;
 public class RepartitionTirageCSDTO
 {
     private Integer jury;
+    private Integer session;
     private String centreEcrit;
     private String academia;
 
@@ -50,4 +51,9 @@ public class RepartitionTirageCSDTO
     private Long russe;
     private Long pcL;
     private Long svtL;
+    private Long gelec;
+    private Long gemec;
+    private Long mo;
+    private Long ses;
+    private Long gcf;
 }

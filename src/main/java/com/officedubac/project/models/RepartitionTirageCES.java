@@ -54,4 +54,9 @@ public class RepartitionTirageCES
     private Long russe;
     private Long pcL;
     private Long svtL;
+    private Long gelec;
+    private Long gemec;
+    private Long mo;
+    private Long ses;
+    private Long gcf;
 }

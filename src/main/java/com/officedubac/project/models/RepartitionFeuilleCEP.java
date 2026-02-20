@@ -19,7 +19,7 @@ public class RepartitionFeuilleCEP
     private String academia;
     private String centreExamen;
     private Long effectif;
-
+    
     private Long F6;
     private Long Lprime;
     private Long L1A;

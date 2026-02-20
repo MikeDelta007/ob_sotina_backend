@@ -3,6 +3,7 @@ package com.officedubac.project.services;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.officedubac.project.dto.RepartitionTirageCEPDTO;
 import com.officedubac.project.dto.RepartitionTirageCSDTO;
+import com.officedubac.project.dto.SourceCandidatDTO;
 import com.officedubac.project.models.RepartitionTirageCEP;
 import com.officedubac.project.models.RepartitionTirageCES;
 import com.officedubac.project.models.SourceCandidat;
@@ -14,6 +15,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
 import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -42,6 +44,8 @@ public class TirageJuryMatService
     private static final Set<String> SERIES_SM = Set.of("S1", "S1A", "S3");
     private static final Set<String> SERIES_SE = Set.of("S2", "S2A", "S4", "S5");
     private static final Set<String> SERIES_SA = Set.of("S1A", "S2A");
+    private static final Set<String> SERIES_STIDD = Set.of("STIDD");
+    private static final Set<String> SERIES_STEG = Set.of("STEG");
 
     // Méthode principale
 
@@ -51,42 +55,6 @@ public class TirageJuryMatService
 
     private boolean hasCode(SourceCandidat c, String... codes) {
         return c.getSerie() != null && Arrays.asList(codes).contains(c.getSerie());
-    }
-
-    private long countOption(List<SourceCandidat> groupe, String option)
-    {
-        return groupe.stream()
-                .filter(c -> c.getMatiere1() != null && option.equals(c.getMatiere1()))
-                .count();
-    }
-
-    private List<String> detectOptions(SourceCandidat c)
-    {
-        List<String> opts = new ArrayList<>();
-
-        if (c.getMatiere1() != null && !c.getMatiere1().isBlank())
-            opts.add("(LV1) " + c.getMatiere1().trim());
-
-        if (c.getMatiere2() != null && !c.getMatiere2().isBlank())
-            opts.add("(LV2) " + c.getMatiere2().trim());
-
-        if (c.getMatiere3() != null && !c.getMatiere3().isBlank())
-            opts.add("(PC/SVT) " + c.getMatiere3().trim());
-
-        return opts;
-    }
-
-
-    private String toJson(Map<String, Long> map) {
-        try {
-            return new ObjectMapper().writeValueAsString(map);
-        } catch (Exception e) {
-            return "{}";
-        }
-    }
-
-    private String safe(String val) {
-        return val == null ? "" : val.trim();
     }
 
 
@@ -113,6 +81,7 @@ public class TirageJuryMatService
 
                 String centreEcrit = groupe.get(0).getCentreEcritPrincipal();
                 String academia = groupe.get(0).getAcaCentEcrit();
+                Integer session = groupe.get(0).getSession();
                 long effectif = groupe.size();
 
                 // Calcul des effectifs
@@ -197,9 +166,30 @@ public class TirageJuryMatService
                         .filter(c -> c.getMatiere3() != null && c.getMatiere3().equalsIgnoreCase("Sciences de la vie et de la Terre"))
                         .count();
 
+                long gelec = groupe.stream()
+                        .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Génie Electrique"))
+                        .count();
+
+                long gemec = groupe.stream()
+                        .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Génie mécanique"))
+                        .count();
+
+                long mo = groupe.stream()
+                        .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Management des organisations"))
+                        .count();
+
+                long ses = groupe.stream()
+                        .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Sciences Economiques et Sociales"))
+                        .count();
+
+                long gcf = groupe.stream()
+                        .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Gestion comptable et financière (Etude de cas)"))
+                        .count();
+
                 // DTO
                 RepartitionTirageCEPDTO dto = RepartitionTirageCEPDTO.builder()
                         .jury(jury)
+                        .session(session)
                         .centreEcrit(centreEcrit)
                         .academia(academia)
                         .effectif(effectif)
@@ -235,6 +225,11 @@ public class TirageJuryMatService
                         .russe(russe)
                         .pcL(pcL)
                         .svtL(svtL)
+                        .mo(mo)
+                        .ses(ses)
+                        .gcf(gcf)
+                        .gelec(gelec)
+                        .gemec(gemec)
                         .build();
 
                 dtos.add(dto);
@@ -242,6 +237,7 @@ public class TirageJuryMatService
                 // Entity DB
                 RepartitionTirageCEP entity = RepartitionTirageCEP.builder()
                         .jury(jury)
+                        .session(session)
                         .centreEcrit(centreEcrit)
                         .academia(academia)
                         .effectif(effectif)
@@ -277,6 +273,11 @@ public class TirageJuryMatService
                         .russe(russe)
                         .pcL(pcL)
                         .svtL(svtL)
+                        .mo(mo)
+                        .ses(ses)
+                        .gcf(gcf)
+                        .gelec(gelec)
+                        .gemec(gemec)
                         .build();
 
                 entities.add(entity);
@@ -317,6 +318,7 @@ public class TirageJuryMatService
 
             String centreEcrit = groupe.get(0).getCentreEcritSecondaire();
             String academia = groupe.get(0).getAcaCentEcrit();
+            Integer session = groupe.get(0).getSession();
             long effectif = groupe.size();
 
             // Calcul des effectifs
@@ -401,9 +403,30 @@ public class TirageJuryMatService
                     .filter(c -> c.getMatiere3() != null && c.getMatiere3().equalsIgnoreCase("Sciences de la vie et de la Terre"))
                     .count();
 
+            long gelec = groupe.stream()
+                    .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Génie Electrique"))
+                    .count();
+
+            long gemec = groupe.stream()
+                    .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Génie mécanique"))
+                    .count();
+
+            long mo = groupe.stream()
+                    .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Management des organisations"))
+                    .count();
+
+            long ses = groupe.stream()
+                    .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Sciences Economiques et Sociales"))
+                    .count();
+
+            long gcf = groupe.stream()
+                    .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Gestion comptable et financière (Etude de cas)"))
+                    .count();
+
             // DTO
             RepartitionTirageCSDTO dto = RepartitionTirageCSDTO.builder()
                     .jury(jury)
+                    .session(session)
                     .centreEcrit(centreEcrit)
                     .academia(academia)
                     .effectif(effectif)
@@ -438,6 +461,11 @@ public class TirageJuryMatService
                     .russe(russe)
                     .pcL(pcL)
                     .svtL(svtL)
+                    .mo(mo)
+                    .ses(ses)
+                    .gcf(gcf)
+                    .gelec(gelec)
+                    .gemec(gemec)
                     .build();
 
             dtos.add(dto);
@@ -445,6 +473,7 @@ public class TirageJuryMatService
             // Entity DB
             RepartitionTirageCES entity = RepartitionTirageCES.builder()
                     .jury(jury)
+                    .session(session)
                     .centreEcrit(centreEcrit)
                     .academia(academia)
                     .effectif(effectif)
@@ -480,6 +509,11 @@ public class TirageJuryMatService
                     .russe(russe)
                     .pcL(pcL)
                     .svtL(svtL)
+                    .mo(mo)
+                    .ses(ses)
+                    .gcf(gcf)
+                    .gelec(gelec)
+                    .gemec(gemec)
                     .build();
 
             entities.add(entity);
@@ -495,10 +529,57 @@ public class TirageJuryMatService
     }
 
 
-    public Page<SourceCandidat> getCdtsByAcademie(int page, int size) {
+    public Page<SourceCandidatDTO> getListCandidats(int page, int size)
+    {
 
         Pageable pageable = PageRequest.of(page, size);
-        return sourceCandidatRepository.findByAcaCentEcritIsNotNull(pageable);
+
+        // 1️⃣ Récupérer la page de candidats depuis Mongo
+        Page<SourceCandidat> candidats = sourceCandidatRepository.findAll(pageable);
+
+        // 2️⃣ Hydrater chaque candidat avec son Sujet
+        List<SourceCandidatDTO> dtos = candidats.stream().map(c -> {
+
+            SourceCandidatDTO dto = new SourceCandidatDTO();
+
+            dto.setFirstname(c.getFirstname());
+            dto.setLastname(c.getLastname());
+            dto.setDate_birth(c.getDate_birth());
+            dto.setPlace_birth(c.getPlace_birth());
+            dto.setSession(c.getSession());
+            dto.setGender(c.getGender());
+            dto.setMatiere1(c.getMatiere1());
+            dto.setMatiere2(c.getMatiere2());
+            dto.setMatiere3(c.getMatiere3());
+
+            dto.setEprFacListA(c.getEprFacListA());
+            dto.setEprFacListB(c.getEprFacListB());
+
+            dto.setEtablissement(c.getEtablissement());
+            dto.setSerie(c.getSerie());
+            dto.setNationality(c.getNationality());
+            dto.setCentreExamen(c.getCentreExamen());
+
+            dto.setTableNum(c.getTableNum());
+            dto.setSession(c.getSession());
+            dto.setJury(c.getJury());
+
+            dto.setCentreEcritPrincipal(c.getCentreEcritPrincipal());
+            dto.setCentreEcritSecondaire(c.getCentreEcritSecondaire());
+
+            dto.setAcaEtab(c.getAcaEtab());
+            dto.setAcaCentEcrit(c.getAcaCentEcrit());
+
+            // tu peux mapper d’autres champs ici si besoin
+
+            return dto;
+        }).toList();
+
+        // 3️⃣ Compter le total pour la pagination
+        long total = sourceCandidatRepository.count();
+
+        // 4️⃣ Construire la Page
+        return new PageImpl<>(dtos, pageable, total);
     }
 
 

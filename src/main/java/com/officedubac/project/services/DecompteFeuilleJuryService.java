@@ -81,16 +81,16 @@ public class DecompteFeuilleJuryService
     }
 
 
-    public List<RepartitionFeuilleCEPDTO> repartitionParCEP(int session) {
+    public List<RepartitionFeuilleCEPDTO> repartitionParCEP() {
 
-        List<SourceCandidat> candidats = sourceCandidatRepository.findBySession(session);
+        List<SourceCandidat> candidats = sourceCandidatRepository.findAll();
 
         // Regroupement par CEP
         Map<String, List<SourceCandidat>> candidatsParCEP =
                 candidats.stream().collect(Collectors.groupingBy(SourceCandidat::getCentreEcritPrincipal));
 
         // Suppression ancienne répartition
-        repartitionFeuilleCEPRepository.deleteBySession(session);
+        repartitionFeuilleCEPRepository.deleteAll();
 
         List<RepartitionFeuilleCEP> entities = new ArrayList<>();
         List<RepartitionFeuilleCEPDTO> dtos = new ArrayList<>();
@@ -105,6 +105,7 @@ public class DecompteFeuilleJuryService
                 String centreEcrit = groupe.get(0).getCentreEcritPrincipal();
                 String academia = groupe.get(0).getAcaCentEcrit();
                 String centreExam = groupe.get(0).getCentreExamen();
+                Integer session = groupe.get(0).getSession();
                 long effectif = groupe.size();
 
                 long F6 = groupe.stream()
@@ -186,6 +187,7 @@ public class DecompteFeuilleJuryService
                         .academia(academia)
                         .effectif(effectif)
                         .centreExamen(centreExam)
+                        .session(session)
                         .F6(F6)
                         .Lprime(Lprime)
                         .L1A(L1A)
@@ -223,6 +225,7 @@ public class DecompteFeuilleJuryService
                         .academia(academia)
                         .effectif(effectif)
                         .centreExamen(centreExam)
+                        .session(session)
                         .F6(F6)
                         .Lprime(Lprime)
                         .L1A(L1A)
@@ -269,14 +272,14 @@ public class DecompteFeuilleJuryService
                 .toList();
     }
 
-    public List<RepartitionFeuilleCESDTO> repartitionParCS(int session) {
+    public List<RepartitionFeuilleCESDTO> repartitionParCS() {
 
         List<SourceCandidat> candidats = sourceCandidatRepository.findByCentreEcritSecondaireIsNotNull();
 
         Map<String, List<SourceCandidat>> candidatsParCS =
                 candidats.stream().collect(Collectors.groupingBy(SourceCandidat::getCentreEcritSecondaire));
 
-        repartitionFeuilleCESRepository.deleteBySession(session);
+        repartitionFeuilleCESRepository.deleteAll();
 
         List<RepartitionFeuilleCES> entities = new ArrayList<>();
         List<RepartitionFeuilleCESDTO> dtos = new ArrayList<>();
@@ -290,6 +293,7 @@ public class DecompteFeuilleJuryService
                 String centreEcrit = groupe.get(0).getCentreEcritSecondaire();
                 String academia = groupe.get(0).getAcaCentEcrit();
                 String centreExam = groupe.get(0).getCentreExamen();
+                Integer session = groupe.get(0).getSession();
                 long effectif = groupe.size();
 
                 long F6 = countSerie(groupe, "F6");
@@ -339,6 +343,7 @@ public class DecompteFeuilleJuryService
                         .academia(academia)
                         .effectif(effectif)
                         .centreExamen(centreExam)
+                        .session(session)
                         .F6(F6)
                         .Lprime(Lprime)
                         .L1A(L1A)
@@ -370,6 +375,7 @@ public class DecompteFeuilleJuryService
                         .academia(academia)
                         .effectif(effectif)
                         .centreExamen(centreExam)
+                        .session(session)
                         .F6(F6)
                         .Lprime(Lprime)
                         .L1A(L1A)
