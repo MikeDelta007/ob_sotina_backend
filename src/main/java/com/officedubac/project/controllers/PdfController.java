@@ -4,16 +4,11 @@ import com.lowagie.text.*;
 import com.lowagie.text.Font;
 import com.lowagie.text.Image;
 import com.lowagie.text.Rectangle;
-import com.lowagie.text.pdf.BaseFont;
-import com.lowagie.text.pdf.PdfPCell;
-import com.lowagie.text.pdf.PdfPTable;
-import com.lowagie.text.pdf.PdfWriter;
+import com.lowagie.text.pdf.*;
 import com.officedubac.project.models.*;
-import com.officedubac.project.repository.CompteDroitInscriptionRepository;
-import com.officedubac.project.repository.EtablissementRepository;
-import com.officedubac.project.repository.MatiereRepository;
-import com.officedubac.project.repository.UserRepository;
+import com.officedubac.project.repository.*;
 import com.officedubac.project.services.CandidatService;
+import com.officedubac.project.services.TirageJuryMatService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
@@ -37,1577 +32,363 @@ import java.util.stream.Stream;
 @Tag(name="PDF Controller", description = "Endpoints responsables de la gestion des PDF")
 public class PdfController
 {
-    @Autowired
-    private final CandidatService candidatService;
 
-    @Autowired
-    private final EtablissementRepository etablissementRepository;
 
     @Autowired
-    private final UserRepository userRepository;
+    private FusionRepartitionTirageRepository repository;
 
     @Autowired
-    private final CompteDroitInscriptionRepository compteDroitInscriptionRepository;
-
-    @Autowired
-    private final MatiereRepository matiereRepository;
+    private TirageJuryMatService tirageJuryMatService;
 
 
-    @Operation(summary="Service de génération d'une liste de candidats en PDF")
-    @GetMapping("/generate")
-    public void generatePdf(HttpServletResponse response,
-                            @RequestParam String etablissementId,
-                            @RequestParam Long session,
-                            @RequestParam String user,
-                            @RequestParam String sortBy,
-                            @RequestParam String serie) throws IOException {
 
-        Etablissement etb = etablissementRepository.findById(etablissementId).orElse(null);
-        assert etb != null;
-        System.out.println("A ce niveau" + session + " " + etb.getCode());
-        CompteDroitsInscription cdI = compteDroitInscriptionRepository.findByEtablissementNameAndSession(etb.getName(), session);
-        System.out.println("A ce niveau" + cdI.getSession() + " " + cdI.getEtablissement().getName());
+    @Operation(summary = "Génération de l'étiquette de table - Format A4 Paysage")
+    @GetMapping("/generate-etiquette-paysage")
+    public void generateEtiquettes(@RequestParam(value = "matieres", required = false) List<String> matieres,
+            HttpServletResponse response) throws IOException, DocumentException {
+
+        List<FusionRepartitionTirage> list = repository.findAll();
+        if (list.isEmpty()) {
+            response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+            return;
+        }
+
         response.setContentType("application/pdf");
-        response.setHeader("Content-Disposition", "inline; filename=bac_liste_candidats.pdf");
+        response.setHeader("Content-Disposition", "inline; filename=etiquettes_bac.pdf");
 
-        // Enregistrement des polices
-        FontFactory.register("fonts/gadugi-normal.ttf", "GADUGI");
-        FontFactory.register("fonts/gadugi-gras.ttf", "GADUGI-GRAS");
-
-        Font normal = FontFactory.getFont("GADUGI", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 9);
-        Font gras = FontFactory.getFont("GADUGI-GRAS", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 10);
-        Font big_gras = FontFactory.getFont("GADUGI-GRAS", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 12);
-        Font bold = gras;
-
-        Document document = new Document(PageSize.A4.rotate(), 20f, 20f, 30f, 40f);
-        PdfWriter writer = PdfWriter.getInstance(document, response.getOutputStream());
-        writer.setPageEvent(new FooterHandler(normal, user));
-        writer.setPageEvent(new WatermarkHandler("LISTE PROVISOIRE"));
+        Document document = new Document(PageSize.A4.rotate(), 36f, 36f, 36f, 36f);
+        PdfWriter.getInstance(document, response.getOutputStream());
         document.open();
 
-        // Header avec logo
-        PdfPTable headerTable = new PdfPTable(3);
-        headerTable.setWidthPercentage(100);
-        headerTable.setWidths(new float[]{0.5f, 3f, 2f});
-
-        //Cellule avec logo
-        Image logo = Image.getInstance(
-                new ClassPathResource("images/logo-UCAD_.png").getInputStream().readAllBytes()
-        );
-        logo.scaleToFit(70, 70);
-        PdfPCell imageCell = new PdfPCell(logo);
-        imageCell.setBorder(Rectangle.NO_BORDER);
-        imageCell.setHorizontalAlignment(Element.ALIGN_LEFT);
-        imageCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        headerTable.addCell(imageCell);
-
-    // Cellule avec texte
-        Paragraph headerText = new Paragraph(
-                "REPUBLIQUE DU SENEGAL\nUn Peuple – Un But – Une Foi\n" +
-                        "UNIVERSITE CHEIKH ANTA DIOP DE DAKAR\nOFFICE DU BACCALAUREAT",
-                gras
-        );
-        headerText.setLeading(20f, 0);
-        headerText.setAlignment(Element.ALIGN_LEFT);
-        PdfPCell textCell = new PdfPCell(headerText);
-        textCell.setBorder(Rectangle.NO_BORDER);
-        textCell.setHorizontalAlignment(Element.ALIGN_LEFT);
-        textCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        headerTable.addCell(textCell);
-
-        // Créer le petit tableau 3x3
-        PdfPTable smallTable = new PdfPTable(3);
-
-// Définir la largeur des colonnes (ajuster si nécessaire)
-        smallTable.setWidths(new float[] { 0.5f, 0.5f, 0.5f }); // Largeurs égales pour chaque colonne
-
-// Aligner le texte au centre pour chaque cellule
-        PdfPCell cell1 = new PdfPCell(new Phrase("FAEB 1"));
-        cell1.setHorizontalAlignment(Element.ALIGN_CENTER);
-        cell1.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        smallTable.addCell(cell1);
-
-        PdfPCell cell2 = new PdfPCell(new Phrase("FAEB 2"));
-        cell2.setHorizontalAlignment(Element.ALIGN_CENTER);
-        cell2.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        smallTable.addCell(cell2);
-
-        PdfPCell cell3 = new PdfPCell(new Phrase("FAEB 3"));
-        cell3.setHorizontalAlignment(Element.ALIGN_CENTER);
-        cell3.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        smallTable.addCell(cell3);
-
-// Ligne 2 : Ajouter les données avec un alignement correct
-        PdfPCell cell4 = new PdfPCell(new Phrase(String.valueOf(cdI.getCount_5000())));
-        cell4.setHorizontalAlignment(Element.ALIGN_CENTER);
-        cell4.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        smallTable.addCell(cell4);
-
-        PdfPCell cell5 = new PdfPCell(new Phrase(String.valueOf(cdI.getCount_1000_EF())));
-        cell5.setHorizontalAlignment(Element.ALIGN_CENTER);
-        cell5.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        smallTable.addCell(cell5);
-
-        PdfPCell cell6 = new PdfPCell(new Phrase(String.valueOf(cdI.getCount_1000_OB())));
-        cell6.setHorizontalAlignment(Element.ALIGN_CENTER);
-        cell6.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        smallTable.addCell(cell6);
-
-// Insérer le petit tableau dans une cellule (celle-ci sera sans bordure)
-        PdfPCell tableCell = new PdfPCell(smallTable);
-        tableCell.setBorder(Rectangle.NO_BORDER);
-        tableCell.setVerticalAlignment(Element.ALIGN_MIDDLE);  // Centrage vertical
-        tableCell.setHorizontalAlignment(Element.ALIGN_CENTER); // Centrage horizontal
-
-// Ajouter la cellule du tableau dans le tableau principal (headerTable)
-        headerTable.addCell(tableCell);
-
-        // Ajouter le headerTable au document
-        document.add(headerTable);
-        document.add(Chunk.NEWLINE);
-
-        Paragraph sessionInfo = new Paragraph(
-                "BACCALAUREAT DE L’ENSEIGNEMENT SECONDAIRE\nANNEE " + session + "\nSession NORMALE " + session, big_gras);
-        sessionInfo.setAlignment(Element.ALIGN_CENTER);
-        document.add(sessionInfo);
-
-        if (etb != null) {
-            Paragraph etablissement = new Paragraph(
-                    "\n~~Liste des candidats~~\n" +
-                            "Etablissement de provenance : " + etb.getCode() + " / " + etb.getName() + "\n" +
-                            "Centre d’examen : " + etb.getCentreExamen().getName() + "\n" +
-                    "(Veuillez ne pas considérer cette liste comme officielle)", big_gras);
-            etablissement.setAlignment(Element.ALIGN_CENTER);
-            document.add(etablissement);
-        }
-
-        List<Candidat> result;
-
-        if ("all".equals(serie))
-        {
-            result = candidatService.getAllCandidatsForPdf(etablissementId, session, sortBy);
-        }
-        else
-        {
-            result = candidatService.getFilteredCandidatsForPdf(etablissementId, session, sortBy, serie);
-        }
-
-        result = result.stream()
-                .sorted(Comparator.comparing(c -> c.getSerie().getCode()))
-                .collect(Collectors.toList());
-
-        // Données de séries
-        String[] headers = {
-                "Code\nC.E.C", "Nom du Centre\nd’Etat Civil (C.E.C)", "Ann.\nDécl.", "N° Acte\nNais.", "N° de\nDos.",
-                "Prénom (s)", "Nom", "Sexe", "Date Nais.", "Lieu Nais.", "Nationalité", "Matière (s)\nOptionn. (s)", "EPS", "Matièr. (s)\nFacult. (s)", "Nb.\nfois", "Signat."
-        };
-
-        String currentSerie = null;
-        PdfPTable table = null;
-        // marge minimale avant le footer (en points : 1 cm ≈ 28.3 points)
-        final float MIN_BOTTOM_MARGIN = 60f; // environ 2 cm
-
-        int total = 0;
-        int garcons = 0;
-        int filles = 0;
-
-        for (int i = 0; i < result.size(); i++) {
-            Candidat c = result.get(i);
-            String candidateSerie = c.getSerie() != null ? c.getSerie().getName() : "";
-
-            boolean isNewSerie = currentSerie == null || !candidateSerie.equals(currentSerie);
-
-            if (isNewSerie)
-            {
-                if (table != null) {
-                    // 🔹 Vérifie si assez d'espace pour le tableau + marge
-                    float spaceLeft = document.getPageSize().getHeight()
-                            - document.topMargin()
-                            - writer.getVerticalPosition(true);
-
-                    System.out.println("document.topMargin() " + document.topMargin());
-                    System.out.println("document.getPageSize().getHeight() " + document.getPageSize().getHeight());
-                    System.out.println("writer.getVerticalPosition(true) " + writer.getVerticalPosition(true));
-                    System.out.println("spaceLeft " + spaceLeft);
-                    System.out.println("MIN_BOTTOM_MARGIN " + MIN_BOTTOM_MARGIN);
-
-                    if (spaceLeft < MIN_BOTTOM_MARGIN) {
-                        document.newPage();
-                    }
-
-                    document.add(table);
-                    Paragraph effectif = new Paragraph("Effectif(s) : " + total + " | Garçon(s) : " + garcons + " | Fille(s) : " + filles, normal);
-                    effectif.setSpacingBefore(3f);
-                    document.add(effectif);
-                    //document.newPage();
-                }
-
-                currentSerie = candidateSerie;
-                total = garcons = filles = 0;
-
-                Paragraph serieTitle = new Paragraph(currentSerie, big_gras);
-                serieTitle.setSpacingBefore(5f);
-                serieTitle.setAlignment(Element.ALIGN_CENTER);
-                document.add(serieTitle);
-
-                table = new PdfPTable(16);
-                table.setWidthPercentage(100);
-                table.setSpacingBefore(5f);
-                table.setSpacingAfter(10f);
-                table.setWidths(new float[]{
-                        1.5f, 4f, 1.5f, 2f, 1.9f, 4.45f, 4f, 1.4f,
-                        3f, 3f, 3f, 4f, 1.5f, 2.8f, 1.2f, 2f
-                });
-
-                for (String header : headers) {
-                    PdfPCell cell = new PdfPCell(new Phrase(header, bold));
-                    cell.setHorizontalAlignment(Element.ALIGN_LEFT);
-                    cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-                    cell.setBackgroundColor(new Color(253, 245, 230));
-                    table.addCell(cell);
-                }
-            }
-
-            total++;
-            if ("M".equalsIgnoreCase(c.getGender().name())) {
-                garcons++;
-            } else if ("F".equalsIgnoreCase(c.getGender().name())) {
-                filles++;
-            }
-
-            String[] candidateData = this.mapCandidatToPdfData(c);
-            for (String value : candidateData) {
-                PdfPCell cell = new PdfPCell(new Phrase(value, normal));
-                cell.setHorizontalAlignment(Element.ALIGN_LEFT);
-                cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-                table.addCell(cell);
-            }
-
-            if (i == result.size() - 1 && table != null)
-            {
-                document.add(table);
-                Paragraph effectif = new Paragraph("Effectif(s) : " + total + " | Garçon(s) : " + garcons + " | Fille(s) : " + filles, normal);
-                effectif.setSpacingBefore(5f);
-                document.add(effectif);
-            }
-        }
-
-        document.close();
-    }
-
-    @Operation(summary="Service de génération d'une liste officielle de candidats en PDF")
-    @GetMapping("/generate-officielle-liste")
-    public void generateOLPdf(HttpServletResponse response,
-                            @RequestParam String etablissementId,
-                            @RequestParam Long session,
-                            @RequestParam String user,
-                            @RequestParam String serie) throws IOException {
-
-        Etablissement etb = etablissementRepository.findById(etablissementId).orElse(null);
-        assert etb != null;
-        System.out.println("A ce niveau" + session + " " + etb.getCode());
-        CompteDroitsInscription cdI = compteDroitInscriptionRepository.findByEtablissementNameAndSession(etb.getName(), session);
-        System.out.println("A ce niveau" + cdI.getSession() + " " + cdI.getEtablissement().getName());
-        response.setContentType("application/pdf");
-        response.setHeader("Content-Disposition", "inline; filename=bac_liste_candidats.pdf");
-
-        // Enregistrement des polices
-        FontFactory.register("fonts/gadugi-normal.ttf", "GADUGI");
-        FontFactory.register("fonts/gadugi-gras.ttf", "GADUGI-GRAS");
-
-        Font normal = FontFactory.getFont("GADUGI", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 9);
-        Font gras = FontFactory.getFont("GADUGI-GRAS", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 10);
-        Font big_gras = FontFactory.getFont("GADUGI-GRAS", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 12);
-        Font bold = gras;
-
-        Document document = new Document(PageSize.A4.rotate(), 20f, 20f, 30f, 40f);
-        PdfWriter writer = PdfWriter.getInstance(document, response.getOutputStream());
-        writer.setPageEvent(new FooterHandler(normal, user));
-        writer.setPageEvent(new WatermarkHandler2("LISTE DEFINITIVE"));
-        document.open();
-
-        // Header avec logo
-        PdfPTable headerTable = new PdfPTable(2);
-        headerTable.setWidthPercentage(100);
-        headerTable.setWidths(new float[]{0.5f, 5f});
-
-        //Cellule avec logo
-        Image logo = Image.getInstance(
-                new ClassPathResource("images/logo-UCAD_.png").getInputStream().readAllBytes()
-        );
-        logo.scaleToFit(70, 70);
-        PdfPCell imageCell = new PdfPCell(logo);
-        imageCell.setBorder(Rectangle.NO_BORDER);
-        imageCell.setHorizontalAlignment(Element.ALIGN_LEFT);
-        imageCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        headerTable.addCell(imageCell);
-
-        // Cellule avec texte
-        Paragraph headerText = new Paragraph(
-                "REPUBLIQUE DU SENEGAL\nUn Peuple – Un But – Une Foi\n" +
-                        "UNIVERSITE CHEIKH ANTA DIOP DE DAKAR\nOFFICE DU BACCALAUREAT",
-                gras
-        );
-        headerText.setLeading(20f, 0);
-        headerText.setAlignment(Element.ALIGN_LEFT);
-        PdfPCell textCell = new PdfPCell(headerText);
-        textCell.setBorder(Rectangle.NO_BORDER);
-        textCell.setHorizontalAlignment(Element.ALIGN_LEFT);
-        textCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        headerTable.addCell(textCell);
-
-        /**
-        // Créer le petit tableau 3x3
-        PdfPTable smallTable = new PdfPTable(3);
-
-// Définir la largeur des colonnes (ajuster si nécessaire)
-        smallTable.setWidths(new float[] { 0.5f, 0.5f, 0.5f }); // Largeurs égales pour chaque colonne
-
-        // Aligner le texte au centre pour chaque cellule
-
-        PdfPCell cell1 = new PdfPCell(new Phrase("FAEB 1"));
-        cell1.setHorizontalAlignment(Element.ALIGN_CENTER);
-        cell1.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        smallTable.addCell(cell1);
-
-        PdfPCell cell2 = new PdfPCell(new Phrase("FAEB 2"));
-        cell2.setHorizontalAlignment(Element.ALIGN_CENTER);
-        cell2.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        smallTable.addCell(cell2);
-
-        PdfPCell cell3 = new PdfPCell(new Phrase("FAEB 3"));
-        cell3.setHorizontalAlignment(Element.ALIGN_CENTER);
-        cell3.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        smallTable.addCell(cell3);
-
-        // Ligne 2 : Ajouter les données avec un alignement correct
-        PdfPCell cell4 = new PdfPCell(new Phrase(String.valueOf(cdI.getCount_5000())));
-        cell4.setHorizontalAlignment(Element.ALIGN_CENTER);
-        cell4.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        smallTable.addCell(cell4);
-
-        PdfPCell cell5 = new PdfPCell(new Phrase(String.valueOf(cdI.getCount_1000_EF())));
-        cell5.setHorizontalAlignment(Element.ALIGN_CENTER);
-        cell5.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        smallTable.addCell(cell5);
-
-        PdfPCell cell6 = new PdfPCell(new Phrase(String.valueOf(cdI.getCount_1000_OB())));
-        cell6.setHorizontalAlignment(Element.ALIGN_CENTER);
-        cell6.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        smallTable.addCell(cell6);
-
-// Insérer le petit tableau dans une cellule (celle-ci sera sans bordure)
-        PdfPCell tableCell = new PdfPCell(smallTable);
-        tableCell.setBorder(Rectangle.NO_BORDER);
-        tableCell.setVerticalAlignment(Element.ALIGN_MIDDLE);  // Centrage vertical
-        tableCell.setHorizontalAlignment(Element.ALIGN_CENTER); // Centrage horizontal
-
-
-
-// Ajouter la cellule du tableau dans le tableau principal (headerTable)
-        headerTable.addCell(tableCell);
-         **/
-
-        // Ajouter le headerTable au document
-        document.add(headerTable);
-        document.add(Chunk.NEWLINE);
-
-        Paragraph sessionInfo = new Paragraph(
-                "BACCALAUREAT DE L’ENSEIGNEMENT SECONDAIRE\nANNEE " + session + "\nSession NORMALE " + session, big_gras);
-        sessionInfo.setAlignment(Element.ALIGN_CENTER);
-        document.add(sessionInfo);
-
-        if (etb != null) {
-            Paragraph etablissement = new Paragraph(
-                    "\n~~LISTE OFFICIELLE DES CANDIDATS~~\n" +
-                            "Etablissement de provenance : " + etb.getCode() + " / " + etb.getName() + "\n" +
-                            "Centre d’examen : " + etb.getCentreExamen().getName() + "\n", big_gras);
-            etablissement.setAlignment(Element.ALIGN_CENTER);
-            document.add(etablissement);
-        }
-
-        List<Candidat> result;
-
-        if ("all".equals(serie))
-        {
-            result = candidatService.getAllCandidatsForPdfOL(etablissementId, session);
-        }
-        else
-        {
-            result = candidatService.getFilteredCandidatsForPdfOL(etablissementId, session, serie);
-        }
-
-        result = result.stream()
-                .sorted(Comparator.comparing(c -> c.getSerie().getCode()))
-                .collect(Collectors.toList());
-
-        // Données de séries
-        String[] headers = {
-                "Code\nC.E.C", "Nom du Centre\nd’Etat Civil (C.E.C)", "Ann.\nDécl.", "N° Acte\nNais.",
-                "Prénom (s)", "Nom", "Sexe", "Date Nais.", "Lieu Nais.", "Nationalité", "Matière (s)\nOptionn. (s) / Spécialité", "EPS", "Matièr. (s)\nFacult. (s)", "Nb.\nfois", "Avis OB"
-        };
-
-        String currentSerie = null;
-        PdfPTable table = null;
-        // marge minimale avant le footer (en points : 1 cm ≈ 28.3 points)
-        final float MIN_BOTTOM_MARGIN = 60f; // environ 2 cm
-
-        int total = 0;
-        int garcons = 0;
-        int filles = 0;
-
-        for (int i = 0; i < result.size(); i++) {
-            Candidat c = result.get(i);
-            String candidateSerie = c.getSerie() != null ? c.getSerie().getName() : "";
-
-            boolean isNewSerie = currentSerie == null || !candidateSerie.equals(currentSerie);
-
-            if (isNewSerie)
-            {
-                if (table != null) {
-                    // 🔹 Vérifie si assez d'espace pour le tableau + marge
-                    float spaceLeft = document.getPageSize().getHeight()
-                            - document.topMargin()
-                            - writer.getVerticalPosition(true);
-
-                    System.out.println("document.topMargin() " + document.topMargin());
-                    System.out.println("document.getPageSize().getHeight() " + document.getPageSize().getHeight());
-                    System.out.println("writer.getVerticalPosition(true) " + writer.getVerticalPosition(true));
-                    System.out.println("spaceLeft " + spaceLeft);
-                    System.out.println("MIN_BOTTOM_MARGIN " + MIN_BOTTOM_MARGIN);
-
-                    if (spaceLeft < MIN_BOTTOM_MARGIN) {
-                        document.newPage();
-                    }
-
-                    document.add(table);
-                    Paragraph effectif = new Paragraph("Effectif(s) : " + total + " | Garçon(s) : " + garcons + " | Fille(s) : " + filles, normal);
-                    effectif.setSpacingBefore(3f);
-                    document.add(effectif);
-                    //document.newPage();
-                }
-
-                currentSerie = candidateSerie;
-                total = garcons = filles = 0;
-
-                Paragraph serieTitle = new Paragraph(currentSerie, big_gras);
-                serieTitle.setSpacingBefore(5f);
-                serieTitle.setAlignment(Element.ALIGN_CENTER);
-                document.add(serieTitle);
-
-                table = new PdfPTable(15);
-                table.setWidthPercentage(100);
-                table.setSpacingBefore(5f);
-                table.setSpacingAfter(10f);
-                table.setWidths(new float[]{
-                        1.5f, 4f, 1.5f, 2f, 4.45f, 4f, 1.4f,
-                        3f, 3f, 3f, 4f, 1.5f, 2.8f, 1.2f, 2f
-                });
-
-                for (String header : headers) {
-                    PdfPCell cell = new PdfPCell(new Phrase(header, bold));
-                    cell.setHorizontalAlignment(Element.ALIGN_LEFT);
-                    cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-                    cell.setBackgroundColor(new Color(253, 245, 230));
-                    table.addCell(cell);
-                }
-            }
-
-            total++;
-            if ("M".equalsIgnoreCase(c.getGender().name())) {
-                garcons++;
-            } else if ("F".equalsIgnoreCase(c.getGender().name())) {
-                filles++;
-            }
-
-            String[] candidateData = this.mapCandidatToPdfDataOL(c);
-            for (String value : candidateData) {
-                PdfPCell cell = new PdfPCell(new Phrase(value, normal));
-                cell.setHorizontalAlignment(Element.ALIGN_LEFT);
-                cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-                table.addCell(cell);
-            }
-
-            if (i == result.size() - 1 && table != null)
-            {
-                document.add(table);
-                Paragraph effectif = new Paragraph("Effectif(s) : " + total + " | Garçon(s) : " + garcons + " | Fille(s) : " + filles, normal);
-                effectif.setSpacingBefore(5f);
-                document.add(effectif);
-            }
-        }
-
-        document.close();
-    }
-
-    @Operation(summary = "Service de génération d'une liste de candidats en PDF du CGS")
-    @GetMapping("/generate-cgs")
-    public void generatePdfCGS(HttpServletResponse response,
-                               @RequestParam String etablissementId,
-                               @RequestParam Long session,
-                               @RequestParam String user,
-                               @RequestParam String specialite,
-                               @RequestParam String level) throws IOException, DocumentException {
-
-        // Récupération établissement et compte droits inscription
-        Etablissement etb = etablissementRepository.findById(etablissementId)
-                .orElseThrow(() -> new RuntimeException("Établissement introuvable"));
-
-        CompteDroitsInscription cdI = compteDroitInscriptionRepository
-                .findByEtablissementNameAndSession(etb.getName(), session);
-
-        // Configuration réponse PDF
-        response.setContentType("application/pdf");
-        response.setHeader("Content-Disposition", "inline; filename=bac_liste_candidats.pdf");
-
-        // Polices
-        FontFactory.register("fonts/gadugi-normal.ttf", "GADUGI");
-        FontFactory.register("fonts/gadugi-gras.ttf", "GADUGI-GRAS");
-        Font normal = FontFactory.getFont("GADUGI", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 9);
-        Font gras = FontFactory.getFont("GADUGI-GRAS", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 10);
-        Font bigGras = FontFactory.getFont("GADUGI-GRAS", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 12);
-
-        Document document = new Document(PageSize.A4.rotate(), 20f, 20f, 30f, 40f);
-        PdfWriter writer = PdfWriter.getInstance(document, response.getOutputStream());
-        writer.setPageEvent(new FooterHandler(normal, user));
-        document.open();
-
-        // --- Header principal ---
-        PdfPTable headerTable = new PdfPTable(3);
-        headerTable.setWidthPercentage(100);
-        headerTable.setWidths(new float[]{0.5f, 3f, 2f});
+        // Polices (fallback Helvetica)
+        Font helv10 = FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL);
+        Font helv12Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 60);
+        Font helv14 = FontFactory.getFont(FontFactory.HELVETICA, 17, Font.BOLD);
+        Font helv22 = FontFactory.getFont(FontFactory.HELVETICA, 22, Font.NORMAL);
+        Font helv24Bold = FontFactory.getFont(FontFactory.HELVETICA, 24, Font.BOLD);
+        Font helv16Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16);
+        Font helv26Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 30);
 
         // Logo
         Image logo = Image.getInstance(new ClassPathResource("images/logo-UCAD_.png").getInputStream().readAllBytes());
-        logo.scaleToFit(70, 70);
-        PdfPCell imageCell = new PdfPCell(logo);
-        imageCell.setBorder(Rectangle.NO_BORDER);
-        imageCell.setHorizontalAlignment(Element.ALIGN_LEFT);
-        imageCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        headerTable.addCell(imageCell);
+        logo.scaleToFit(70f, 70f);
 
-        // Texte header
-        Paragraph headerText = new Paragraph(
-                "REPUBLIQUE DU SENEGAL\nUn Peuple – Un But – Une Foi\n" +
-                        "UNIVERSITE CHEIKH ANTA DIOP DE DAKAR\nOFFICE DU BACCALAUREAT",
-                gras
+        // Préparer la liste des matières disponibles avec leurs champs associés
+        // Définition de toutes les matières avec leurs extracteurs
+        List<MatiereDefinition> matieresDefinitions = Arrays.asList(
+                // Français
+                new MatiereDefinition("FRANCAIS L", FusionRepartitionTirage::getFrenchL,
+                        FusionRepartitionTirage::getDate1FL, FusionRepartitionTirage::getHeure1FL, "L'1 - L1A - L1B - L2"),
+                new MatiereDefinition("FRANCAIS S", FusionRepartitionTirage::getFrenchS,
+                        FusionRepartitionTirage::getDate1FS, FusionRepartitionTirage::getHeure1FS, "S1 - S2 - S3 - S4 - S5"),
+                new MatiereDefinition("FRANCAIS L (A)", FusionRepartitionTirage::getFrenchLA,
+                        FusionRepartitionTirage::getDate1FLa, FusionRepartitionTirage::getHeure1FLa, "LA"),
+                new MatiereDefinition("FRANCAIS S (A)", FusionRepartitionTirage::getFrenchSA,
+                        FusionRepartitionTirage::getDate1FSa, FusionRepartitionTirage::getHeure1FSa, "S1A - S2A"),
+
+                // Anglais
+                new MatiereDefinition("ANGLAIS S", FusionRepartitionTirage::getEnglishS,
+                        FusionRepartitionTirage::getDate1ES, FusionRepartitionTirage::getHeure1ES, "S1 - S2 - S3 - S4 - S5"),
+                new MatiereDefinition("ANGLAIS LV1", FusionRepartitionTirage::getAnglaisLV1,
+                        FusionRepartitionTirage::getDate1ANG1, FusionRepartitionTirage::getHeure1ANG1, "L'1 - L1A - L1B - L2"),
+                new MatiereDefinition("ANGLAIS LV2", FusionRepartitionTirage::getAnglaisLV2,
+                        FusionRepartitionTirage::getDate1ANG2, FusionRepartitionTirage::getHeure1ANG2, "L'1 - L1A - L1B - L2"),
+
+                // Mathématiques
+                new MatiereDefinition("MATH L", FusionRepartitionTirage::getMathL,
+                        FusionRepartitionTirage::getDate1ML, FusionRepartitionTirage::getHeure1ML, "L'1 - L1A - L1B - L2 - LA"),
+                new MatiereDefinition("MATH S (SM)", FusionRepartitionTirage::getMathSM,
+                        FusionRepartitionTirage::getDate1MSM, FusionRepartitionTirage::getHeure1MSM, "S1 - S3 - S1A"),
+                new MatiereDefinition("MATH S (SE)", FusionRepartitionTirage::getMathSE,
+                        FusionRepartitionTirage::getDate1MSE, FusionRepartitionTirage::getHeure1MSE, "S2 - S2A - S4 - S5"),
+
+                // Physique-Chimie
+                new MatiereDefinition("PC L", FusionRepartitionTirage::getPcL,
+                        FusionRepartitionTirage::getDate1PCL, FusionRepartitionTirage::getHeure1PCL, "L2"),
+                new MatiereDefinition("PC S (SM)", FusionRepartitionTirage::getPcSM,
+                        FusionRepartitionTirage::getDate1PCSM, FusionRepartitionTirage::getHeure1PCSM, "S1 - S3 - S1A"),
+                new MatiereDefinition("PC S (SE)", FusionRepartitionTirage::getPcSE,
+                        FusionRepartitionTirage::getDate1PCSE, FusionRepartitionTirage::getHeure1PCSE, "S2 - S2A - S4 - S5"),
+
+                // SVT
+                new MatiereDefinition("SVT L", FusionRepartitionTirage::getSvtL,
+                        FusionRepartitionTirage::getDate1SVTL, FusionRepartitionTirage::getHeure1SVTL, "L2"),
+                new MatiereDefinition("SVT S (SM)", FusionRepartitionTirage::getSvtSM,
+                        FusionRepartitionTirage::getDate1SVTSM, FusionRepartitionTirage::getHeure1SVTSM, "S1 - S3 - S1A"),
+                new MatiereDefinition("SVT S (SE)", FusionRepartitionTirage::getSvtSE,
+                        FusionRepartitionTirage::getDate1SVTSE, FusionRepartitionTirage::getHeure1SVTSE, "S2 - S2A - S4 - S5"),
+
+                // Philosophie
+                new MatiereDefinition("PHILO L", FusionRepartitionTirage::getPhiloL,
+                        FusionRepartitionTirage::getDate1PHILOL, FusionRepartitionTirage::getHeure1PHILOL, "L'1 - L1A - L1B - L2"),
+                new MatiereDefinition("PHILO S", FusionRepartitionTirage::getPhiloS,
+                        FusionRepartitionTirage::getDate1PHILOS, FusionRepartitionTirage::getHeure1PHILOS, "S1 - S2 - S2A S3 - S4 - S5"),
+
+                // Histoire-Géo
+                new MatiereDefinition("HISTOIRE-GEO", FusionRepartitionTirage::getHg,
+                        FusionRepartitionTirage::getDate1HG, FusionRepartitionTirage::getHeure1HG, "L'1 - L1A - L1B - L2 - S1 - S2 - S2A - S3 - S4 - S5"),
+
+                // Langues diverses
+                new MatiereDefinition("ALLEMAND LV1", FusionRepartitionTirage::getAllemendLV1,
+                        FusionRepartitionTirage::getDate1ALL1, FusionRepartitionTirage::getHeure1ALL1, "L'1 - L1A - L1B - L2"),
+                new MatiereDefinition("ALLEMAND LV2", FusionRepartitionTirage::getAllemendLV2,
+                        FusionRepartitionTirage::getDate1ALL2, FusionRepartitionTirage::getHeure1ALL2, "L'1 - L1A - L1B - L2"),
+                new MatiereDefinition("ARABE MODERNE LV1", FusionRepartitionTirage::getArabeModerneLV1,
+                        FusionRepartitionTirage::getDate1AM1, FusionRepartitionTirage::getHeure1AM1, "L'1 - L1A - L1B - L2"),
+                new MatiereDefinition("ARABE MODERNE LV2", FusionRepartitionTirage::getArabeModerneLV2,
+                        FusionRepartitionTirage::getDate1AM2, FusionRepartitionTirage::getHeure1AM2, "L'1 - L1A - L1B - L2"),
+                new MatiereDefinition("ESPAGNOL LV1", FusionRepartitionTirage::getEspagnolLV1,
+                        FusionRepartitionTirage::getDate1ESP1, FusionRepartitionTirage::getHeure1ESP1, "L'1 - L1A - L1B - L2"),
+                new MatiereDefinition("ESPAGNOL LV2", FusionRepartitionTirage::getEspagnolLV2,
+                        FusionRepartitionTirage::getDate1ESP2, FusionRepartitionTirage::getHeure1ESP2, "L'1 - L1A - L1B - L2"),
+                new MatiereDefinition("ITALIEN", FusionRepartitionTirage::getItalien,
+                        FusionRepartitionTirage::getDate1ITA, FusionRepartitionTirage::getHeure1ITA, "L'1 - L1A - L1B - L2"),
+                new MatiereDefinition("LATIN", FusionRepartitionTirage::getLatin,
+                        FusionRepartitionTirage::getDate1LAT, FusionRepartitionTirage::getHeure1LAT, "L1A - L1B"),
+                new MatiereDefinition("PORTUGAIS LV1", FusionRepartitionTirage::getPortugaisLV1,
+                        FusionRepartitionTirage::getDate1PORT1, FusionRepartitionTirage::getHeure1PORT1, "L'1 - L1A - L1B - L2"),
+                new MatiereDefinition("PORTUGAIS LV2", FusionRepartitionTirage::getPortugaisLV2,
+                        FusionRepartitionTirage::getDate1PORT2, FusionRepartitionTirage::getHeure1PORT2, "L'1 - L1A - L1B - L2"),
+                new MatiereDefinition("RUSSE", FusionRepartitionTirage::getRusse,
+                        FusionRepartitionTirage::getDate1RUS, FusionRepartitionTirage::getHeure1RUS, "L'1 - L2"),
+
+                // Enseignements techniques/économiques
+                new MatiereDefinition("ECONOMIE", FusionRepartitionTirage::getEconomie,
+                        FusionRepartitionTirage::getDate1ECO, FusionRepartitionTirage::getHeure1ECO, "L2"),
+                new MatiereDefinition("SES", FusionRepartitionTirage::getSes,
+                        FusionRepartitionTirage::getDate1SES, FusionRepartitionTirage::getHeure1SES, "STEG"),
+                new MatiereDefinition("GELEC", FusionRepartitionTirage::getGelec,
+                        FusionRepartitionTirage::getDate1GE, FusionRepartitionTirage::getHeure1GE, "STIDD"),
+                new MatiereDefinition("GEMEC", FusionRepartitionTirage::getGemec,
+                        FusionRepartitionTirage::getDate1GM, FusionRepartitionTirage::getHeure1GM, "STIDD"),
+                new MatiereDefinition("MO", FusionRepartitionTirage::getMo,
+                        FusionRepartitionTirage::getDate1MO, FusionRepartitionTirage::getHeure1MO, "STEG"),
+                new MatiereDefinition("GCF", FusionRepartitionTirage::getGcf,
+                        FusionRepartitionTirage::getDate1GCF, FusionRepartitionTirage::getHeure1GCF, "STEG")
         );
 
-        headerText.setLeading(20f, 0);
-        headerText.setAlignment(Element.ALIGN_LEFT);
-        PdfPCell textCell = new PdfPCell(headerText);
-        textCell.setBorder(Rectangle.NO_BORDER);
-        textCell.setHorizontalAlignment(Element.ALIGN_LEFT);
-        textCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        headerTable.addCell(textCell);
+        // Si une liste de matières est fournie, on filtre
+        List<String> matieresDemandees = matieres != null ? matieres.stream()
+                .map(String::trim)
+                .map(String::toUpperCase)
+                .collect(Collectors.toList()) : null;
 
-        // Créer le petit tableau 3x3
-        PdfPTable smallTable = new PdfPTable(3);
-
-        // Définir la largeur des colonnes (ajuster si nécessaire)
-        smallTable.setWidths(new float[] { 0.5f, 0.5f, 0.5f }); // Largeurs égales pour chaque colonne
-
-        // Insérer le petit tableau dans une cellule (celle-ci sera sans bordure)
-        PdfPCell tableCell = new PdfPCell(smallTable);
-        tableCell.setBorder(Rectangle.NO_BORDER);
-        tableCell.setVerticalAlignment(Element.ALIGN_MIDDLE);  // Centrage vertical
-        tableCell.setHorizontalAlignment(Element.ALIGN_CENTER); // Centrage horizontal
-
-        // Ajouter la cellule du tableau dans le tableau principal (headerTable)
-        headerTable.addCell(tableCell);
-
-        // Ajouter le headerTable au document
-        document.add(headerTable);
-        document.add(Chunk.NEWLINE);
-
-        // --- Titre session ---
-        Paragraph sessionInfo = new Paragraph(
-                "CONCOURS GENERAL SENEGALAIS \nEDITION " + session + "\nDISCIPLINE " + specialite,
-                bigGras
-        );
-        sessionInfo.setAlignment(Element.ALIGN_CENTER);
-        document.add(sessionInfo);
-
-        // --- Titre établissement ---
-        Paragraph etablissement = new Paragraph(
-                "\n~~LISTE NOMINATIVE DES CANDIDATS~~\n" +
-                        "Etablissement de provenance : " + etb.getCode() + " / " + etb.getName() + "\n" +
-                        "CLASSE : " + level,
-                bigGras
-        );
-        etablissement.setAlignment(Element.ALIGN_CENTER);
-        document.add(etablissement);
-
-        // --- Tableau unique pour tous les candidats ---
-        List<ConcoursGeneral> result = candidatService.getFilteredCandidatsForPdfCGS(etablissementId, session, specialite, level);
-
-        String[] headers = {
-                "Ordre\nmérite", "Prénom(s)", "Nom", "Sexe", "Date de naissance",
-                "Série", "Classe Année\n" + (session - 2), "Classe Année\n" + (session - 1), "Note élève (/20)", "Note classe (/20)",
-                "Prénom(s)\ndu professeur", "NOM\ndu professeur"
-        };
-
-        PdfPTable table = new PdfPTable(headers.length);
-        table.setWidthPercentage(100);
-        table.setSpacingBefore(5f);
-        table.setSpacingAfter(10f);
-        table.setWidths(new float[]{2f,4f,4f,2f,3f,2f,2.5f,2.5f,2.5f,2.5f,4f,4f});
-
-        // En-têtes
-        for (String h : headers) {
-            PdfPCell cell = new PdfPCell(new Phrase(h, bigGras));
-            cell.setHorizontalAlignment(Element.ALIGN_LEFT);
-            cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-            cell.setBackgroundColor(new Color(253, 245, 230));
-            table.addCell(cell);
-        }
-
-        // Lignes candidats
-        for (int i = 0; i < result.size(); i++) {
-            ConcoursGeneral c = result.get(i);
-            String[] candidateData = mapCandidatToPdfDataCGS(c, i);
-            for (String value : candidateData) {
-                PdfPCell cell = new PdfPCell(new Phrase(value, normal));
-                cell.setHorizontalAlignment(Element.ALIGN_LEFT);
-                cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-                table.addCell(cell);
-            }
-        }
-
-        document.add(table);
-        document.close();
-    }
-
-
-    @Operation(summary="Service de génération des rejets en PDF")
-    @GetMapping("/generate-rejets")
-    public void generatePdfRejet(HttpServletResponse response,
-                            @RequestParam String etablissementId,
-                            @RequestParam Long session,
-                            @RequestParam String user) throws IOException {
-
-        Etablissement etb = etablissementRepository.findById(etablissementId).orElse(null);
-        assert etb != null;
-        System.out.println("A ce niveau" + session + " " + etb.getCode());
-        CompteDroitsInscription cdI = compteDroitInscriptionRepository.findByEtablissementNameAndSession(etb.getName(), session);
-        System.out.println("A ce niveau" + cdI.getSession() + " " + cdI.getEtablissement().getName());
-        response.setContentType("application/pdf");
-        response.setHeader("Content-Disposition", "inline; filename=bac_liste_candidats.pdf");
-
-        // Enregistrement des polices
-        FontFactory.register("fonts/gadugi-normal.ttf", "GADUGI");
-        FontFactory.register("fonts/gadugi-gras.ttf", "GADUGI-GRAS");
-
-        Font normal = FontFactory.getFont("GADUGI", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 9);
-        Font gras = FontFactory.getFont("GADUGI-GRAS", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 10);
-        Font big_gras = FontFactory.getFont("GADUGI-GRAS", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 12);
-        Font bold = gras;
-
-        Document document = new Document(PageSize.A4.rotate(), 20f, 20f, 30f, 40f);
-        PdfWriter writer = PdfWriter.getInstance(document, response.getOutputStream());
-        writer.setPageEvent(new FooterHandler(normal, user));
-        document.open();
-
-        // Header avec logo
-        PdfPTable headerTable = new PdfPTable(3);
-        headerTable.setWidthPercentage(100);
-        headerTable.setWidths(new float[]{0.5f, 3f, 2f});
-
-// 1️⃣ Cellule avec logo
-        Image logo = Image.getInstance(
-                new ClassPathResource("images/logo-UCAD_.png").getInputStream().readAllBytes()
-        );
-        logo.scaleToFit(70, 70);
-        PdfPCell imageCell = new PdfPCell(logo);
-        imageCell.setBorder(Rectangle.NO_BORDER);
-        imageCell.setHorizontalAlignment(Element.ALIGN_LEFT);
-        imageCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        headerTable.addCell(imageCell);
-
-// 2️⃣ Cellule avec texte
-        Paragraph headerText = new Paragraph(
-                "REPUBLIQUE DU SENEGAL\nUn Peuple – Un But – Une Foi\n" +
-                        "UNIVERSITE CHEIKH ANTA DIOP DE DAKAR\nOFFICE DU BACCALAUREAT",
-                gras
-        );
-        headerText.setLeading(20f, 0);
-        headerText.setAlignment(Element.ALIGN_LEFT);
-        PdfPCell textCell = new PdfPCell(headerText);
-        textCell.setBorder(Rectangle.NO_BORDER);
-        textCell.setHorizontalAlignment(Element.ALIGN_LEFT);
-        textCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        headerTable.addCell(textCell);
-
-        // Créer le petit tableau 3x3
-        PdfPTable smallTable = new PdfPTable(3);
-
-        // Définir la largeur des colonnes (ajuster si nécessaire)
-        smallTable.setWidths(new float[] { 0.5f, 0.5f, 0.5f }); // Largeurs égales pour chaque colonne
-
-    // Insérer le petit tableau dans une cellule (celle-ci sera sans bordure)
-        PdfPCell tableCell = new PdfPCell(smallTable);
-        tableCell.setBorder(Rectangle.NO_BORDER);
-        tableCell.setVerticalAlignment(Element.ALIGN_MIDDLE);  // Centrage vertical
-        tableCell.setHorizontalAlignment(Element.ALIGN_CENTER); // Centrage horizontal
-
-    // Ajouter la cellule du tableau dans le tableau principal (headerTable)
-        headerTable.addCell(tableCell);
-
-        // Ajouter le headerTable au document
-        document.add(headerTable);
-        document.add(Chunk.NEWLINE);
-
-        Paragraph sessionInfo = new Paragraph(
-                "BACCALAUREAT DE L’ENSEIGNEMENT SECONDAIRE\nANNEE " + session + "\nSession NORMALE " + session, big_gras);
-        sessionInfo.setAlignment(Element.ALIGN_CENTER);
-        document.add(sessionInfo);
-
-        if (etb != null) {
-            Paragraph etablissement = new Paragraph(
-                    "\n~~CAS DE REJETS DES DOSSIERS~~\n" +
-                            "Etablissement de provenance : " + etb.getCode() + " / " + etb.getName() + "\n" +
-                            "Centre d’examen : " + etb.getCentreExamen().getName(), big_gras);
-            etablissement.setAlignment(Element.ALIGN_CENTER);
-            document.add(etablissement);
-        }
-
-        List<Candidat> candidatsAvecRejets = candidatService.getFilteredCandidatsForPdfReject(etablissementId, session);
-
-        List<Candidat> result = candidatsAvecRejets.stream()
-                .filter(c -> c.getRejets() != null && !c.getRejets().isEmpty())
-                .collect(Collectors.toList());
-
-        // Données de séries
-        String[] headers = {
-                "N° de\nDos.", "Prénom (s)", "Nom", "Date Nais.", "Lieu Nais.", "Motif (s) de Rejet (s)", "Opérateur"
-        };
-
-        String currentSerie = null;
-        PdfPTable table = null;
-        // marge minimale avant le footer (en points : 1 cm ≈ 28.3 points)
-        final float MIN_BOTTOM_MARGIN = 60f; // environ 2 cm
-
-        int total = 0;
-        int garcons = 0;
-        int filles = 0;
-
-        for (int i = 0; i < result.size(); i++) {
-            Candidat c = result.get(i);
-            String candidateSerie = c.getSerie() != null ? c.getSerie().getName() : "";
-
-            boolean isNewSerie = currentSerie == null || !candidateSerie.equals(currentSerie);
-
-            if (isNewSerie)
-            {
-                if (table != null) {
-                    // 🔹 Vérifie si assez d'espace pour le tableau + marge
-                    float spaceLeft = document.getPageSize().getHeight()
-                            - document.topMargin()
-                            - writer.getVerticalPosition(true);
-
-                    System.out.println("document.topMargin() " + document.topMargin());
-                    System.out.println("document.getPageSize().getHeight() " + document.getPageSize().getHeight());
-                    System.out.println("writer.getVerticalPosition(true) " + writer.getVerticalPosition(true));
-                    System.out.println("spaceLeft " + spaceLeft);
-                    System.out.println("MIN_BOTTOM_MARGIN " + MIN_BOTTOM_MARGIN);
-
-                    if (spaceLeft < MIN_BOTTOM_MARGIN) {
-                        document.newPage();
-                    }
-
-                    document.add(table);
-                    Paragraph effectif = new Paragraph("Effectif(s) : " + total + " | Garçon(s) : " + garcons + " | Fille(s) : " + filles, normal);
-                    effectif.setSpacingBefore(3f);
-                    document.add(effectif);
-                    //document.newPage();
+        for (FusionRepartitionTirage data : list) {
+            for (MatiereDefinition def : matieresDefinitions) {
+                // Vérifier le filtre
+                if (matieresDemandees != null && !matieresDemandees.contains(def.libelle.toUpperCase())) {
+                    continue;
                 }
-
-                currentSerie = candidateSerie;
-                total = garcons = filles = 0;
-
-                Paragraph serieTitle = new Paragraph(currentSerie, big_gras);
-                serieTitle.setSpacingBefore(5f);
-                serieTitle.setAlignment(Element.ALIGN_CENTER);
-                document.add(serieTitle);
-
-                table = new PdfPTable(7);
-                table.setWidthPercentage(100);
-                table.setSpacingBefore(5f);
-                table.setSpacingAfter(10f);
-                table.setWidths(new float[]{
-                        1.2f, 4.45f, 4f, 3f, 3f, 7f, 3.3f
-                });
-
-                for (String header : headers) {
-                    PdfPCell cell = new PdfPCell(new Phrase(header, bold));
-                    cell.setHorizontalAlignment(Element.ALIGN_LEFT);
-                    cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-                    cell.setBackgroundColor(new Color(253, 245, 230));
-                    table.addCell(cell);
+                long effectif = def.effectifExtractor.extract(data);
+                if (effectif > 0) {
+                    String date = def.dateExtractor.extract(data);
+                    String horaire = def.horaireExtractor.extract(data);
+                    generateEtiquettePage(document, logo, data, def.libelle, def.listeSerie, effectif, date, horaire,
+                            helv10, helv12Bold, helv14, helv22, helv24Bold, helv16Bold, helv26Bold);
+                    document.newPage();
                 }
-            }
-
-            total++;
-            if ("M".equalsIgnoreCase(c.getGender().name())) {
-                garcons++;
-            } else if ("F".equalsIgnoreCase(c.getGender().name())) {
-                filles++;
-            }
-
-            String[] candidateData = this.mapCandidatToPdfData2(c);
-            for (String value : candidateData) {
-                PdfPCell cell = new PdfPCell(new Phrase(value, normal));
-                cell.setHorizontalAlignment(Element.ALIGN_LEFT);
-                cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-                table.addCell(cell);
-            }
-
-            if (i == result.size() - 1 && table != null)
-            {
-                document.add(table);
-                Paragraph effectif = new Paragraph("Effectif(s) : " + total + " | Garçon(s) : " + garcons + " | Fille(s) : " + filles, normal);
-                effectif.setSpacingBefore(5f);
-                document.add(effectif);
             }
         }
 
         document.close();
     }
 
-    @Operation(summary="Service de génération des listes de contact en PDF")
-    @GetMapping("/generate-liste-des-contacts")
-    public void generateListedesContacts(HttpServletResponse response,
-                                 @RequestParam String etablissementId,
-                                 @RequestParam Long session,
-                                 @RequestParam String user) throws IOException {
+    private void generateEtiquettePage(Document document, Image logo, FusionRepartitionTirage data,
+                                       String libelleMatiere, String serie, long effectif, String date, String horaire,
+                                       Font f10, Font f12Bold, Font f14, Font f22, Font f22Bold, Font f16Bold, Font f26Bold) throws DocumentException {
+        // --- 1. EN-TÊTE ---
+        PdfPTable header = new PdfPTable(3);
+        header.setWidthPercentage(100);
+        header.setWidths(new float[]{0.55f, 4f, 1f});
 
-        Etablissement etb = etablissementRepository.findById(etablissementId).orElse(null);
-        assert etb != null;
-        System.out.println("A ce niveau" + session + " " + etb.getCode());
-        CompteDroitsInscription cdI = compteDroitInscriptionRepository.findByEtablissementNameAndSession(etb.getName(), session);
-        System.out.println("A ce niveau" + cdI.getSession() + " " + cdI.getEtablissement().getName());
-        response.setContentType("application/pdf");
-        response.setHeader("Content-Disposition", "inline; filename=bac_liste_candidats.pdf");
-
-        // Enregistrement des polices
-        FontFactory.register("fonts/gadugi-normal.ttf", "GADUGI");
-        FontFactory.register("fonts/gadugi-gras.ttf", "GADUGI-GRAS");
-
-        Font normal = FontFactory.getFont("GADUGI", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 9);
-        Font gras = FontFactory.getFont("GADUGI-GRAS", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 10);
-        Font big_gras = FontFactory.getFont("GADUGI-GRAS", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 12);
-        Font bold = gras;
-
-        Document document = new Document(PageSize.A4.rotate(), 20f, 20f, 30f, 40f);
-        PdfWriter writer = PdfWriter.getInstance(document, response.getOutputStream());
-        writer.setPageEvent(new FooterHandler(normal, user));
-        document.open();
-
-        // Header avec logo
-        PdfPTable headerTable = new PdfPTable(3);
-        headerTable.setWidthPercentage(100);
-        headerTable.setWidths(new float[]{0.5f, 3f, 2f});
-
-// 1️⃣ Cellule avec logo
-        Image logo = Image.getInstance(
-                new ClassPathResource("images/logo-UCAD_.png").getInputStream().readAllBytes()
-        );
-        logo.scaleToFit(70, 70);
         PdfPCell imageCell = new PdfPCell(logo);
         imageCell.setBorder(Rectangle.NO_BORDER);
         imageCell.setHorizontalAlignment(Element.ALIGN_LEFT);
         imageCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        headerTable.addCell(imageCell);
+        header.addCell(imageCell);
 
-// 2️⃣ Cellule avec texte
         Paragraph headerText = new Paragraph(
                 "REPUBLIQUE DU SENEGAL\nUn Peuple – Un But – Une Foi\n" +
                         "UNIVERSITE CHEIKH ANTA DIOP DE DAKAR\nOFFICE DU BACCALAUREAT",
-                gras
+                f10
         );
-        headerText.setLeading(20f, 0);
+        headerText.setLeading(14f, 0);
         headerText.setAlignment(Element.ALIGN_LEFT);
         PdfPCell textCell = new PdfPCell(headerText);
         textCell.setBorder(Rectangle.NO_BORDER);
         textCell.setHorizontalAlignment(Element.ALIGN_LEFT);
         textCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        headerTable.addCell(textCell);
+        header.addCell(textCell);
 
-        // Créer le petit tableau 3x3
-        PdfPTable smallTable = new PdfPTable(3);
+        PdfPCell codeAcademie = new PdfPCell(new Phrase(data.getAcademia(), f12Bold));
+        codeAcademie.setBorder(Rectangle.NO_BORDER);
+        codeAcademie.setHorizontalAlignment(Element.ALIGN_CENTER);
+        codeAcademie.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        header.addCell(codeAcademie);
 
-        // Définir la largeur des colonnes (ajuster si nécessaire)
-        smallTable.setWidths(new float[] { 0.5f, 0.5f, 0.5f }); // Largeurs égales pour chaque colonne
+        document.add(header);
 
-        // Insérer le petit tableau dans une cellule (celle-ci sera sans bordure)
-        PdfPCell tableCell = new PdfPCell(smallTable);
-        tableCell.setBorder(Rectangle.NO_BORDER);
-        tableCell.setVerticalAlignment(Element.ALIGN_MIDDLE);  // Centrage vertical
-        tableCell.setHorizontalAlignment(Element.ALIGN_CENTER); // Centrage horizontal
+        // --- 2. TITRES CENTRAUX ---
+        Paragraph office = new Paragraph("OFFICE DU BACCALAUREAT", f16Bold);
+        office.setAlignment(Element.ALIGN_CENTER);
+        office.setSpacingBefore(10f);
+        document.add(office);
 
-        // Ajouter la cellule du tableau dans le tableau principal (headerTable)
-        headerTable.addCell(tableCell);
+        Paragraph session = new Paragraph("BACCALAUREAT SESSION NORMALE " + data.getSession(), f22Bold);
+        session.setAlignment(Element.ALIGN_CENTER);
+        session.setSpacingAfter(20f);
+        document.add(session);
 
-        // Ajouter le headerTable au document
-        document.add(headerTable);
-        document.add(Chunk.NEWLINE);
+        // --- 3. TABLEAU DES INFORMATIONS ---
+        PdfPTable info = new PdfPTable(2);
+        info.setWidthPercentage(100);
+        info.setWidths(new float[]{1.2f, 4f});
 
-        Paragraph sessionInfo = new Paragraph(
-                "BACCALAUREAT DE L’ENSEIGNEMENT SECONDAIRE\nANNEE " + session + "\nSession NORMALE " + session, big_gras);
-        sessionInfo.setAlignment(Element.ALIGN_CENTER);
-        document.add(sessionInfo);
+        addInfoRow(info, "ACADEMIE :", getAcademieFullName(data.getAcademia()) + "                                 PREMIER GROUPE", f14, f22);
+        addInfoRow(info, "CENTRE :", data.getCentreEcrit(), f14, f22);
+        addInfoRow(info, "JURY :", String.valueOf(data.getJury()), f14, f22);
+        addInfoRow(info, "SERIE (S) :", serie, f14, f22); // à affiner si plusieurs séries possibles
+        addInfoRow(info, "CANDIDATS :", effectif + "        NT : " + Math.round(effectif * 1.05), f14, f22); // NT = effectif par défaut
 
-        if (etb != null) {
-            Paragraph etablissement = new Paragraph(
-                    "\n~~LISTE DES CONTACTS~~\n" +
-                            "Etablissement de provenance : " + etb.getCode() + " / " + etb.getName() + "\n" +
-                            "Centre d’examen : " + etb.getCentreExamen().getName() + "\n" +
-                            "(Liste valable uniquement pour la vérification par l’établissement)", big_gras);
-            etablissement.setAlignment(Element.ALIGN_CENTER);
-            document.add(etablissement);
+        document.add(info);
+        document.add(new Paragraph("\n"));
+
+        // --- 4. BAS DE PAGE : EPREUVE et CALENDRIER ---
+        PdfPTable footer = new PdfPTable(2);
+        footer.setWidthPercentage(100);
+        footer.setWidths(new float[]{1.5f, 1.5f});
+        footer.setSpacingBefore(10f);
+
+        // Cellule gauche
+        PdfPCell leftCell = new PdfPCell();
+        leftCell.setBorder(Rectangle.BOX);
+        leftCell.setPadding(15f);
+
+        Paragraph epreuveTitle = new Paragraph("EPREUVE", f16Bold);
+        epreuveTitle.setAlignment(Element.ALIGN_CENTER);
+        leftCell.addElement(epreuveTitle);
+
+        Paragraph epreuveLibelle = new Paragraph(libelleMatiere, f26Bold);
+        epreuveLibelle.setAlignment(Element.ALIGN_CENTER);
+        epreuveLibelle.setSpacingBefore(8f);
+        leftCell.addElement(epreuveLibelle);
+
+        footer.addCell(leftCell);
+
+        // Cellule droite
+        PdfPCell rightCell = new PdfPCell();
+        rightCell.setBorder(Rectangle.BOX);
+        rightCell.setPadding(15f);
+
+        PdfPTable calTable = new PdfPTable(2);
+        calTable.setWidthPercentage(100);
+        calTable.setWidths(new float[]{1f, 2f});
+
+        PdfPCell calTitle = new PdfPCell(new Phrase("CALENDRIER", f16Bold));
+        calTitle.setColspan(2);
+        calTitle.setBorder(Rectangle.BOX);
+        calTitle.setHorizontalAlignment(Element.ALIGN_CENTER);
+        calTitle.setPadding(8f);
+        calTable.addCell(calTitle);
+
+        PdfPCell dateLabel = new PdfPCell(new Phrase("DATE :", f14));
+        dateLabel.setBorder(Rectangle.BOX);
+        dateLabel.setPadding(8f);
+        calTable.addCell(dateLabel);
+
+        PdfPCell dateValue = new PdfPCell(new Phrase(date != null ? date : "1er JOUR", f14));
+        dateValue.setBorder(Rectangle.BOX);
+        dateValue.setPadding(8f);
+        calTable.addCell(dateValue);
+
+        PdfPCell horaireLabel = new PdfPCell(new Phrase("HORAIRE :", f14));
+        horaireLabel.setBorder(Rectangle.BOX);
+        horaireLabel.setPadding(8f);
+        calTable.addCell(horaireLabel);
+
+        PdfPCell horaireValue = new PdfPCell(new Phrase(horaire != null ? horaire : "14H30-17h 30", f14));
+        horaireValue.setBorder(Rectangle.BOX);
+        horaireValue.setPadding(8f);
+        calTable.addCell(horaireValue);
+
+        rightCell.addElement(calTable);
+        footer.addCell(rightCell);
+
+        document.add(footer);
+    }
+
+    public String getAcademieFullName(String code) {
+        if (code == null) return "";
+        switch (code.toUpperCase()) {
+            case "PK": return "PIKINE - GUEDIAWAYE";
+            case "DK": return "DAKAR";
+            case "RF": return "RUFISQUE";
+            case "DL": return "DIOURBEL";
+            case "FK": return "FATICK";
+            case "KF": return "KAFFRINE";
+            case "KL": return "KAOLACK";
+            case "KG": return "KEDOUGOU";
+            case "KD": return "KOLDA";
+            case "LG": return "LOUGA";
+            case "MT": return "MATAM";
+            case "SL": return "SAINT LOUIS";
+            case "SD": return "SEDHIOU";
+            case "TA": return "TAMBACOUNDA";
+            case "TB": return "TAMBACOUNDA"; // TA et TB tous deux TAMBACOUNDA
+            case "TH": return "THIES";
+            case "ZG": return "ZIGUINCHOR";
+            default: return code; // si inconnu, on retourne le code
         }
-
-        List<Candidat> result = candidatService.getAllCandidatsForPdf(etablissementId, session, "lastname");
-
-        result = result.stream()
-                .sorted(Comparator.comparing(c -> c.getSerie().getCode()))
-                .collect(Collectors.toList());
-
-        // Données de séries
-        String[] headers = {
-                "N° de\nDos.", "Prénom (s)", "Nom", "Date Nais.", "Lieu Nais.", "Téléphone", "Adresse Email"
-        };
-
-        String currentSerie = null;
-        PdfPTable table = null;
-        // marge minimale avant le footer (en points : 1 cm ≈ 28.3 points)
-        final float MIN_BOTTOM_MARGIN = 60f; // environ 2 cm
-
-        int total = 0;
-        int garcons = 0;
-        int filles = 0;
-
-        for (int i = 0; i < result.size(); i++) {
-            Candidat c = result.get(i);
-            String candidateSerie = c.getSerie() != null ? c.getSerie().getName() : "";
-
-            boolean isNewSerie = currentSerie == null || !candidateSerie.equals(currentSerie);
-
-            if (isNewSerie)
-            {
-                if (table != null) {
-                    // 🔹 Vérifie si assez d'espace pour le tableau + marge
-                    float spaceLeft = document.getPageSize().getHeight()
-                            - document.topMargin()
-                            - writer.getVerticalPosition(true);
-
-                    System.out.println("document.topMargin() " + document.topMargin());
-                    System.out.println("document.getPageSize().getHeight() " + document.getPageSize().getHeight());
-                    System.out.println("writer.getVerticalPosition(true) " + writer.getVerticalPosition(true));
-                    System.out.println("spaceLeft " + spaceLeft);
-                    System.out.println("MIN_BOTTOM_MARGIN " + MIN_BOTTOM_MARGIN);
-
-                    if (spaceLeft < MIN_BOTTOM_MARGIN) {
-                        document.newPage();
-                    }
-
-                    document.add(table);
-                    Paragraph effectif = new Paragraph("Effectif(s) : " + total + " | Garçon(s) : " + garcons + " | Fille(s) : " + filles, normal);
-                    effectif.setSpacingBefore(3f);
-                    document.add(effectif);
-                    //document.newPage();
-                }
-
-                currentSerie = candidateSerie;
-                total = garcons = filles = 0;
-
-                Paragraph serieTitle = new Paragraph(currentSerie, big_gras);
-                serieTitle.setSpacingBefore(5f);
-                serieTitle.setAlignment(Element.ALIGN_CENTER);
-                document.add(serieTitle);
-
-                table = new PdfPTable(7);
-                table.setWidthPercentage(100);
-                table.setSpacingBefore(5f);
-                table.setSpacingAfter(10f);
-                table.setWidths(new float[]{
-                        1.2f, 4.45f, 4f, 3f, 3f, 4f, 7f
-                });
-
-                for (String header : headers) {
-                    PdfPCell cell = new PdfPCell(new Phrase(header, bold));
-                    cell.setHorizontalAlignment(Element.ALIGN_LEFT);
-                    cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-                    cell.setBackgroundColor(new Color(253, 245, 230));
-                    table.addCell(cell);
-                }
-            }
-
-            total++;
-            if ("M".equalsIgnoreCase(c.getGender().name())) {
-                garcons++;
-            } else if ("F".equalsIgnoreCase(c.getGender().name())) {
-                filles++;
-            }
-
-            String[] candidateData = this.mapCandidatToPdfData3(c);
-            for (String value : candidateData) {
-                PdfPCell cell = new PdfPCell(new Phrase(value, normal));
-                cell.setHorizontalAlignment(Element.ALIGN_LEFT);
-                cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-                table.addCell(cell);
-            }
-
-            if (i == result.size() - 1 && table != null)
-            {
-                document.add(table);
-                Paragraph effectif = new Paragraph("Effectif(s) : " + total + " | Garçon(s) : " + garcons + " | Fille(s) : " + filles, normal);
-                effectif.setSpacingBefore(5f);
-                document.add(effectif);
-            }
-        }
-
-        document.close();
     }
 
+    private void addInfoRow(PdfPTable table, String label, String value, Font labelFont, Font valueFont) {
+        PdfPCell labelCell = new PdfPCell(new Phrase(label, labelFont));
+        labelCell.setBorder(Rectangle.NO_BORDER);
+        labelCell.setPaddingBottom(8f);
+        labelCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        table.addCell(labelCell);
 
-    @Operation(summary="Service de génération d'une liste de candidats avec leurs sujets en PDF")
-    @GetMapping("/generate-cdts-with-sujets")
-    public void generateSujetWithCdtPdf(HttpServletResponse response,
-                              @RequestParam String etablissementId,
-                              @RequestParam Long session,
-                              @RequestParam String user,
-                              @RequestParam String subject) throws IOException
-    {
-
-        Etablissement etb = etablissementRepository.findById(etablissementId).orElse(null);
-        assert etb != null;
-        System.out.println("A ce niveau" + session + " " + etb.getCode());
-        CompteDroitsInscription cdI = compteDroitInscriptionRepository.findByEtablissementNameAndSession(etb.getName(), session);
-        System.out.println("A ce niveau" + cdI.getSession() + " " + cdI.getEtablissement().getName());
-        response.setContentType("application/pdf");
-        response.setHeader("Content-Disposition", "inline; filename=bac_liste_candidats.pdf");
-
-        // Enregistrement des polices
-        FontFactory.register("fonts/gadugi-normal.ttf", "GADUGI");
-        FontFactory.register("fonts/gadugi-gras.ttf", "GADUGI-GRAS");
-
-        Font normal = FontFactory.getFont("GADUGI", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 9);
-        Font gras = FontFactory.getFont("GADUGI-GRAS", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 10);
-        Font big_gras = FontFactory.getFont("GADUGI-GRAS", BaseFont.IDENTITY_H, BaseFont.EMBEDDED, 12);
-        Font bold = gras;
-
-        Document document = new Document(PageSize.A4.rotate(), 20f, 20f, 30f, 40f);
-        PdfWriter writer = PdfWriter.getInstance(document, response.getOutputStream());
-        writer.setPageEvent(new FooterHandler(normal, user));
-        writer.setPageEvent(new WatermarkHandler2("VERIFICATION"));
-        document.open();
-
-        // Header avec logo
-        PdfPTable headerTable = new PdfPTable(2);
-        headerTable.setWidthPercentage(100);
-        headerTable.setWidths(new float[]{0.5f, 5f});
-
-        //Cellule avec logo
-        Image logo = Image.getInstance(
-                new ClassPathResource("images/logo-UCAD_.png").getInputStream().readAllBytes()
-        );
-        logo.scaleToFit(70, 70);
-        PdfPCell imageCell = new PdfPCell(logo);
-        imageCell.setBorder(Rectangle.NO_BORDER);
-        imageCell.setHorizontalAlignment(Element.ALIGN_LEFT);
-        imageCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        headerTable.addCell(imageCell);
-
-        // Cellule avec texte
-        Paragraph headerText = new Paragraph(
-                "REPUBLIQUE DU SENEGAL\nUn Peuple – Un But – Une Foi\n" +
-                        "UNIVERSITE CHEIKH ANTA DIOP DE DAKAR\nOFFICE DU BACCALAUREAT",
-                gras
-        );
-        headerText.setLeading(20f, 0);
-        headerText.setAlignment(Element.ALIGN_LEFT);
-        PdfPCell textCell = new PdfPCell(headerText);
-        textCell.setBorder(Rectangle.NO_BORDER);
-        textCell.setHorizontalAlignment(Element.ALIGN_LEFT);
-        textCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        headerTable.addCell(textCell);
-
-        /**
-         // Créer le petit tableau 3x3
-         PdfPTable smallTable = new PdfPTable(3);
-
-         // Définir la largeur des colonnes (ajuster si nécessaire)
-         smallTable.setWidths(new float[] { 0.5f, 0.5f, 0.5f }); // Largeurs égales pour chaque colonne
-
-         // Aligner le texte au centre pour chaque cellule
-
-         PdfPCell cell1 = new PdfPCell(new Phrase("FAEB 1"));
-         cell1.setHorizontalAlignment(Element.ALIGN_CENTER);
-         cell1.setVerticalAlignment(Element.ALIGN_MIDDLE);
-         smallTable.addCell(cell1);
-
-         PdfPCell cell2 = new PdfPCell(new Phrase("FAEB 2"));
-         cell2.setHorizontalAlignment(Element.ALIGN_CENTER);
-         cell2.setVerticalAlignment(Element.ALIGN_MIDDLE);
-         smallTable.addCell(cell2);
-
-         PdfPCell cell3 = new PdfPCell(new Phrase("FAEB 3"));
-         cell3.setHorizontalAlignment(Element.ALIGN_CENTER);
-         cell3.setVerticalAlignment(Element.ALIGN_MIDDLE);
-         smallTable.addCell(cell3);
-
-         // Ligne 2 : Ajouter les données avec un alignement correct
-         PdfPCell cell4 = new PdfPCell(new Phrase(String.valueOf(cdI.getCount_5000())));
-         cell4.setHorizontalAlignment(Element.ALIGN_CENTER);
-         cell4.setVerticalAlignment(Element.ALIGN_MIDDLE);
-         smallTable.addCell(cell4);
-
-         PdfPCell cell5 = new PdfPCell(new Phrase(String.valueOf(cdI.getCount_1000_EF())));
-         cell5.setHorizontalAlignment(Element.ALIGN_CENTER);
-         cell5.setVerticalAlignment(Element.ALIGN_MIDDLE);
-         smallTable.addCell(cell5);
-
-         PdfPCell cell6 = new PdfPCell(new Phrase(String.valueOf(cdI.getCount_1000_OB())));
-         cell6.setHorizontalAlignment(Element.ALIGN_CENTER);
-         cell6.setVerticalAlignment(Element.ALIGN_MIDDLE);
-         smallTable.addCell(cell6);
-
-         // Insérer le petit tableau dans une cellule (celle-ci sera sans bordure)
-         PdfPCell tableCell = new PdfPCell(smallTable);
-         tableCell.setBorder(Rectangle.NO_BORDER);
-         tableCell.setVerticalAlignment(Element.ALIGN_MIDDLE);  // Centrage vertical
-         tableCell.setHorizontalAlignment(Element.ALIGN_CENTER); // Centrage horizontal
-
-
-
-         // Ajouter la cellule du tableau dans le tableau principal (headerTable)
-         headerTable.addCell(tableCell);
-         **/
-
-        // Ajouter le headerTable au document
-        document.add(headerTable);
-        document.add(Chunk.NEWLINE);
-
-        Paragraph sessionInfo = new Paragraph(
-                "BACCALAUREAT DE L’ENSEIGNEMENT SECONDAIRE\nANNEE " + session + "\nSession NORMALE " + session, big_gras);
-        sessionInfo.setAlignment(Element.ALIGN_CENTER);
-        document.add(sessionInfo);
-
-        if (etb != null) {
-            Paragraph etablissement = new Paragraph(
-                    "\n~~LISTE DES PROJETS DE SOUTENANCE ACCOMPAGNEE DES CANDIDATS~~\n" +
-                            "Etablissement de provenance : " + etb.getCode() + " / " + etb.getName() + "\n" +
-                            "Centre d’examen : " + etb.getCentreExamen().getName() + "\n", big_gras);
-            etablissement.setAlignment(Element.ALIGN_CENTER);
-            document.add(etablissement);
-        }
-
-        List<Candidat> result = candidatService.getFilteredCandidatsForPdfSujet(etablissementId, session, subject);
-
-        // Données de séries
-        String[] headers = {
-                "Code\nC.E.C", "Nom du Centre\nd’Etat Civil (C.E.C)", "Ann.\nDécl.", "N° Acte\nNais.",
-                "Prénom (s)", "Nom", "Sexe", "Date Nais.", "Lieu Nais.", "Nationalité", "Matière (s)\nOptionn. (s) / Spécialité", "EPS", "Matièr. (s)\nFacult. (s)", "Nb.\nfois", "Série"
-        };
-
-        String currentSubject = null;
-        PdfPTable table = null;
-        // marge minimale avant le footer (en points : 1 cm ≈ 28.3 points)
-        final float MIN_BOTTOM_MARGIN = 60f; // environ 2 cm
-
-        int total = 0;
-        int garcons = 0;
-        int filles = 0;
-
-        for (int i = 0; i < result.size(); i++) {
-            Candidat c = result.get(i);
-            String candidateSubject = c.getSubject() != null ? c.getSubject() : "";
-
-            boolean isNewSubject = candidateSubject == null || !candidateSubject.equals(currentSubject);
-
-            if (isNewSubject)
-            {
-                if (table != null) {
-                    // 🔹 Vérifie si assez d'espace pour le tableau + marge
-                    float spaceLeft = document.getPageSize().getHeight()
-                            - document.topMargin()
-                            - writer.getVerticalPosition(true);
-
-                    System.out.println("document.topMargin() " + document.topMargin());
-                    System.out.println("document.getPageSize().getHeight() " + document.getPageSize().getHeight());
-                    System.out.println("writer.getVerticalPosition(true) " + writer.getVerticalPosition(true));
-                    System.out.println("spaceLeft " + spaceLeft);
-                    System.out.println("MIN_BOTTOM_MARGIN " + MIN_BOTTOM_MARGIN);
-
-                    if (spaceLeft < MIN_BOTTOM_MARGIN) {
-                        document.newPage();
-                    }
-
-                    document.add(table);
-                    Paragraph effectif = new Paragraph("Effectif(s) : " + total + " | Garçon(s) : " + garcons + " | Fille(s) : " + filles, normal);
-                    effectif.setSpacingBefore(3f);
-                    document.add(effectif);
-                    //document.newPage();
-                }
-
-                currentSubject = candidateSubject;
-                total = garcons = filles = 0;
-
-                Paragraph serieTitle = new Paragraph(currentSubject, big_gras);
-                serieTitle.setSpacingBefore(5f);
-                serieTitle.setAlignment(Element.ALIGN_CENTER);
-                document.add(serieTitle);
-
-                table = new PdfPTable(15);
-                table.setWidthPercentage(100);
-                table.setSpacingBefore(5f);
-                table.setSpacingAfter(10f);
-                table.setWidths(new float[]{
-                        1.5f, 4f, 1.5f, 2f, 4.45f, 4f, 1.4f,
-                        3f, 3f, 3f, 4f, 1.5f, 2.8f, 1.2f, 1.5f
-                });
-
-                for (String header : headers) {
-                    PdfPCell cell = new PdfPCell(new Phrase(header, bold));
-                    cell.setHorizontalAlignment(Element.ALIGN_LEFT);
-                    cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-                    cell.setBackgroundColor(new Color(253, 245, 230));
-                    table.addCell(cell);
-                }
-            }
-
-            total++;
-            if ("M".equalsIgnoreCase(c.getGender().name())) {
-                garcons++;
-            } else if ("F".equalsIgnoreCase(c.getGender().name())) {
-                filles++;
-            }
-
-            String[] candidateData = this.mapCandidatToPdfDataSujet(c);
-            for (String value : candidateData) {
-                PdfPCell cell = new PdfPCell(new Phrase(value, normal));
-                cell.setHorizontalAlignment(Element.ALIGN_LEFT);
-                cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-                table.addCell(cell);
-            }
-
-            if (i == result.size() - 1 && table != null)
-            {
-                document.add(table);
-                Paragraph effectif = new Paragraph("Effectif(s) : " + total + " | Garçon(s) : " + garcons + " | Fille(s) : " + filles, normal);
-                effectif.setSpacingBefore(5f);
-                document.add(effectif);
-            }
-        }
-
-        document.close();
+        PdfPCell valueCell = new PdfPCell(new Phrase(value, valueFont));
+        valueCell.setBorder(Rectangle.NO_BORDER);
+        valueCell.setPaddingBottom(8f);
+        labelCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        table.addCell(valueCell);
     }
 
-
-
-    public static String formatMatiereAbregee(String matiere) {
-
-        if (matiere == null || matiere.trim().isEmpty()) return "";
-
-        // Mots à ignorer
-        Set<String> motsVides = Set.of("de", "la", "le", "et", "du", "des", "au", "aux", "d", "l", "à", "en", "sur", "avec", "sans");
-
-        // Supprimer accents et mettre en minuscules
-        String cleaned = removeAccents(matiere.toLowerCase());
-
-        // Séparer les mots en enlevant les caractères spéciaux
-        String[] mots = cleaned.replaceAll("[^a-zA-Z ]", " ").trim().split("\\s+");
-
-        if (mots.length == 1) {
-            // Un seul mot : prendre les 3 premières lettres
-            return mots[0].substring(0, Math.min(3, mots[0].length())).toUpperCase();
-        }
-
-        // Plusieurs mots : prendre première lettre de chaque mot significatif
-        StringBuilder sb = new StringBuilder();
-        for (String mot : mots) {
-            if (!motsVides.contains(mot) && !mot.isBlank()) {
-                sb.append(mot.charAt(0));
-            }
-        }
-
-        return sb.toString().toUpperCase();
+    // Classes internes pour définir les matières
+    @FunctionalInterface
+    private interface EffectifExtractor {
+        long extract(FusionRepartitionTirage data);
     }
 
-    // Méthode utilitaire pour enlever les accents
-    public static String removeAccents(String input) {
-        return java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
-                .replaceAll("[\\p{InCombiningDiacriticalMarks}]", "");
+    @FunctionalInterface
+    private interface DateExtractor {
+        String extract(FusionRepartitionTirage data);
     }
 
-    public String[] mapCandidatToPdfData(Candidat c) {
-        String code_cec = String.valueOf(c.getCentreEtatCivil().getCode());
-        String cec = c.getCentreEtatCivil().getName();
-        String an_dec = String.valueOf(c.getYear_registry_num());
-        String r_num = String.valueOf(c.getRegistry_num());
-        String dos_num = String.valueOf(c.getDosNumber());
-        String firstname = c.getFirstname();
-        String lastname = c.getLastname();
-        String sexe = c.getGender().name();
-        String date_naiss = c.getDate_birth() != null
-                ? new SimpleDateFormat("dd/MM/yyyy").format(java.sql.Date.valueOf(c.getDate_birth()))
-                : "";
-        String place_birth = String.valueOf(c.getPlace_birth());
-        String nat = String.valueOf(c.getNationality().getName());
-        //String serie = String.valueOf(c.getSerie().getCode());
-
-        // Matières optionnelles
-        String mat1 = formatMatiereAbregee(c.getMatiere1() != null ? c.getMatiere1().getName() : "");
-        String mat2 = formatMatiereAbregee(c.getMatiere2() != null ? c.getMatiere2().getName() : "");
-        String mat3 = formatMatiereAbregee(c.getMatiere3() != null ? c.getMatiere3().getName() : "");
-
-        String matieres = String.join(" - ",
-                Stream.of(mat1, mat2, mat3).filter(s -> s != null && !s.isEmpty()).toArray(String[]::new)
-        );
-
-        String eps = c.getEps() != null ? c.getEps() : "";
-
-        String epF1 = formatMatiereAbregee(c.getEprFacListA() != ListeA.Aucun ? c.getEprFacListA().name() : "");
-        String epF2 = formatMatiereAbregee(c.getEprFacListB() != null ? c.getEprFacListB().getName() : "");
-
-        String epr_fac = String.join(" - ",
-                Stream.of(epF1, epF2).filter(s -> s != null && !s.isEmpty()).toArray(String[]::new)
-        );
-
-        String nb_fois = String.valueOf(c.getBac_do_count());
-
-        return new String[]{
-                code_cec,
-                cec,
-                an_dec,
-                r_num,
-                dos_num,
-                firstname,
-                lastname,
-                sexe,
-                date_naiss,
-                place_birth,
-                nat,
-                matieres,
-                eps,
-                epr_fac,
-                nb_fois,
-                ""
-
-        };
+    @FunctionalInterface
+    private interface HoraireExtractor {
+        String extract(FusionRepartitionTirage data);
     }
 
-    public String[] mapCandidatToPdfDataOL(Candidat c) {
-        String code_cec = String.valueOf(c.getCentreEtatCivil().getCode());
-        String cec = c.getCentreEtatCivil().getName();
-        String an_dec = String.valueOf(c.getYear_registry_num());
-        String r_num = String.valueOf(c.getRegistry_num());
-        String firstname = c.getFirstname();
-        String lastname = c.getLastname();
-        String sexe = c.getGender().name();
-        String date_naiss = c.getDate_birth() != null
-                ? new SimpleDateFormat("dd/MM/yyyy").format(java.sql.Date.valueOf(c.getDate_birth()))
-                : "";
-        String place_birth = String.valueOf(c.getPlace_birth());
-        String nat = String.valueOf(c.getNationality().getName());
-        //String serie = String.valueOf(c.getSerie().getCode());
+    private static class MatiereDefinition {
+        String libelle;
+        EffectifExtractor effectifExtractor;
+        DateExtractor dateExtractor;
+        HoraireExtractor horaireExtractor;
 
-        // Matières optionnelles
-        String mat1 = formatMatiereAbregee(c.getMatiere1() != null ? c.getMatiere1().getName() : "");
-        String mat2 = formatMatiereAbregee(c.getMatiere2() != null ? c.getMatiere2().getName() : "");
-        String mat3 = formatMatiereAbregee(c.getMatiere3() != null ? c.getMatiere3().getName() : "");
+        String listeSerie;
 
-        String matieres = String.join(" - ",
-                Stream.of(mat1, mat2, mat3).filter(s -> !s.isEmpty()).toArray(String[]::new)
-        );
-
-        String eps = c.getEps() != null ? c.getEps() : "";
-
-        String epF1 = formatMatiereAbregee(c.getEprFacListA() != ListeA.Aucun ? c.getEprFacListA().name() : "");
-        String epF2 = formatMatiereAbregee(c.getEprFacListB() != null ? c.getEprFacListB().getName() : "");
-
-        String epr_fac = String.join(" - ",
-                Stream.of(epF1, epF2).filter(s -> !s.isEmpty()).toArray(String[]::new)
-        );
-
-        String nb_fois = String.valueOf(c.getBac_do_count());
-
-        return new String[]{
-                code_cec,
-                cec,
-                an_dec,
-                r_num,
-                firstname,
-                lastname,
-                sexe,
-                date_naiss,
-                place_birth,
-                nat,
-                matieres,
-                eps,
-                epr_fac,
-                nb_fois,
-                "Accepté"
-        };
-    }
-
-    public String[] mapCandidatToPdfDataSujet(Candidat c) {
-        String code_cec = String.valueOf(c.getCentreEtatCivil().getCode());
-        String cec = c.getCentreEtatCivil().getName();
-        String an_dec = String.valueOf(c.getYear_registry_num());
-        String r_num = String.valueOf(c.getRegistry_num());
-        String firstname = c.getFirstname();
-        String lastname = c.getLastname();
-        String sexe = c.getGender().name();
-        String date_naiss = c.getDate_birth() != null
-                ? new SimpleDateFormat("dd/MM/yyyy").format(java.sql.Date.valueOf(c.getDate_birth()))
-                : "";
-        String place_birth = String.valueOf(c.getPlace_birth());
-        String nat = String.valueOf(c.getNationality().getName());
-        //String serie = String.valueOf(c.getSerie().getCode());
-
-        // Matières optionnelles
-        String mat1 = formatMatiereAbregee(c.getMatiere1() != null ? c.getMatiere1().getName() : "");
-        String mat2 = formatMatiereAbregee(c.getMatiere2() != null ? c.getMatiere2().getName() : "");
-        String mat3 = formatMatiereAbregee(c.getMatiere3() != null ? c.getMatiere3().getName() : "");
-
-        String matieres = String.join(" - ",
-                Stream.of(mat1, mat2, mat3).filter(s -> s != null && !s.isEmpty()).toArray(String[]::new)
-        );
-
-        String eps = c.getEps() != null ? c.getEps() : "";
-
-        String epF1 = formatMatiereAbregee(c.getEprFacListA() != ListeA.Aucun ? c.getEprFacListA().name() : "");
-        String epF2 = formatMatiereAbregee(c.getEprFacListB() != null ? c.getEprFacListB().getName() : "");
-
-        String epr_fac = String.join(" - ",
-                Stream.of(epF1, epF2).filter(s -> s != null && !s.isEmpty()).toArray(String[]::new)
-        );
-
-        String nb_fois = String.valueOf(c.getBac_do_count());
-
-        String serie = String.valueOf(c.getSerie().getCode());
-
-        return new String[]{
-                code_cec,
-                cec,
-                an_dec,
-                r_num,
-                firstname,
-                lastname,
-                sexe,
-                date_naiss,
-                place_birth,
-                nat,
-                matieres,
-                eps,
-                epr_fac,
-                nb_fois,
-                serie
-
-        };
-    }
-
-    public String[] mapCandidatToPdfDataCGS(ConcoursGeneral c, int index) {
-        String merite = String.valueOf(index + 1);;
-        String firstname = c.getFirstname();
-        String lastname = c.getLastname();
-        String sexe = c.getGender().name();
-        String date_naiss = c.getDate_birth() != null
-                ? new SimpleDateFormat("dd/MM/yyyy").format(java.sql.Date.valueOf(c.getDate_birth()))
-                : "";
-        String serie = c.getSerie().getCode();
-        String classe_0 = c.getClasse_0();
-        String classe_1 = c.getClasse_1();
-        String note_0 = String.valueOf(c.getNote_student_disc());
-        String note_1 = String.valueOf(c.getNote_classe_disc());
-
-        String firstname_prof = String.valueOf(c.getFirstname_prof());
-        String lastname_prof = String.valueOf(c.getLastname_prof());
-
-
-
-        return new String[]{
-                merite,
-                firstname,
-                lastname,
-                sexe,
-                date_naiss,
-                serie,
-                classe_0,
-                classe_1,
-                note_0,
-                note_1,
-                firstname_prof,
-                lastname_prof,
-
-        };
-    }
-
-    public String[] mapCandidatToPdfData2(Candidat c) {
-        String dos_num = String.valueOf(c.getDosNumber());
-        String firstname = c.getFirstname();
-        String lastname = c.getLastname();
-        String date_naiss = c.getDate_birth() != null
-                ? new SimpleDateFormat("dd/MM/yyyy").format(java.sql.Date.valueOf(c.getDate_birth()))
-                : "";
-        String place_birth = String.valueOf(c.getPlace_birth());
-
-        // récupérer la liste des rejets du candidat
-        List<Rejet> rejetsList = c.getRejets(); // peut être List<Rejet> ou null
-
-        // inclure l'observation également
-                String rejetsAvecObservation = "";
-                if (rejetsList != null && !rejetsList.isEmpty()) {
-                    rejetsAvecObservation = rejetsList.stream()
-                            .map(r -> "• " + r.getName() + " (" + r.getObservation() + ")")
-                            .collect(Collectors.joining("\n"));
-                }
-
-        String date_ops = c.getDateOperation() != null
-                ? new SimpleDateFormat("dd/MM/yyyy").format(java.sql.Date.valueOf(c.getDateOperation().toLocalDate()))
-                : "";
-
-        Optional<User> ops = userRepository.findByLogin(c.getOperator());
-
-        String operation = "Opération effectuée le : " + date_ops + " par : " + ops.get().getFirstname() + " " + ops.get().getLastname();
-        // construire la ligne pour ton PDF ou tableau
-                return new String[]{
-                        dos_num,
-                        firstname,
-                        lastname,
-                        date_naiss,
-                        place_birth,
-                        rejetsAvecObservation,
-                        operation// ou rejetsAvecObservation
-                };
+        MatiereDefinition(String libelle, EffectifExtractor effExt, DateExtractor dateExt, HoraireExtractor horExt, String listeSerie) {
+            this.libelle = libelle;
+            this.effectifExtractor = effExt;
+            this.dateExtractor = dateExt;
+            this.horaireExtractor = horExt;
+            this.listeSerie = listeSerie;
 
         }
 
-    public String[] mapCandidatToPdfData3(Candidat c) {
-        String dos_num = String.valueOf(c.getDosNumber());
-        String firstname = c.getFirstname();
-        String lastname = c.getLastname();
-        String date_naiss = c.getDate_birth() != null
-                ? new SimpleDateFormat("dd/MM/yyyy").format(java.sql.Date.valueOf(c.getDate_birth()))
-                : "";
-        String place_birth = String.valueOf(c.getPlace_birth());
-
-        String phone = c.getPhone1();
-
-        String email = c.getEmail();
-
-       // construire la ligne pour ton PDF ou tableau
-        return new String[]{
-                dos_num,
-                firstname,
-                lastname,
-                date_naiss,
-                place_birth,
-                phone,
-                email
-        };
+        // Ajoutez cette méthode dans votre contrôleur
 
     }
 

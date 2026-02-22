@@ -1,13 +1,9 @@
 package com.officedubac.project.services;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.officedubac.project.dto.RepartitionTirageCEPDTO;
-import com.officedubac.project.dto.RepartitionTirageCSDTO;
-import com.officedubac.project.dto.SourceCandidatDTO;
-import com.officedubac.project.models.RepartitionTirageCEP;
-import com.officedubac.project.models.RepartitionTirageCES;
-import com.officedubac.project.models.SourceCandidat;
-import com.officedubac.project.models.User;
+import com.officedubac.project.dto.*;
+import com.officedubac.project.models.*;
+import com.officedubac.project.repository.FusionRepartitionTirageRepository;
 import com.officedubac.project.repository.RepartitionTirageCEPRepository;
 import com.officedubac.project.repository.RepartitionTirageCSRepository;
 import com.officedubac.project.repository.SourceCandidatRepository;
@@ -35,6 +31,8 @@ public class TirageJuryMatService
     private final RepartitionTirageCEPRepository repartitionTirageCEPRepository;
 
     private final RepartitionTirageCSRepository repartitionTirageCSRepository;
+
+    private final FusionRepartitionTirageRepository fusionRepartitionTirageRepository;
 
     private final MongoTemplate mongoTemplate;
 
@@ -610,12 +608,394 @@ public class TirageJuryMatService
 
     public void unionCollections()
     {
-        List<Document> collectionA = mongoTemplate.findAll(Document.class, "RepartitionTirageCEP");
-        List<Document> collectionB = mongoTemplate.findAll(Document.class, "RepartitionTirageCES");
+        mongoTemplate.dropCollection("fusionRepartitionTirage");
+
+        List<Document> collectionA = mongoTemplate.findAll(Document.class, "repartitionTirageCEP");
+        List<Document> collectionB = mongoTemplate.findAll(Document.class, "repartitionTirageCES");
         List<Document> all = new ArrayList<>();
+
+        collectionA.forEach(doc -> doc.remove("_id"));
+        collectionB.forEach(doc -> doc.remove("_id"));
+
         all.addAll(collectionA);
         all.addAll(collectionB);
 
-        mongoTemplate.insert(all, "FusionRepartitionTirage");
+        mongoTemplate.insert(all, "fusionRepartitionTirage");
     }
+
+    public Map<String, List<FusionRepartitionTirage>> getAllFusionRepTirage()
+    {
+        List<FusionRepartitionTirage> allRepTirage = fusionRepartitionTirageRepository.findAll();
+        return allRepTirage
+                .stream()
+                .filter(p -> p.getAcademia() != null)
+                .collect(Collectors.groupingBy(s -> s.getAcademia()));
+    }
+
+    public void prog_tirage_etiquette(HoraireRequest hr)
+    {
+        log.info(hr.toString());
+
+        List<FusionRepartitionTirage> all = fusionRepartitionTirageRepository.findAll();
+        Map<String, HoraireItem> map = hr.getHoraires();
+
+        if (map == null || map.isEmpty()) {
+            return;
+        }
+
+        for (FusionRepartitionTirage frt : all) {
+
+            map.forEach((epreuve, h) -> {
+
+                if (h == null) return;
+
+                switch (epreuve) {
+                    case "FRANCAIS L" -> {
+                        frt.setDate1FL(h.getDate1());
+                        frt.setHeure1FL(h.getHeure1());
+                        frt.setDate2FL(h.getDate2());
+                        frt.setHeure2FL(h.getHeure2());
+                    }
+
+                    case "FRANCAIS S" -> {
+                        frt.setDate1FS(h.getDate1());
+                        frt.setHeure1FS(h.getHeure1());
+                        frt.setDate2FS(h.getDate2());
+                        frt.setHeure2FS(h.getHeure2());
+                    }
+
+                    case "FRANCAIS LA" -> {
+                        frt.setDate1FLa(h.getDate1());
+                        frt.setHeure1FLa(h.getHeure1());
+                        frt.setDate2FLa(h.getDate2());
+                        frt.setHeure2FLa(h.getHeure2());
+                    }
+
+                    case "FRANCAIS SA" -> {
+                        frt.setDate1FLa(h.getDate1());
+                        frt.setHeure1FLa(h.getHeure1());
+                        frt.setDate2FLa(h.getDate2());
+                        frt.setHeure2FLa(h.getHeure2());
+                    }
+
+                    case "ANGLAIS S" -> {
+                        frt.setDate1ES(h.getDate1());
+                        frt.setHeure1ES(h.getHeure1());
+                        frt.setDate2ES(h.getDate2());
+                        frt.setHeure2ES(h.getHeure2());
+                    }
+
+                    case "MATH L" -> {
+                        frt.setDate1ML(h.getDate1());
+                        frt.setHeure1ML(h.getHeure1());
+                        frt.setDate2ML(h.getDate2());
+                        frt.setHeure2ML(h.getHeure2());
+                    }
+
+                    case "MATH SM" -> {
+                        frt.setDate1MSM(h.getDate1());
+                        frt.setHeure1MSM(h.getHeure1());
+                        frt.setDate2MSM(h.getDate2());
+                        frt.setHeure2MSM(h.getHeure2());
+                    }
+
+                    case "MATH SE" -> {
+                        frt.setDate1MSE(h.getDate1());
+                        frt.setHeure1MSE(h.getHeure1());
+                        frt.setDate2MSE(h.getDate2());
+                        frt.setHeure2MSE(h.getHeure2());
+                    }
+
+                    case "PC SM" -> {
+                        frt.setDate1PCSM(h.getDate1());
+                        frt.setHeure1PCSM(h.getHeure1());
+                        frt.setDate2PCSM(h.getDate2());
+                        frt.setHeure2PCSM(h.getHeure2());
+                    }
+
+                    case "PC SE" -> {
+                        frt.setDate1PCSE(h.getDate1());
+                        frt.setHeure1PCSE(h.getHeure1());
+                        frt.setDate2PCSE(h.getDate2());
+                        frt.setHeure2PCSE(h.getHeure2());
+                    }
+
+                    case "SVT SM" -> {
+                        frt.setDate1SVTSM(h.getDate1());
+                        frt.setHeure1SVTSM(h.getHeure1());
+                        frt.setDate2SVTSM(h.getDate2());
+                        frt.setHeure2SVTSM(h.getHeure2());
+                    }
+
+                    case "SVT SE" -> {
+                        frt.setDate1SVTSE(h.getDate1());
+                        frt.setHeure1SVTSE(h.getHeure1());
+                        frt.setDate2SVTSE(h.getDate2());
+                        frt.setHeure2SVTSE(h.getHeure2());
+                    }
+
+                    case "PHILO L" -> {
+                        frt.setDate1PHILOL(h.getDate1());
+                        frt.setHeure1PHILOL(h.getHeure1());
+                        frt.setDate2PHILOL(h.getDate2());
+                        frt.setHeure2PHILOL(h.getHeure2());
+                    }
+
+                    case "PHILO S" -> {
+                        frt.setDate1PHILOS(h.getDate1());
+                        frt.setHeure1PHILOS(h.getHeure1());
+                        frt.setDate2PHILOS(h.getDate2());
+                        frt.setHeure2PHILOS(h.getHeure2());
+                    }
+
+                    case "HG" -> {
+                        frt.setDate1HG(h.getDate1());
+                        frt.setHeure1HG(h.getHeure1());
+                        frt.setDate2HG(h.getDate2());
+                        frt.setHeure2HG(h.getHeure2());
+                    }
+
+                    case "LLA" -> {
+                        frt.setDate1LLA(h.getDate1());
+                        frt.setHeure1LLA(h.getHeure1());
+                        frt.setDate2LLA(h.getDate2());
+                        frt.setHeure2LLA(h.getHeure2());
+                    }
+
+                    case "ALLEMAND LV1" -> {
+                        frt.setDate1ALL1(h.getDate1());
+                        frt.setHeure1ALL1(h.getHeure1());
+                        frt.setDate2ALL1(h.getDate2());
+                        frt.setHeure2ALL1(h.getHeure2());
+                    }
+
+                    case "ALLEMAND LV2" -> {
+                        frt.setDate1ALL2(h.getDate1());
+                        frt.setHeure1ALL2(h.getHeure1());
+                        frt.setDate2ALL2(h.getDate2());
+                        frt.setHeure2ALL2(h.getHeure2());
+                    }
+
+                    case "ANGLAIS LV1" -> {
+                        frt.setDate1ANG1(h.getDate1());
+                        frt.setHeure1ANG1(h.getHeure1());
+                        frt.setDate2ANG1(h.getDate2());
+                        frt.setHeure2ANG1(h.getHeure2());
+                    }
+
+                    case "ANGLAIS LV2" -> {
+                        frt.setDate1ANG2(h.getDate1());
+                        frt.setHeure1ANG2(h.getHeure1());
+                        frt.setDate2ANG2(h.getDate2());
+                        frt.setHeure2ANG2(h.getHeure2());
+                    }
+
+                    case "ARABE MODERNE LV1" -> {
+                        frt.setDate1AM1(h.getDate1());
+                        frt.setHeure1AM1(h.getHeure1());
+                        frt.setDate2AM1(h.getDate2());
+                        frt.setHeure2AM1(h.getHeure2());
+                    }
+
+                    case "ARABE MODERNE LV2" -> {
+                        frt.setDate1AM2(h.getDate1());
+                        frt.setHeure1AM2(h.getHeure1());
+                        frt.setDate2AM2(h.getDate2());
+                        frt.setHeure2AM2(h.getHeure2());
+                    }
+
+                    case "ECONOMIE" -> {
+                        frt.setDate1ECO(h.getDate1());
+                        frt.setHeure1ECO(h.getHeure1());
+                        frt.setDate2ECO(h.getDate2());
+                        frt.setHeure2ECO(h.getHeure2());
+                    }
+
+                    case "ESPAGNOL LV1" -> {
+                        frt.setDate1ESP1(h.getDate1());
+                        frt.setHeure1ESP1(h.getHeure1());
+                        frt.setDate2ESP1(h.getDate2());
+                        frt.setHeure2ESP1(h.getHeure2());
+                    }
+
+                    case "ESPAGNOL LV2" -> {
+                        frt.setDate1ESP2(h.getDate1());
+                        frt.setHeure1ESP2(h.getHeure1());
+                        frt.setDate2ESP2(h.getDate2());
+                        frt.setHeure2ESP2(h.getHeure2());
+                    }
+
+                    case "ITALIEN" -> {
+                        frt.setDate1ITA(h.getDate1());
+                        frt.setHeure1ITA(h.getHeure1());
+                        frt.setDate2ITA(h.getDate2());
+                        frt.setHeure2ITA(h.getHeure2());
+                    }
+
+                    case "LATIN" -> {
+                        frt.setDate1LAT(h.getDate1());
+                        frt.setHeure1LAT(h.getHeure1());
+                        frt.setDate2LAT(h.getDate2());
+                        frt.setHeure2LAT(h.getHeure2());
+                    }
+
+                    case "PORTUGAIS LV1" -> {
+                        frt.setDate1PORT1(h.getDate1());
+                        frt.setHeure1PORT1(h.getHeure1());
+                        frt.setDate2PORT1(h.getDate2());
+                        frt.setHeure2PORT1(h.getHeure2());
+                    }
+
+                    case "PORTUGAIS LV2" -> {
+                        frt.setDate1PORT2(h.getDate1());
+                        frt.setHeure1PORT2(h.getHeure1());
+                        frt.setDate2PORT2(h.getDate2());
+                        frt.setHeure2PORT2(h.getHeure2());
+                    }
+
+                    case "RUSSE" -> {
+                        frt.setDate1RUS(h.getDate1());
+                        frt.setHeure1RUS(h.getHeure1());
+                        frt.setDate2RUS(h.getDate2());
+                        frt.setHeure2RUS(h.getHeure2());
+                    }
+
+                    case "PC L" -> {
+                        frt.setDate1PCL(h.getDate1());
+                        frt.setHeure1PCL(h.getHeure1());
+                        frt.setDate2PCL(h.getDate2());
+                        frt.setHeure2PCL(h.getHeure2());
+                    }
+
+                    case "SVT L" -> {
+                        frt.setDate1SVTL(h.getDate1());
+                        frt.setHeure1SVTL(h.getHeure1());
+                        frt.setDate2SVTL(h.getDate2());
+                        frt.setHeure2SVTL(h.getHeure2());
+                    }
+
+                    case "GENIE ELECTRIQUE" -> {
+                        frt.setDate1GE(h.getDate1());
+                        frt.setHeure1GE(h.getHeure1());
+                        frt.setDate2GE(h.getDate2());
+                        frt.setHeure2GE(h.getHeure2());
+                    }
+
+                    case "GENIE MECANIQUE" -> {
+                        frt.setDate1GM(h.getDate1());
+                        frt.setHeure1GM(h.getHeure1());
+                        frt.setDate2GM(h.getDate2());
+                        frt.setHeure2GM(h.getHeure2());
+                    }
+
+                    case "MANAGEMENT DES ORGANISATIONS" -> {
+                        frt.setDate1MO(h.getDate1());
+                        frt.setHeure1MO(h.getHeure1());
+                        frt.setDate2MO(h.getDate2());
+                        frt.setHeure2MO(h.getHeure2());
+                    }
+
+                    case "SCIENCES ECONOMIQUES ET SOCIALES" -> {
+                        frt.setDate1SES(h.getDate1());
+                        frt.setHeure1SES(h.getHeure1());
+                        frt.setDate2SES(h.getDate2());
+                        frt.setHeure2SES(h.getHeure2());
+                    }
+
+                    case "GESTION COMPTABLE ET FINANCIERE" -> {
+                        frt.setDate1GCF(h.getDate1());
+                        frt.setHeure1GCF(h.getHeure1());
+                        frt.setDate2GCF(h.getDate2());
+                        frt.setHeure2GCF(h.getHeure2());
+                    }
+
+                    default -> {
+                        // log.warn("Matière non mappée: {}", epreuve);
+                    }
+                }
+            });
+        }
+
+        fusionRepartitionTirageRepository.saveAll(all);
+
+        log.info("Log bombe");
+    }
+
+    public Map<String, HoraireItem> getHoraires() {
+        Map<String, HoraireItem> map = new LinkedHashMap<>();
+
+        fusionRepartitionTirageRepository.findAll().stream().findFirst().ifPresent(frt -> {
+            // 🔹 Français
+            map.put("FRANCAIS L", new HoraireItem(frt.getDate1FL(), frt.getHeure1FL(), frt.getDate2FL(), frt.getHeure2FL()));
+            map.put("FRANCAIS S", new HoraireItem(frt.getDate1FS(), frt.getHeure1FS(), frt.getDate2FS(), frt.getHeure2FS()));
+            map.put("FRANCAIS LA", new HoraireItem(frt.getDate1FLa(), frt.getHeure1FLa(), frt.getDate2FLa(), frt.getHeure2FLa()));
+            map.put("FRANCAIS SA", new HoraireItem(frt.getDate1FLa(), frt.getHeure1FLa(), frt.getDate2FLa(), frt.getHeure2FLa())); // si différent, adapte
+
+            // 🔹 Philosophie
+            map.put("PHILO L", new HoraireItem(frt.getDate1PHILOL(), frt.getHeure1PHILOL(), frt.getDate2PHILOL(), frt.getHeure2PHILOL()));
+            map.put("PHILO S", new HoraireItem(frt.getDate1PHILOS(), frt.getHeure1PHILOS(), frt.getDate2PHILOS(), frt.getHeure2PHILOS()));
+
+            // 🔹 Anglais
+            map.put("ANGLAIS S", new HoraireItem(frt.getDate1ES(), frt.getHeure1ES(), frt.getDate2ES(), frt.getHeure2ES()));
+            map.put("ANGLAIS LV1", new HoraireItem(frt.getDate1ANG1(), frt.getHeure1ANG1(), frt.getDate2ANG1(), frt.getHeure2ANG1()));
+            map.put("ANGLAIS LV2", new HoraireItem(frt.getDate1ANG2(), frt.getHeure1ANG2(), frt.getDate2ANG2(), frt.getHeure2ANG2()));
+
+            // 🔹 Allemand
+            map.put("ALLEMAND LV1", new HoraireItem(frt.getDate1ALL1(), frt.getHeure1ALL1(), frt.getDate2ALL1(), frt.getHeure2ALL1()));
+            map.put("ALLEMAND LV2", new HoraireItem(frt.getDate1ALL2(), frt.getHeure1ALL2(), frt.getDate2ALL2(), frt.getHeure2ALL2()));
+
+            // 🔹 Arabe moderne
+            map.put("ARABE MODERNE LV1", new HoraireItem(frt.getDate1AM1(), frt.getHeure1AM1(), frt.getDate2AM1(), frt.getHeure2AM1()));
+            map.put("ARABE MODERNE LV2", new HoraireItem(frt.getDate1AM2(), frt.getHeure1AM2(), frt.getDate2AM2(), frt.getHeure2AM2()));
+
+            // 🔹 Mathématiques
+            map.put("MATH L", new HoraireItem(frt.getDate1ML(), frt.getHeure1ML(), frt.getDate2ML(), frt.getHeure2ML()));
+            map.put("MATH SE", new HoraireItem(frt.getDate1MSE(), frt.getHeure1MSE(), frt.getDate2MSE(), frt.getHeure2MSE()));
+            map.put("MATH SM", new HoraireItem(frt.getDate1MSM(), frt.getHeure1MSM(), frt.getDate2MSM(), frt.getHeure2MSM()));
+
+            // 🔹 Physique-Chimie
+            map.put("PC L", new HoraireItem(frt.getDate1PCL(), frt.getHeure1PCL(), frt.getDate2PCL(), frt.getHeure2PCL()));
+            map.put("PC SE", new HoraireItem(frt.getDate1PCSE(), frt.getHeure1PCSE(), frt.getDate2PCSE(), frt.getHeure2PCSE()));
+            map.put("PC SM", new HoraireItem(frt.getDate1PCSM(), frt.getHeure1PCSM(), frt.getDate2PCSM(), frt.getHeure2PCSM()));
+
+            // 🔹 SVT
+            map.put("SVT L", new HoraireItem(frt.getDate1SVTL(), frt.getHeure1SVTL(), frt.getDate2SVTL(), frt.getHeure2SVTL()));
+            map.put("SVT SE", new HoraireItem(frt.getDate1SVTSE(), frt.getHeure1SVTSE(), frt.getDate2SVTSE(), frt.getHeure2SVTSE()));
+            map.put("SVT SM", new HoraireItem(frt.getDate1SVTSM(), frt.getHeure1SVTSM(), frt.getDate2SVTSM(), frt.getHeure2SVTSM()));
+
+            // 🔹 Histoire-Géographie
+            map.put("HG", new HoraireItem(frt.getDate1HG(), frt.getHeure1HG(), frt.getDate2HG(), frt.getHeure2HG()));
+
+            // 🔹 LLA / Langues anciennes
+            map.put("LLA", new HoraireItem(frt.getDate1LLA(), frt.getHeure1LLA(), frt.getDate2LLA(), frt.getHeure2LLA()));
+            map.put("LATIN", new HoraireItem(frt.getDate1LAT(), frt.getHeure1LAT(), frt.getDate2LAT(), frt.getHeure2LAT()));
+
+            // 🔹 Espagnol
+            map.put("ESPAGNOL LV1", new HoraireItem(frt.getDate1ESP1(), frt.getHeure1ESP1(), frt.getDate2ESP1(), frt.getHeure2ESP1()));
+            map.put("ESPAGNOL LV2", new HoraireItem(frt.getDate1ESP2(), frt.getHeure1ESP2(), frt.getDate2ESP2(), frt.getHeure2ESP2()));
+
+            // 🔹 Italien
+            map.put("ITALIEN", new HoraireItem(frt.getDate1ITA(), frt.getHeure1ITA(), frt.getDate2ITA(), frt.getHeure2ITA()));
+
+            // 🔹 Portugais
+            map.put("PORTUGAIS LV1", new HoraireItem(frt.getDate1PORT1(), frt.getHeure1PORT1(), frt.getDate2PORT1(), frt.getHeure2PORT1()));
+            map.put("PORTUGAIS LV2", new HoraireItem(frt.getDate1PORT2(), frt.getHeure1PORT2(), frt.getDate2PORT2(), frt.getHeure2PORT2()));
+
+            // 🔹 Russe
+            map.put("RUSSE", new HoraireItem(frt.getDate1RUS(), frt.getHeure1RUS(), frt.getDate2RUS(), frt.getHeure2RUS()));
+
+            // 🔹 Économie / SES / Gestion / Management
+            map.put("ECONOMIE", new HoraireItem(frt.getDate1ECO(), frt.getHeure1ECO(), frt.getDate2ECO(), frt.getHeure2ECO()));
+            map.put("SCIENCES ECONOMIQUES ET SOCIALES", new HoraireItem(frt.getDate1SES(), frt.getHeure1SES(), frt.getDate2SES(), frt.getHeure2SES()));
+            map.put("GESTION COMPTABLE ET FINANCIERE", new HoraireItem(frt.getDate1GCF(), frt.getHeure1GCF(), frt.getDate2GCF(), frt.getHeure2GCF()));
+            map.put("MANAGEMENT DES ORGANISATIONS", new HoraireItem(frt.getDate1MO(), frt.getHeure1MO(), frt.getDate2MO(), frt.getHeure2MO()));
+
+            // 🔹 Génie
+            map.put("GENIE ELECTRIQUE", new HoraireItem(frt.getDate1GE(), frt.getHeure1GE(), frt.getDate2GE(), frt.getHeure2GE()));
+            map.put("GENIE MECANIQUE", new HoraireItem(frt.getDate1GM(), frt.getHeure1GM(), frt.getDate2GM(), frt.getHeure2GM()));
+        });
+
+        return map;
+    }
+
 }

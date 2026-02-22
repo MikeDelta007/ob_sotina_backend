@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -39,6 +40,21 @@ public class DataImportController
     @Autowired
     private final DecompteFeuilleJuryService decompteFeuilleJuryService;
 
+    //SOTINA
+    @PostMapping(value="/fusion-repartition")
+    public ResponseEntity<?> fusionTirage()
+    {
+        try
+        {
+            this.tirageJuryMatService.unionCollections();
+            return ResponseEntity.ok("Fusion réussie");
+        }
+        catch (Exception e)
+        {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Erreur fusion: " + e.getMessage());
+        }
+    }
 
     //SOTINA
     @PostMapping("/data-candidats")
@@ -89,9 +105,7 @@ public class DataImportController
         return ResponseEntity.ok(res);
     }
 
-
-
-
+    //SOTINA
     @Operation(summary="")
     @GetMapping(value="/repCP-by-aca")
     public ResponseEntity<Map<String, List<RepartitionTirageCEP>>> repCP() throws Exception
@@ -99,6 +113,7 @@ public class DataImportController
         return ResponseEntity.ok(this.tirageJuryMatService.getRepCPByAcademie());
     }
 
+    //SOTINA - Export Excel
     @Operation(summary="")
     @GetMapping(value="/repCP-all")
     public ResponseEntity<List<RepartitionTirageCEP>> repCP_() throws Exception
@@ -114,12 +129,7 @@ public class DataImportController
     }
 
     //SOTINA
-    @PostMapping("/fusion-repartition")
-    public ResponseEntity<Void> fusionTirage()
-    {
-        this.tirageJuryMatService.unionCollections();
-        return ResponseEntity.ok().build();
-    }
+
 
     //SOTINA
     @PostMapping("/repartition-cep")
@@ -135,6 +145,7 @@ public class DataImportController
         return ResponseEntity.ok(this.tirageJuryMatService.repartitionParCS());
     }
 
+    //SOTINA
     @PostMapping("/feuille-cep")
     public ResponseEntity<List<RepartitionFeuilleCEPDTO>> repartitionFeuillesCEP()
     {
@@ -148,6 +159,7 @@ public class DataImportController
         return ResponseEntity.ok(this.decompteFeuilleJuryService.repartitionParCS());
     }
 
+    //SOTINA
     @Operation(summary="")
     @GetMapping(value="/feuilleCP-by-aca")
     public ResponseEntity<Map<String, List<RepartitionFeuilleCEP>>> repFCP() throws Exception
@@ -155,6 +167,7 @@ public class DataImportController
         return ResponseEntity.ok(this.decompteFeuilleJuryService.getRepCPByAcademie());
     }
 
+    //SOTINA
     @Operation(summary="")
     @GetMapping(value="/feuilleCS-by-aca")
     public ResponseEntity<Map<String, List<RepartitionFeuilleCES>>> repFCS() throws Exception
@@ -162,40 +175,30 @@ public class DataImportController
         return ResponseEntity.ok(this.decompteFeuilleJuryService.getRepCSByAcademie());
     }
 
-    @PostMapping("/checkRedoublantOrFraude/{tableNum}/{exYearBac}")
-    public ResponseEntity<BaseMorte> checkRedOrFraud(@PathVariable int tableNum, @PathVariable int exYearBac)
+    //SOTINA
+    @Operation(summary="")
+    @GetMapping(value="/get-all-fusion-tirage")
+    public ResponseEntity<Map<String, List<FusionRepartitionTirage>>> fusionRep() throws Exception
     {
-        return ResponseEntity.ok(this.importDataService.checkRedoublantOrFraude(tableNum, exYearBac));
+        return ResponseEntity.ok(this.tirageJuryMatService.getAllFusionRepTirage());
     }
 
-    @PatchMapping("/updateDureeMention")
-    public ResponseEntity<BaseMorte> checkRedoublantByEtatCivil_(@RequestParam String idBm, @RequestParam int dureeMention)
-    {
-        return ResponseEntity.ok(this.importDataService.updateArchive(idBm, dureeMention));
+    //SOTINA
+    @PutMapping("/prog-tirage-etiquette")
+    public ResponseEntity<String> progTirageEtiquette(@RequestBody HoraireRequest request) {
+        try {
+            tirageJuryMatService.prog_tirage_etiquette(request); // passe le DTO directement
+            return ResponseEntity.ok("Horaires mis à jour avec succès");
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Erreur mise à jour : " + e.getMessage());
+        }
     }
 
-    @PostMapping("/checkRedoublantByEtatCivil/{codeCentreEtatCivil}/{yearRegistryNum}")
-    public ResponseEntity<BaseMorte> checkRedoublantByEtatCivil(@PathVariable String codeCentreEtatCivil, @PathVariable int yearRegistryNum, @RequestParam String registryNum)
-    {
-        return ResponseEntity.ok(this.importDataService.checkRedoublantByEtatCivil(codeCentreEtatCivil, yearRegistryNum, registryNum));
-    }
-
-    @GetMapping("/get-archives/{page}/{size}")
-    public ResponseEntity<?> getArchives(
-            @PathVariable int page,
-            @PathVariable int size,
-            @RequestParam(required = false) String search
-    ) {
-        Page<BaseMorte> p = this.importDataService.getDataBaseMorte(page, size, search);
-
-        Map<String, Object> res = new HashMap<>();
-        res.put("content", p.getContent());
-        res.put("totalElements", p.getTotalElements());
-        res.put("totalPages", p.getTotalPages());
-        res.put("size", p.getSize());
-        res.put("page", p.getNumber());
-
-        return ResponseEntity.ok(res);
+    @GetMapping("/horaires")
+    public HoraireRequest getHoraires() {
+        Map<String, HoraireItem> horaires = tirageJuryMatService.getHoraires();
+        return new HoraireRequest(horaires);
     }
 
 }
