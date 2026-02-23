@@ -197,8 +197,7 @@ public class DataImportController
 
     @GetMapping("/horaires")
     public HoraireRequest getHoraires() {
-        Map<String, HoraireItem> horaires = tirageJuryMatService.getHoraires();
-        return new HoraireRequest(horaires);
+        return tirageJuryMatService.getHoraires();
     }
 
 }

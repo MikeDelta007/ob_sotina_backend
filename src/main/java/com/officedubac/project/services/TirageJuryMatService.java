@@ -3,10 +3,7 @@ package com.officedubac.project.services;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.officedubac.project.dto.*;
 import com.officedubac.project.models.*;
-import com.officedubac.project.repository.FusionRepartitionTirageRepository;
-import com.officedubac.project.repository.RepartitionTirageCEPRepository;
-import com.officedubac.project.repository.RepartitionTirageCSRepository;
-import com.officedubac.project.repository.SourceCandidatRepository;
+import com.officedubac.project.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.Document;
@@ -33,6 +30,8 @@ public class TirageJuryMatService
     private final RepartitionTirageCSRepository repartitionTirageCSRepository;
 
     private final FusionRepartitionTirageRepository fusionRepartitionTirageRepository;
+
+    private final HoraireRequestRepository horaireRequestRepository;
 
     private final MongoTemplate mongoTemplate;
 
@@ -98,7 +97,7 @@ public class TirageJuryMatService
                 long philoL = groupe.stream().filter(c -> hasSerie(c, SERIES_L) || hasSerie(c, SERIES_LA)).count();
                 long philoS = groupe.stream().filter(c -> hasSerie(c, SERIES_S) || hasSerie(c, SERIES_SA)).count();
                 long hg = groupe.stream().filter(c -> c.getSerie() != null).count();
-                long lla = groupe.stream().filter(c -> hasCode(c, "S1A", "S2A", "LA")).count();
+                long lla = groupe.stream().filter(c -> hasCode(c, "S1A", "S2A", "LA", "L-AR")).count();
 
                 long allemandLV1 = groupe.stream()
                         .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Allemand"))
@@ -634,10 +633,36 @@ public class TirageJuryMatService
 
     public void prog_tirage_etiquette(HoraireRequest hr)
     {
-        log.info(hr.toString());
+        log.info("HoraireRequest: {}", hr);
+
+        Map<String, HoraireItem> map = hr.getHoraires();
+
+        // ✅ validation AVANT sauvegarde
+        if (map == null || map.isEmpty()) {
+            log.warn("Horaires vides — rien à traiter");
+            return;
+        }
+
+        // 🔥 chercher s'il existe déjà
+        HoraireRequest entity = horaireRequestRepository.findAll()
+                .stream()
+                .findFirst()
+                .orElse(null);
+
+        if (entity == null)
+        {
+            log.info("Création d'un nouveau HoraireRequest");
+            horaireRequestRepository.save(hr);
+        }
+        else
+        {
+            log.info("Mise à jour du HoraireRequest existant");
+            entity.setHoraires(map);
+            horaireRequestRepository.save(entity);
+        }
 
         List<FusionRepartitionTirage> all = fusionRepartitionTirageRepository.findAll();
-        Map<String, HoraireItem> map = hr.getHoraires();
+
 
         if (map == null || map.isEmpty()) {
             return;
@@ -921,81 +946,12 @@ public class TirageJuryMatService
         log.info("Log bombe");
     }
 
-    public Map<String, HoraireItem> getHoraires() {
-        Map<String, HoraireItem> map = new LinkedHashMap<>();
+    public HoraireRequest getHoraires() {
 
-        fusionRepartitionTirageRepository.findAll().stream().findFirst().ifPresent(frt -> {
-            // 🔹 Français
-            map.put("FRANCAIS L", new HoraireItem(frt.getDate1FL(), frt.getHeure1FL(), frt.getDate2FL(), frt.getHeure2FL()));
-            map.put("FRANCAIS S", new HoraireItem(frt.getDate1FS(), frt.getHeure1FS(), frt.getDate2FS(), frt.getHeure2FS()));
-            map.put("FRANCAIS LA", new HoraireItem(frt.getDate1FLa(), frt.getHeure1FLa(), frt.getDate2FLa(), frt.getHeure2FLa()));
-            map.put("FRANCAIS SA", new HoraireItem(frt.getDate1FLa(), frt.getHeure1FLa(), frt.getDate2FLa(), frt.getHeure2FLa())); // si différent, adapte
-
-            // 🔹 Philosophie
-            map.put("PHILO L", new HoraireItem(frt.getDate1PHILOL(), frt.getHeure1PHILOL(), frt.getDate2PHILOL(), frt.getHeure2PHILOL()));
-            map.put("PHILO S", new HoraireItem(frt.getDate1PHILOS(), frt.getHeure1PHILOS(), frt.getDate2PHILOS(), frt.getHeure2PHILOS()));
-
-            // 🔹 Anglais
-            map.put("ANGLAIS S", new HoraireItem(frt.getDate1ES(), frt.getHeure1ES(), frt.getDate2ES(), frt.getHeure2ES()));
-            map.put("ANGLAIS LV1", new HoraireItem(frt.getDate1ANG1(), frt.getHeure1ANG1(), frt.getDate2ANG1(), frt.getHeure2ANG1()));
-            map.put("ANGLAIS LV2", new HoraireItem(frt.getDate1ANG2(), frt.getHeure1ANG2(), frt.getDate2ANG2(), frt.getHeure2ANG2()));
-
-            // 🔹 Allemand
-            map.put("ALLEMAND LV1", new HoraireItem(frt.getDate1ALL1(), frt.getHeure1ALL1(), frt.getDate2ALL1(), frt.getHeure2ALL1()));
-            map.put("ALLEMAND LV2", new HoraireItem(frt.getDate1ALL2(), frt.getHeure1ALL2(), frt.getDate2ALL2(), frt.getHeure2ALL2()));
-
-            // 🔹 Arabe moderne
-            map.put("ARABE MODERNE LV1", new HoraireItem(frt.getDate1AM1(), frt.getHeure1AM1(), frt.getDate2AM1(), frt.getHeure2AM1()));
-            map.put("ARABE MODERNE LV2", new HoraireItem(frt.getDate1AM2(), frt.getHeure1AM2(), frt.getDate2AM2(), frt.getHeure2AM2()));
-
-            // 🔹 Mathématiques
-            map.put("MATH L", new HoraireItem(frt.getDate1ML(), frt.getHeure1ML(), frt.getDate2ML(), frt.getHeure2ML()));
-            map.put("MATH SE", new HoraireItem(frt.getDate1MSE(), frt.getHeure1MSE(), frt.getDate2MSE(), frt.getHeure2MSE()));
-            map.put("MATH SM", new HoraireItem(frt.getDate1MSM(), frt.getHeure1MSM(), frt.getDate2MSM(), frt.getHeure2MSM()));
-
-            // 🔹 Physique-Chimie
-            map.put("PC L", new HoraireItem(frt.getDate1PCL(), frt.getHeure1PCL(), frt.getDate2PCL(), frt.getHeure2PCL()));
-            map.put("PC SE", new HoraireItem(frt.getDate1PCSE(), frt.getHeure1PCSE(), frt.getDate2PCSE(), frt.getHeure2PCSE()));
-            map.put("PC SM", new HoraireItem(frt.getDate1PCSM(), frt.getHeure1PCSM(), frt.getDate2PCSM(), frt.getHeure2PCSM()));
-
-            // 🔹 SVT
-            map.put("SVT L", new HoraireItem(frt.getDate1SVTL(), frt.getHeure1SVTL(), frt.getDate2SVTL(), frt.getHeure2SVTL()));
-            map.put("SVT SE", new HoraireItem(frt.getDate1SVTSE(), frt.getHeure1SVTSE(), frt.getDate2SVTSE(), frt.getHeure2SVTSE()));
-            map.put("SVT SM", new HoraireItem(frt.getDate1SVTSM(), frt.getHeure1SVTSM(), frt.getDate2SVTSM(), frt.getHeure2SVTSM()));
-
-            // 🔹 Histoire-Géographie
-            map.put("HG", new HoraireItem(frt.getDate1HG(), frt.getHeure1HG(), frt.getDate2HG(), frt.getHeure2HG()));
-
-            // 🔹 LLA / Langues anciennes
-            map.put("LLA", new HoraireItem(frt.getDate1LLA(), frt.getHeure1LLA(), frt.getDate2LLA(), frt.getHeure2LLA()));
-            map.put("LATIN", new HoraireItem(frt.getDate1LAT(), frt.getHeure1LAT(), frt.getDate2LAT(), frt.getHeure2LAT()));
-
-            // 🔹 Espagnol
-            map.put("ESPAGNOL LV1", new HoraireItem(frt.getDate1ESP1(), frt.getHeure1ESP1(), frt.getDate2ESP1(), frt.getHeure2ESP1()));
-            map.put("ESPAGNOL LV2", new HoraireItem(frt.getDate1ESP2(), frt.getHeure1ESP2(), frt.getDate2ESP2(), frt.getHeure2ESP2()));
-
-            // 🔹 Italien
-            map.put("ITALIEN", new HoraireItem(frt.getDate1ITA(), frt.getHeure1ITA(), frt.getDate2ITA(), frt.getHeure2ITA()));
-
-            // 🔹 Portugais
-            map.put("PORTUGAIS LV1", new HoraireItem(frt.getDate1PORT1(), frt.getHeure1PORT1(), frt.getDate2PORT1(), frt.getHeure2PORT1()));
-            map.put("PORTUGAIS LV2", new HoraireItem(frt.getDate1PORT2(), frt.getHeure1PORT2(), frt.getDate2PORT2(), frt.getHeure2PORT2()));
-
-            // 🔹 Russe
-            map.put("RUSSE", new HoraireItem(frt.getDate1RUS(), frt.getHeure1RUS(), frt.getDate2RUS(), frt.getHeure2RUS()));
-
-            // 🔹 Économie / SES / Gestion / Management
-            map.put("ECONOMIE", new HoraireItem(frt.getDate1ECO(), frt.getHeure1ECO(), frt.getDate2ECO(), frt.getHeure2ECO()));
-            map.put("SCIENCES ECONOMIQUES ET SOCIALES", new HoraireItem(frt.getDate1SES(), frt.getHeure1SES(), frt.getDate2SES(), frt.getHeure2SES()));
-            map.put("GESTION COMPTABLE ET FINANCIERE", new HoraireItem(frt.getDate1GCF(), frt.getHeure1GCF(), frt.getDate2GCF(), frt.getHeure2GCF()));
-            map.put("MANAGEMENT DES ORGANISATIONS", new HoraireItem(frt.getDate1MO(), frt.getHeure1MO(), frt.getDate2MO(), frt.getHeure2MO()));
-
-            // 🔹 Génie
-            map.put("GENIE ELECTRIQUE", new HoraireItem(frt.getDate1GE(), frt.getHeure1GE(), frt.getDate2GE(), frt.getHeure2GE()));
-            map.put("GENIE MECANIQUE", new HoraireItem(frt.getDate1GM(), frt.getHeure1GM(), frt.getDate2GM(), frt.getHeure2GM()));
-        });
-
-        return map;
+        return horaireRequestRepository.findAll()
+                .stream()
+                .findFirst()
+                .orElseGet(HoraireRequest::new);
     }
 
 }
