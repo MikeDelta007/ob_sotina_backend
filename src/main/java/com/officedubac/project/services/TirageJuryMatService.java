@@ -33,6 +33,8 @@ public class TirageJuryMatService
 
     private final HoraireRequestRepository horaireRequestRepository;
 
+    private final RegleMatiereRepository regleMatiereRepository;
+
     private final MongoTemplate mongoTemplate;
 
     private static final Set<String> SERIES_L = Set.of("L'1", "L1A", "L1B", "L2");
@@ -57,20 +59,24 @@ public class TirageJuryMatService
 
     public List<RepartitionTirageCEPDTO> repartitionParCEP() {
 
+        // 🔹 récupérer tous les candidats
         List<SourceCandidat> candidats = sourceCandidatRepository.findAll();
 
-        // Regroupement par JURY
+        // 🔹 charger les règles dynamiques depuis la base
+        List<RegleMatiere> regles = regleMatiereRepository.findAll();
+
+        // 🔹 regrouper les candidats par jury
         Map<Integer, List<SourceCandidat>> candidatsParJury =
                 candidats.stream().collect(Collectors.groupingBy(SourceCandidat::getJury));
 
-        // Suppression ancienne répartition
+        // 🔹 supprimer l'ancienne répartition
         repartitionTirageCEPRepository.deleteAll();
 
         List<RepartitionTirageCEP> entities = new ArrayList<>();
         List<RepartitionTirageCEPDTO> dtos = new ArrayList<>();
 
-        try
-        {
+        try {
+
             for (Map.Entry<Integer, List<SourceCandidat>> entry : candidatsParJury.entrySet()) {
 
                 Integer jury = entry.getKey();
@@ -81,449 +87,212 @@ public class TirageJuryMatService
                 Integer session = groupe.get(0).getSession();
                 long effectif = groupe.size();
 
-                // Calcul des effectifs
-                long frenchL = groupe.stream().filter(c -> hasSerie(c, SERIES_L)).count();
-                long frenchS = groupe.stream().filter(c -> hasSerie(c, SERIES_S)).count();
-                long frenchLA = groupe.stream().filter(c -> hasCode(c, "LA")).count();
-                long frenchSA = groupe.stream().filter(c -> hasSerie(c, SERIES_SA)).count();
-                long englishS = groupe.stream().filter(c -> hasSerie(c, SERIES_S) || hasSerie(c, SERIES_SA)).count();
-                long mathL = groupe.stream().filter(c -> hasSerie(c, SERIES_L) || hasSerie(c, SERIES_LA)).count();
-                long mathSM = groupe.stream().filter(c -> hasSerie(c, SERIES_SM) || hasSerie(c, SERIES_SM)).count();
-                long pcSM = groupe.stream().filter(c -> hasSerie(c, SERIES_SM) || hasSerie(c, SERIES_SM)).count();
-                long mathSE = groupe.stream().filter(c -> hasSerie(c, SERIES_SE) || hasSerie(c, SERIES_SE)).count();
-                long pcSE = groupe.stream().filter(c -> hasSerie(c, SERIES_SE) || hasSerie(c, SERIES_SE)).count();
-                long svtSE = groupe.stream().filter(c -> hasSerie(c, SERIES_SE) || hasSerie(c, SERIES_SE)).count();
-                long svtSM = groupe.stream().filter(c -> hasSerie(c, SERIES_SM) || hasSerie(c, SERIES_SM)).count();
-                long philoL = groupe.stream().filter(c -> hasSerie(c, SERIES_L) || hasSerie(c, SERIES_LA)).count();
-                long philoS = groupe.stream().filter(c -> hasSerie(c, SERIES_S) || hasSerie(c, SERIES_SA)).count();
-                long hg = groupe.stream().filter(c -> c.getSerie() != null).count();
-                long lla = groupe.stream().filter(c -> hasCode(c, "S1A", "S2A", "LA", "L-AR")).count();
+                // 🔥 Map dynamique des compteurs initialisée à 0
+                Map<String, Integer> compteurs = new HashMap<>();
+                regles.forEach(r -> compteurs.put(r.getCode(), 0));
 
-                long allemandLV1 = groupe.stream()
-                        .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Allemand"))
-                        .count();
+                // =====================================================
+                // 🚀 UNE SEULE BOUCLE SUR TOUS LES CANDIDATS DU JURY
+                // =====================================================
+                for (SourceCandidat c : groupe) {
 
-                long allemandLV2 = groupe.stream()
-                        .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Allemand"))
-                        .count();
+                    for (RegleMatiere r : regles) {
 
-                long anglaisLV1 = groupe.stream()
-                        .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Anglais"))
-                        .count();
+                        boolean match = false;
 
-                long anglaisLV2 = groupe.stream()
-                        .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Anglais"))
-                        .count();
+                        // ===== règles par série =====
+                        if ("SERIE".equalsIgnoreCase(r.getType())) {
+                            if (c.getSerie() != null &&
+                                    r.getSeries() != null &&
+                                    r.getSeries().contains(c.getSerie())) {
+                                match = true;
+                            }
+                        }
 
-                long arabeModerneLV1 = groupe.stream()
-                        .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Arabe Moderne"))
-                        .count();
+                        // ===== règles optionnelles =====
+                        else if ("OPTION".equalsIgnoreCase(r.getType())) {
+                            String valeurChamp = switch (r.getChamp()) {
+                                case "matiere1" -> c.getMatiere1();
+                                case "matiere2" -> c.getMatiere2();
+                                case "matiere3" -> c.getMatiere3();
+                                default -> null;
+                            };
 
-                long arabeModerneLV2 = groupe.stream()
-                        .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Arabe Moderne"))
-                        .count();
+                            if (valeurChamp != null &&
+                                    valeurChamp.equalsIgnoreCase(r.getValeur())) {
+                                match = true;
+                            }
+                        }
 
-                long economie = groupe.stream()
-                        .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Economie"))
-                        .count();
+                        // 🔥 si le candidat correspond à la règle, incrémenter le compteur
+                        if (match) {
+                            compteurs.merge(r.getCode(), 1, Integer::sum);
+                        }
+                    }
+                }
 
-                long italien = groupe.stream()
-                        .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Italien"))
-                        .count();
-
-                long russe = groupe.stream()
-                        .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Russe"))
-                        .count();
-
-                long latin = groupe.stream()
-                        .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Latin"))
-                        .count();
-
-                long espagnolLV1 = groupe.stream()
-                        .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Espagnol"))
-                        .count();
-
-                long espagnolLV2 = groupe.stream()
-                        .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Espagnol"))
-                        .count();
-
-                long portugaisLV1 = groupe.stream()
-                        .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Portugais"))
-                        .count();
-
-                long portugaisLV2 = groupe.stream()
-                        .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Portugais"))
-                        .count();
-
-                long pcL = groupe.stream()
-                        .filter(c -> c.getMatiere3() != null && c.getMatiere3().equalsIgnoreCase("Sciences Physiques"))
-                        .count();
-
-                long svtL = groupe.stream()
-                        .filter(c -> c.getMatiere3() != null && c.getMatiere3().equalsIgnoreCase("Sciences de la vie et de la Terre"))
-                        .count();
-
-                long gelec = groupe.stream()
-                        .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Génie Electrique"))
-                        .count();
-
-                long gemec = groupe.stream()
-                        .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Génie mécanique"))
-                        .count();
-
-                long mo = groupe.stream()
-                        .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Management des organisations"))
-                        .count();
-
-                long ses = groupe.stream()
-                        .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Sciences Economiques et Sociales"))
-                        .count();
-
-                long gcf = groupe.stream()
-                        .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Gestion comptable et financière (Etude de cas)"))
-                        .count();
-
-                // DTO
+                // =====================================================
+                // 🧠 Construire le DTO avec la map dynamique
+                // =====================================================
                 RepartitionTirageCEPDTO dto = RepartitionTirageCEPDTO.builder()
                         .jury(jury)
                         .session(session)
                         .centreEcrit(centreEcrit)
                         .academia(academia)
                         .effectif(effectif)
-                        .frenchL(frenchL)
-                        .frenchS(frenchS)
-                        .frenchLA(frenchLA)
-                        .frenchSA(frenchSA)
-                        .englishS(englishS)
-                        .mathL(mathL)
-                        .mathSM(mathSM)
-                        .mathSE(mathSE)
-                        .pcSE(pcSE)
-                        .pcSM(pcSM)
-                        .svtSE(svtSE)
-                        .svtSM(svtSM)
-                        .philoL(philoL)
-                        .philoS(philoS)
-                        .hg(hg)
-                        .lla(lla)
-                        .allemendLV1(allemandLV1)
-                        .allemendLV2(allemandLV2)
-                        .anglaisLV1(anglaisLV1)
-                        .anglaisLV2(anglaisLV2)
-                        .arabeModerneLV1(arabeModerneLV1)
-                        .arabeModerneLV2(arabeModerneLV2)
-                        .economie(economie)
-                        .espagnolLV1(espagnolLV1)
-                        .espagnolLV2(espagnolLV2)
-                        .italien(italien)
-                        .latin(latin)
-                        .portugaisLV1(portugaisLV1)
-                        .portugaisLV2(portugaisLV2)
-                        .russe(russe)
-                        .pcL(pcL)
-                        .svtL(svtL)
-                        .mo(mo)
-                        .ses(ses)
-                        .gcf(gcf)
-                        .gelec(gelec)
-                        .gemec(gemec)
+                        .matieres(new HashMap<>(compteurs))
                         .build();
 
                 dtos.add(dto);
 
-                // Entity DB
+                // =====================================================
+                // ⚡ Construire l'entité DB
+                // =====================================================
                 RepartitionTirageCEP entity = RepartitionTirageCEP.builder()
                         .jury(jury)
                         .session(session)
                         .centreEcrit(centreEcrit)
                         .academia(academia)
                         .effectif(effectif)
-                        .frenchL(frenchL)
-                        .frenchS(frenchS)
-                        .frenchLA(frenchLA)
-                        .frenchSA(frenchSA)
-                        .englishS(englishS)
-                        .mathL(mathL)
-                        .mathSM(mathSM)
-                        .mathSE(mathSE)
-                        .pcSE(pcSE)
-                        .pcSM(pcSM)
-                        .svtSE(svtSE)
-                        .svtSM(svtSM)
-                        .philoL(philoL)
-                        .philoS(philoS)
-                        .hg(hg)
-                        .lla(lla)
-                        .allemendLV1(allemandLV1)
-                        .allemendLV2(allemandLV2)
-                        .anglaisLV1(anglaisLV1)
-                        .anglaisLV2(anglaisLV2)
-                        .arabeModerneLV1(arabeModerneLV1)
-                        .arabeModerneLV2(arabeModerneLV2)
-                        .economie(economie)
-                        .espagnolLV1(espagnolLV1)
-                        .espagnolLV2(espagnolLV2)
-                        .italien(italien)
-                        .latin(latin)
-                        .portugaisLV1(portugaisLV1)
-                        .portugaisLV2(portugaisLV2)
-                        .russe(russe)
-                        .pcL(pcL)
-                        .svtL(svtL)
-                        .mo(mo)
-                        .ses(ses)
-                        .gcf(gcf)
-                        .gelec(gelec)
-                        .gemec(gemec)
+                        .matieres(new HashMap<>(compteurs))
                         .build();
 
                 entities.add(entity);
             }
 
+        } catch (Exception e) {
+            System.out.println("Erreur répartition CEP : " + e.getMessage());
+            e.printStackTrace();
         }
-        catch (Exception e)
-        {
-            System.out.println(e);
-        }
-        // Sauvegarde en base
+
+        // 🔹 sauvegarde en base
         repartitionTirageCEPRepository.saveAll(entities);
 
-        // Retour trié
+        // 🔹 retour trié par jury
         return dtos.stream()
                 .sorted(Comparator.comparing(RepartitionTirageCEPDTO::getJury))
                 .toList();
     }
 
-    public List<RepartitionTirageCSDTO> repartitionParCS() {
 
+    public List<RepartitionTirageCSDTO> repartitionParCS()
+    {
+        // 🔹 récupérer tous les candidats
         List<SourceCandidat> candidats = sourceCandidatRepository.findByCentreEcritSecondaireIsNotNull();
 
-        // Regroupement par JURY
+        // 🔹 charger les règles dynamiques depuis la base
+        List<RegleMatiere> regles = regleMatiereRepository.findAll();
+
+        // 🔹 regrouper les candidats par jury
         Map<Integer, List<SourceCandidat>> candidatsParJury =
                 candidats.stream().collect(Collectors.groupingBy(SourceCandidat::getJury));
 
-        // Suppression ancienne répartition
-        repartitionTirageCSRepository.deleteAll();
+        // 🔹 supprimer l'ancienne répartition
+        repartitionTirageCEPRepository.deleteAll();
 
         List<RepartitionTirageCES> entities = new ArrayList<>();
         List<RepartitionTirageCSDTO> dtos = new ArrayList<>();
 
-        for (Map.Entry<Integer, List<SourceCandidat>> entry : candidatsParJury.entrySet()) {
+        try {
 
-            Integer jury = entry.getKey();
-            List<SourceCandidat> groupe = entry.getValue();
+            for (Map.Entry<Integer, List<SourceCandidat>> entry : candidatsParJury.entrySet()) {
 
-            String centreEcrit = groupe.get(0).getCentreEcritSecondaire();
-            String academia = groupe.get(0).getAcaCentEcrit();
-            Integer session = groupe.get(0).getSession();
-            long effectif = groupe.size();
+                Integer jury = entry.getKey();
+                List<SourceCandidat> groupe = entry.getValue();
 
-            // Calcul des effectifs
-            long frenchL = groupe.stream().filter(c -> hasSerie(c, SERIES_L)).count();
-            long frenchS = groupe.stream().filter(c -> hasSerie(c, SERIES_S)).count();
-            long frenchLA = groupe.stream().filter(c -> hasCode(c, "LA")).count();
-            long frenchSA = groupe.stream().filter(c -> hasSerie(c, SERIES_SA)).count();
-            long englishS = groupe.stream().filter(c -> hasSerie(c, SERIES_S) || hasSerie(c, SERIES_SA)).count();
-            long mathL = groupe.stream().filter(c -> hasSerie(c, SERIES_L) || hasSerie(c, SERIES_LA)).count();
-            long mathSM = groupe.stream().filter(c -> hasSerie(c, SERIES_SM) || hasSerie(c, SERIES_SM)).count();
-            long pcSM = groupe.stream().filter(c -> hasSerie(c, SERIES_SM) || hasSerie(c, SERIES_SM)).count();
-            long mathSE = groupe.stream().filter(c -> hasSerie(c, SERIES_SE) || hasSerie(c, SERIES_SE)).count();
-            long pcSE = groupe.stream().filter(c -> hasSerie(c, SERIES_SE) || hasSerie(c, SERIES_SE)).count();
-            long svtSE = groupe.stream().filter(c -> hasSerie(c, SERIES_SE) || hasSerie(c, SERIES_SE)).count();
-            long svtSM = groupe.stream().filter(c -> hasSerie(c, SERIES_SM) || hasSerie(c, SERIES_SM)).count();
-            long philoL = groupe.stream().filter(c -> hasSerie(c, SERIES_L) || hasSerie(c, SERIES_LA)).count();
-            long philoS = groupe.stream().filter(c -> hasSerie(c, SERIES_S) || hasSerie(c, SERIES_SA)).count();
-            long hg = groupe.stream().filter(c -> c.getSerie() != null).count();
-            long lla = groupe.stream().filter(c -> hasCode(c, "S1A", "S2A", "LA")).count();
+                String centreEcrit = groupe.get(0).getCentreEcritSecondaire();
+                String academia = groupe.get(0).getAcaCentEcrit();
+                Integer session = groupe.get(0).getSession();
+                long effectif = groupe.size();
 
-            long allemandLV1 = groupe.stream()
-                    .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Allemand"))
-                    .count();
+                // 🔥 Map dynamique des compteurs initialisée à 0
+                Map<String, Integer> compteurs = new HashMap<>();
+                regles.forEach(r -> compteurs.put(r.getCode(), 0));
 
-            long allemandLV2 = groupe.stream()
-                    .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Allemand"))
-                    .count();
+                // =====================================================
+                // 🚀 UNE SEULE BOUCLE SUR TOUS LES CANDIDATS DU JURY
+                // =====================================================
+                for (SourceCandidat c : groupe) {
 
-            long anglaisLV1 = groupe.stream()
-                    .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Anglais"))
-                    .count();
+                    for (RegleMatiere r : regles) {
 
-            long anglaisLV2 = groupe.stream()
-                    .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Anglais"))
-                    .count();
+                        boolean match = false;
 
-            long arabeModerneLV1 = groupe.stream()
-                    .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Arabe Moderne"))
-                    .count();
+                        // ===== règles par série =====
+                        if ("SERIE".equalsIgnoreCase(r.getType())) {
+                            if (c.getSerie() != null &&
+                                    r.getSeries() != null &&
+                                    r.getSeries().contains(c.getSerie())) {
+                                match = true;
+                            }
+                        }
 
-            long arabeModerneLV2 = groupe.stream()
-                    .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Arabe Moderne"))
-                    .count();
+                        // ===== règles optionnelles =====
+                        else if ("OPTION".equalsIgnoreCase(r.getType())) {
+                            String valeurChamp = switch (r.getChamp()) {
+                                case "matiere1" -> c.getMatiere1();
+                                case "matiere2" -> c.getMatiere2();
+                                case "matiere3" -> c.getMatiere3();
+                                default -> null;
+                            };
 
-            long economie = groupe.stream()
-                    .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Economie"))
-                    .count();
+                            if (valeurChamp != null &&
+                                    valeurChamp.equalsIgnoreCase(r.getValeur())) {
+                                match = true;
+                            }
+                        }
 
-            long italien = groupe.stream()
-                    .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Italien"))
-                    .count();
+                        // 🔥 si le candidat correspond à la règle, incrémenter le compteur
+                        if (match) {
+                            compteurs.merge(r.getCode(), 1, Integer::sum);
+                        }
+                    }
+                }
 
-            long russe = groupe.stream()
-                    .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Russe"))
-                    .count();
+                // =====================================================
+                // 🧠 Construire le DTO avec la map dynamique
+                // =====================================================
+                RepartitionTirageCSDTO dto = RepartitionTirageCSDTO.builder()
+                        .jury(jury)
+                        .session(session)
+                        .centreEcrit(centreEcrit)
+                        .academia(academia)
+                        .effectif(effectif)
+                        .matieres(new HashMap<>(compteurs))
+                        .build();
 
-            long latin = groupe.stream()
-                    .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Latin"))
-                    .count();
+                dtos.add(dto);
 
-            long espagnolLV1 = groupe.stream()
-                    .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Espagnol"))
-                    .count();
+                // =====================================================
+                // ⚡ Construire l'entité DB
+                // =====================================================
+                RepartitionTirageCES entity = RepartitionTirageCES.builder()
+                        .jury(jury)
+                        .session(session)
+                        .centreEcrit(centreEcrit)
+                        .academia(academia)
+                        .effectif(effectif)
+                        .matieres(new HashMap<>(compteurs))
+                        .build();
 
-            long espagnolLV2 = groupe.stream()
-                    .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Espagnol"))
-                    .count();
+                entities.add(entity);
+            }
 
-            long portugaisLV1 = groupe.stream()
-                    .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Portugais"))
-                    .count();
-
-            long portugaisLV2 = groupe.stream()
-                    .filter(c -> c.getMatiere2() != null && c.getMatiere2().equalsIgnoreCase("Portugais"))
-                    .count();
-
-            long pcL = groupe.stream()
-                    .filter(c -> c.getMatiere3() != null && c.getMatiere3().equalsIgnoreCase("Sciences Physiques"))
-                    .count();
-
-            long svtL = groupe.stream()
-                    .filter(c -> c.getMatiere3() != null && c.getMatiere3().equalsIgnoreCase("Sciences de la vie et de la Terre"))
-                    .count();
-
-            long gelec = groupe.stream()
-                    .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Génie Electrique"))
-                    .count();
-
-            long gemec = groupe.stream()
-                    .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Génie mécanique"))
-                    .count();
-
-            long mo = groupe.stream()
-                    .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Management des organisations"))
-                    .count();
-
-            long ses = groupe.stream()
-                    .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Sciences Economiques et Sociales"))
-                    .count();
-
-            long gcf = groupe.stream()
-                    .filter(c -> c.getMatiere1() != null && c.getMatiere1().equalsIgnoreCase("Gestion comptable et financière (Etude de cas)"))
-                    .count();
-
-            // DTO
-            RepartitionTirageCSDTO dto = RepartitionTirageCSDTO.builder()
-                    .jury(jury)
-                    .session(session)
-                    .centreEcrit(centreEcrit)
-                    .academia(academia)
-                    .effectif(effectif)
-                    .frenchL(frenchL)
-                    .frenchS(frenchS)
-                    .frenchLA(frenchLA)
-                    .frenchSA(frenchSA)
-                    .englishS(englishS)
-                    .mathL(mathL)
-                    .mathSM(mathSM)
-                    .mathSE(mathSE)
-                    .pcSE(pcSE)
-                    .pcSM(pcSM)
-                    .svt(svtSE)
-                    .philoL(philoL)
-                    .philoS(philoS)
-                    .hg(hg)
-                    .lla(lla)
-                    .allemendLV1(allemandLV1)
-                    .allemendLV2(allemandLV2)
-                    .anglaisLV1(anglaisLV1)
-                    .anglaisLV2(anglaisLV2)
-                    .arabeModerneLV1(arabeModerneLV1)
-                    .arabeModerneLV2(arabeModerneLV2)
-                    .economie(economie)
-                    .espagnolLV1(espagnolLV1)
-                    .espagnolLV2(espagnolLV2)
-                    .italien(italien)
-                    .latin(latin)
-                    .portugaisLV1(portugaisLV1)
-                    .portugaisLV2(portugaisLV2)
-                    .russe(russe)
-                    .pcL(pcL)
-                    .svtL(svtL)
-                    .mo(mo)
-                    .ses(ses)
-                    .gcf(gcf)
-                    .gelec(gelec)
-                    .gemec(gemec)
-                    .build();
-
-            dtos.add(dto);
-
-            // Entity DB
-            RepartitionTirageCES entity = RepartitionTirageCES.builder()
-                    .jury(jury)
-                    .session(session)
-                    .centreEcrit(centreEcrit)
-                    .academia(academia)
-                    .effectif(effectif)
-                    .frenchL(frenchL)
-                    .frenchS(frenchS)
-                    .frenchLA(frenchLA)
-                    .frenchSA(frenchSA)
-                    .englishS(englishS)
-                    .mathL(mathL)
-                    .mathSM(mathSM)
-                    .mathSE(mathSE)
-                    .pcSE(pcSE)
-                    .pcSM(pcSM)
-                    .svtSE(svtSE)
-                    .svtSM(svtSM)
-                    .philoL(philoL)
-                    .philoS(philoS)
-                    .hg(hg)
-                    .lla(lla)
-                    .allemendLV1(allemandLV1)
-                    .allemendLV2(allemandLV2)
-                    .anglaisLV1(anglaisLV1)
-                    .anglaisLV2(anglaisLV2)
-                    .arabeModerneLV1(arabeModerneLV1)
-                    .arabeModerneLV2(arabeModerneLV2)
-                    .economie(economie)
-                    .espagnolLV1(espagnolLV1)
-                    .espagnolLV2(espagnolLV2)
-                    .italien(italien)
-                    .latin(latin)
-                    .portugaisLV1(portugaisLV1)
-                    .portugaisLV2(portugaisLV2)
-                    .russe(russe)
-                    .pcL(pcL)
-                    .svtL(svtL)
-                    .mo(mo)
-                    .ses(ses)
-                    .gcf(gcf)
-                    .gelec(gelec)
-                    .gemec(gemec)
-                    .build();
-
-            entities.add(entity);
+        } catch (Exception e) {
+            System.out.println("Erreur répartition CEP : " + e.getMessage());
+            e.printStackTrace();
         }
 
-        // Sauvegarde en base
+        // 🔹 sauvegarde en base
         repartitionTirageCSRepository.saveAll(entities);
 
-        // Retour trié
+        // 🔹 retour trié par jury
         return dtos.stream()
                 .sorted(Comparator.comparing(RepartitionTirageCSDTO::getJury))
                 .toList();
     }
+
+
 
 
     public Page<SourceCandidatDTO> getListCandidats(int page, int size)

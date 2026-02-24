@@ -81,6 +81,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/authentification/**").permitAll()
                         .requestMatchers("/api/v1/callback").permitAll()
                         .requestMatchers("/api/v1/import-data/**").permitAll()
+                        .requestMatchers("/api/v1/regleMatiere/**").permitAll()
                         //.requestMatchers("/api/v1/pdf/**").hasAnyAuthority(Role.CHEF_ETABLISSEMENT.name(), Role.AGENT_DE_SAISIE.name(), Role.SCOLARITE.name(), Role.RECEPTIONNISTE.name(), Role.ADMIN.name())
                         .requestMatchers("/api/v1/pdf/**").permitAll()
                         .requestMatchers("/swagger-ui/**","/swagger-ui.html","/v3/api-docs","/webjars/**", "/v3/api-docs/swagger-config").permitAll()
