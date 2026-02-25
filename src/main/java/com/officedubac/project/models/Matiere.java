@@ -19,11 +19,4 @@ public class Matiere
     private String id;
     private String name;
     private String code;
-    private double coef_princ;
-    private double coef_prat;
-    private double memo;
-    private Serie serie;
-    private TypeMatiere typeMatiere;
-    //Option
-    private PorteeMatiere porteeMatiere;
 }

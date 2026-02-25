@@ -94,21 +94,20 @@ public class TirageJuryMatService
                 // =====================================================
                 // 🚀 UNE SEULE BOUCLE SUR TOUS LES CANDIDATS DU JURY
                 // =====================================================
-                for (SourceCandidat c : groupe) {
-
-                    for (RegleMatiere r : regles) {
-
+                for (SourceCandidat c : groupe)
+                {
+                    for (RegleMatiere r : regles)
+                    {
                         boolean match = false;
-
                         // ===== règles par série =====
-                        if ("SERIE".equalsIgnoreCase(r.getType())) {
+                        if ("SERIE".equalsIgnoreCase(r.getType()))
+                        {
                             if (c.getSerie() != null &&
                                     r.getSeries() != null &&
                                     r.getSeries().contains(c.getSerie())) {
                                 match = true;
                             }
                         }
-
                         // ===== règles optionnelles =====
                         else if ("OPTION".equalsIgnoreCase(r.getType())) {
                             String valeurChamp = switch (r.getChamp()) {
@@ -120,6 +119,20 @@ public class TirageJuryMatService
 
                             if (valeurChamp != null &&
                                     valeurChamp.equalsIgnoreCase(r.getValeur())) {
+                                match = true;
+                            }
+                        }
+
+                        else if ("FACULTATIVE".equalsIgnoreCase(r.getType())) {
+                            String valeurChamp2 = switch (r.getChamp()) {
+                                case "eprFacListA" -> c.getEprFacListA();
+                                case "eprFacListB" -> c.getEprFacListB();
+                                default -> null;
+                            };
+
+                            if (valeurChamp2 != null &&
+                                    valeurChamp2.equalsIgnoreCase(r.getValeur()))
+                            {
                                 match = true;
                             }
                         }
@@ -242,6 +255,20 @@ public class TirageJuryMatService
                             }
                         }
 
+                        else if ("FACULTATIVE".equalsIgnoreCase(r.getType())) {
+                            String valeurChamp2 = switch (r.getChamp()) {
+                                case "eprFacListA" -> c.getEprFacListA();
+                                case "eprFacListB" -> c.getEprFacListB();
+                                default -> null;
+                            };
+
+                            if (valeurChamp2 != null &&
+                                    valeurChamp2.equalsIgnoreCase(r.getValeur()))
+                            {
+                                match = true;
+                            }
+                        }
+
                         // 🔥 si le candidat correspond à la règle, incrémenter le compteur
                         if (match) {
                             compteurs.merge(r.getCode(), 1, Integer::sum);
@@ -290,6 +317,24 @@ public class TirageJuryMatService
         return dtos.stream()
                 .sorted(Comparator.comparing(RepartitionTirageCSDTO::getJury))
                 .toList();
+    }
+
+
+    public void unionCollections()
+    {
+        mongoTemplate.dropCollection("fusionRepartitionTirage");
+
+        List<Document> collectionA = mongoTemplate.findAll(Document.class, "repartitionTirageCEP");
+        List<Document> collectionB = mongoTemplate.findAll(Document.class, "repartitionTirageCES");
+        List<Document> all = new ArrayList<>();
+
+        collectionA.forEach(doc -> doc.remove("_id"));
+        collectionB.forEach(doc -> doc.remove("_id"));
+
+        all.addAll(collectionA);
+        all.addAll(collectionB);
+
+        mongoTemplate.insert(all, "fusionRepartitionTirage");
     }
 
 
@@ -374,22 +419,7 @@ public class TirageJuryMatService
                 .collect(Collectors.groupingBy(s -> s.getAcademia()));
     }
 
-    public void unionCollections()
-    {
-        mongoTemplate.dropCollection("fusionRepartitionTirage");
 
-        List<Document> collectionA = mongoTemplate.findAll(Document.class, "repartitionTirageCEP");
-        List<Document> collectionB = mongoTemplate.findAll(Document.class, "repartitionTirageCES");
-        List<Document> all = new ArrayList<>();
-
-        collectionA.forEach(doc -> doc.remove("_id"));
-        collectionB.forEach(doc -> doc.remove("_id"));
-
-        all.addAll(collectionA);
-        all.addAll(collectionB);
-
-        mongoTemplate.insert(all, "fusionRepartitionTirage");
-    }
 
     public Map<String, List<FusionRepartitionTirage>> getAllFusionRepTirage()
     {

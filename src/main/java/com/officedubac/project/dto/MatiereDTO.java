@@ -16,9 +16,4 @@ import org.springframework.data.annotation.Id;
 public class MatiereDTO {
     private String name;
     private String code;
-    private double coef_princ;
-    private double coef_prat;
-    private double memo;
-    private Serie serie;
-
 }

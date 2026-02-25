@@ -310,13 +310,6 @@ public class ParametrageService
                 .collect(Collectors.groupingBy(s -> s.getTypeFiliere().getName()));
     }
 
-    public Map<String, List<Matiere>> getMatieresGroupedByTypeMatiere() {
-        List<Matiere> allMatieres = matiereRepository.findAll();
-
-        return allMatieres.stream()
-                .filter(s -> s.getTypeMatiere() != null && s.getTypeMatiere().getName() != null)
-                .collect(Collectors.groupingBy(s -> s.getTypeMatiere().getName()));
-    }
 
     public Map<String, List<Etablissement>> getEtabsGroupedByIA() {
         List<Etablissement> allEtabs = etablissementRepository.findAll();
@@ -347,9 +340,6 @@ public class ParametrageService
         Matiere mt = Matiere.builder()
                 .name(matiereDTO.getName())
                 .code(matiereDTO.getCode())
-                .coef_princ(matiereDTO.getCoef_princ())
-                .coef_prat(matiereDTO.getCoef_prat())
-                .serie(matiereDTO.getSerie())
                 .build();
         return matiereRepository.save(mt);
     }
@@ -362,9 +352,6 @@ public class ParametrageService
         {
             update_mat.setName(matiereDTO.getName());
             update_mat.setCode(matiereDTO.getCode());
-            update_mat.setCoef_princ(matiereDTO.getCoef_princ());
-            update_mat.setCoef_prat(matiereDTO.getCoef_prat());
-            update_mat.setSerie(matiereDTO.getSerie());
             return matiereRepository.save(update_mat);
         }
         else
@@ -403,13 +390,13 @@ public class ParametrageService
     /***
      * @auteur : Mansour DIOUF
      * Ce service me permet de récupérer les matières d'une série
-     */
+
     public List<Matiere> getMatiereFromSerie(String serieId)
     {
         System.out.println("Serie Id"+serieId);
         List<Matiere> mat = matiereRepository.findBySerie_Id(serieId);
         return mat;
-    }
+    }*/
 
     public Programmation createProg(ProgrammationDTO programmationDTO)
     {

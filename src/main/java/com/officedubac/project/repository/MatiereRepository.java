@@ -9,7 +9,7 @@ import java.util.List;
 @Repository
 public interface MatiereRepository extends MongoRepository<Matiere, String>
 {
-    List<Matiere> findBySerie_Id(String serieId);
+    //List<Matiere> findBySerie_Id(String serieId);
     Matiere findByCode(String codeSerie);
     Matiere findByName(String mat);
 }

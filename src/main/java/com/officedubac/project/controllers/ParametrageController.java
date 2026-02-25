@@ -87,12 +87,13 @@ public class ParametrageController
         return ResponseEntity.ok(this.parametrageService.getUserGroupedByProfil());
     }
 
+    /**
     @Operation(summary="Service de récupération des matières par série")
     @GetMapping(value="/matiere-by-serie")
     public ResponseEntity<List<Matiere>> postCandidat(@RequestParam String serie_id) throws Exception {
 
         return ResponseEntity.ok(this.parametrageService.getMatiereFromSerie(serie_id));
-    }
+    }*/
 
     @Operation(summary="Service de récupération des nationalités")
     @GetMapping(value="/nationality")
@@ -291,11 +292,6 @@ public class ParametrageController
         return ResponseEntity.ok(this.parametrageService.getSeriesGroupedByTypeFiliere());
     }
 
-    @Operation(summary="Service de listing et de regroupement des matières par type de matière")
-    @GetMapping("/grouped-by-type-matiere")
-    public ResponseEntity<Map<String, List<Matiere>>> getGroupedByTypeMatiere() throws Exception {
-        return ResponseEntity.ok(this.parametrageService.getMatieresGroupedByTypeMatiere());
-    }
 
     @Operation(summary="Service de listing et de regroupement des établissements par académie")
     @GetMapping("/etab-grouped-by-aca")

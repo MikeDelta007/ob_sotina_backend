@@ -270,12 +270,13 @@ public class CandidatController
         return ResponseEntity.ok(this.candidatService.getDerniereProg());
     }
 
+    /**
     @Operation(summary="Service de listing des matières par série")
     @GetMapping(value="/matiere-by-serie")
     public ResponseEntity<List<Matiere>> postCandidat(@RequestParam String serie_id) throws Exception {
 
         return ResponseEntity.ok(this.candidatService.getMatiereFromSerie(serie_id));
-    }
+    }*/
 
     @Operation(summary="Service de listing des motifs de rejet")
     @GetMapping(value="/rejets")

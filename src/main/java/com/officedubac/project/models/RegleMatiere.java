@@ -4,6 +4,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
+import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.Set;
@@ -13,8 +14,10 @@ import java.util.Set;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class RegleMatiere {
-
+public class RegleMatiere
+{
+    @Id
+    private String id;
     private String code;          // ex: allemandLV1
     private Set<String> series;   // obligatoire pour type SERIE
     private String type;          // SERIE ou OPTION

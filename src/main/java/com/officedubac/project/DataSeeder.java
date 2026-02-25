@@ -514,43 +514,6 @@ public class DataSeeder {
                         Matiere mat = new Matiere();
                         mat.setCode(getCellValue(row.getCell(0)));
                         mat.setName(getCellValue(row.getCell(1)));
-
-                        String cellValue0 = getCellValue(row.getCell(2));
-                        if (cellValue0 == null || cellValue0.trim().isEmpty())
-                        {
-                            mat.setCoef_princ(0.0);
-                        }
-                        else
-                        {
-                            mat.setCoef_princ(Double.parseDouble(cellValue0));
-                        }
-
-                        //mat.setCoef_princ(Double.parseDouble(getCellValue(row.getCell(2))));
-                        String cellValue1 = getCellValue(row.getCell(3));
-                        if (cellValue1 == null || cellValue1.trim().isEmpty())
-                        {
-                            mat.setCoef_prat(0.0);
-                        }
-                        else
-                        {
-                            mat.setCoef_prat(Double.parseDouble(cellValue1));
-                        }
-                        //mat.setCoef_prat(Double.parseDouble(getCellValue(row.getCell(3))));
-                        //mat.setMemo(Double.parseDouble(getCellValue(row.getCell(4))));
-
-                        String cellValue2 = getCellValue(row.getCell(4));
-                        if (cellValue2 == null || cellValue2.trim().isEmpty())
-                        {
-                            mat.setMemo(0.0);
-                        }
-                        else
-                        {
-                            mat.setMemo(Double.parseDouble(cellValue2));
-                        }
-                        mat.setPorteeMatiere(porteeMatiereRepository.findByName(getCellValue(row.getCell(5))));
-                        mat.setTypeMatiere(typeMatiereRepository.findByName(getCellValue(row.getCell(7))));
-                        System.out.println("@@Serie "+ getCellValue(row.getCell(8)));
-                        mat.setSerie(serieRepository.findByCode(getCellValue(row.getCell(8))));
                         //mat.setTypeSerie(typeSerieRepository.findByName(getCellValue(row.getCell(10))));
                         matiereRepository.save(mat);
                     }

@@ -106,12 +106,13 @@ public class CandidatService
         return etabs;
     }
 
+    /***
     public List<Matiere> getMatiereFromSerie(String serieId)
     {
         System.out.println("Serie Id"+serieId);
         List<Matiere> mat = matiereRepository.findBySerie_Id(serieId);
         return mat;
-    }
+    }*/
 
     public List<Programmation> getProgs()
     {
