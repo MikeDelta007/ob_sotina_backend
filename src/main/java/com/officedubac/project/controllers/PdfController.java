@@ -38,20 +38,31 @@ public class PdfController
     private FusionRepartitionTirageRepository repository;
 
     @Autowired
-    private TirageJuryMatService tirageJuryMatService;
+    private RegleMatiereRepository repo;
+
 
 
 
     @Operation(summary = "Génération de l'étiquette de table - Format A4 Paysage")
     @GetMapping("/generate-etiquette-paysage")
     public void generateEtiquettes(@RequestParam(value = "matieres", required = false) List<String> matieres,
-            HttpServletResponse response) throws IOException, DocumentException {
+                                   HttpServletResponse response) throws IOException, DocumentException {
 
         List<FusionRepartitionTirage> list = repository.findAll();
         if (list.isEmpty()) {
             response.setStatus(HttpServletResponse.SC_NO_CONTENT);
             return;
         }
+
+        // Récupérer toutes les règles matières (pour pouvoir retrouver date/heure et séries)
+        List<RegleMatiere> regles = repo.findAll();
+        // Indexer les règles par code pour un accès rapide
+        Map<String, RegleMatiere> regleParCode = regles.stream()
+                .collect(Collectors.toMap(
+                        r -> r.getCode().toUpperCase(),
+                        r -> r,
+                        (r1, r2) -> r1 // en cas de doublon, on garde le premier
+                ));
 
         response.setContentType("application/pdf");
         response.setHeader("Content-Disposition", "inline; filename=etiquettes_bac.pdf");
@@ -60,7 +71,7 @@ public class PdfController
         PdfWriter.getInstance(document, response.getOutputStream());
         document.open();
 
-        // Polices (fallback Helvetica)
+        // Polices (identique)
         Font helv10 = FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL);
         Font helv12Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 60);
         Font helv14 = FontFactory.getFont(FontFactory.HELVETICA, 17, Font.BOLD);
@@ -74,128 +85,58 @@ public class PdfController
         Image logo = Image.getInstance(new ClassPathResource("images/logo-UCAD_.png").getInputStream().readAllBytes());
         logo.scaleToFit(70f, 70f);
 
-        // Préparer la liste des matières disponibles avec leurs champs associés
-        // Définition de toutes les matières avec leurs extracteurs
-        List<MatiereDefinition> matieresDefinitions = Arrays.asList(
-                // Français
-                new MatiereDefinition("FRANCAIS L", FusionRepartitionTirage::getFrenchL,
-                        FusionRepartitionTirage::getDate1FL, FusionRepartitionTirage::getHeure1FL, "L'1 - L1A - L1B - L2"),
-                new MatiereDefinition("FRANCAIS S", FusionRepartitionTirage::getFrenchS,
-                        FusionRepartitionTirage::getDate1FS, FusionRepartitionTirage::getHeure1FS, "S1 - S2 - S3 - S4 - S5"),
-                new MatiereDefinition("FRANCAIS L (A)", FusionRepartitionTirage::getFrenchLA,
-                        FusionRepartitionTirage::getDate1FLa, FusionRepartitionTirage::getHeure1FLa, "LA"),
-                new MatiereDefinition("FRANCAIS S (A)", FusionRepartitionTirage::getFrenchSA,
-                        FusionRepartitionTirage::getDate1FSa, FusionRepartitionTirage::getHeure1FSa, "S1A - S2A"),
+        // Si une liste de matières est fournie, on la transforme en set pour filtrage (insensible à la casse)
+        Set<String> codesDemandes = (matieres != null) ?
+                matieres.stream().map(String::trim).map(String::toUpperCase).collect(Collectors.toSet()) :
+                null;
 
-                // Anglais
-                new MatiereDefinition("ANGLAIS S", FusionRepartitionTirage::getEnglishS,
-                        FusionRepartitionTirage::getDate1ES, FusionRepartitionTirage::getHeure1ES, "S1 - S2 - S3 - S4 - S5"),
-                new MatiereDefinition("ANGLAIS LV1", FusionRepartitionTirage::getAnglaisLV1,
-                        FusionRepartitionTirage::getDate1ANG1, FusionRepartitionTirage::getHeure1ANG1, "L'1 - L1A - L1B - L2"),
-                new MatiereDefinition("ANGLAIS LV2", FusionRepartitionTirage::getAnglaisLV2,
-                        FusionRepartitionTirage::getDate1ANG2, FusionRepartitionTirage::getHeure1ANG2, "L'1 - L1A - L1B - L2"),
-
-                // Mathématiques
-                new MatiereDefinition("MATH L", FusionRepartitionTirage::getMathL,
-                        FusionRepartitionTirage::getDate1ML, FusionRepartitionTirage::getHeure1ML, "L'1 - L1A - L1B - L2 - LA"),
-                new MatiereDefinition("MATH S (SM)", FusionRepartitionTirage::getMathSM,
-                        FusionRepartitionTirage::getDate1MSM, FusionRepartitionTirage::getHeure1MSM, "S1 - S3 - S1A"),
-                new MatiereDefinition("MATH S (SE)", FusionRepartitionTirage::getMathSE,
-                        FusionRepartitionTirage::getDate1MSE, FusionRepartitionTirage::getHeure1MSE, "S2 - S2A - S4 - S5"),
-
-                // Physique-Chimie
-                new MatiereDefinition("PC L", FusionRepartitionTirage::getPcL,
-                        FusionRepartitionTirage::getDate1PCL, FusionRepartitionTirage::getHeure1PCL, "L2"),
-                new MatiereDefinition("PC S (SM)", FusionRepartitionTirage::getPcSM,
-                        FusionRepartitionTirage::getDate1PCSM, FusionRepartitionTirage::getHeure1PCSM, "S1 - S3 - S1A"),
-                new MatiereDefinition("PC S (SE)", FusionRepartitionTirage::getPcSE,
-                        FusionRepartitionTirage::getDate1PCSE, FusionRepartitionTirage::getHeure1PCSE, "S2 - S2A - S4 - S5"),
-
-                // SVT
-                new MatiereDefinition("SVT L", FusionRepartitionTirage::getSvtL,
-                        FusionRepartitionTirage::getDate1SVTL, FusionRepartitionTirage::getHeure1SVTL, "L2"),
-                new MatiereDefinition("SVT S (SM)", FusionRepartitionTirage::getSvtSM,
-                        FusionRepartitionTirage::getDate1SVTSM, FusionRepartitionTirage::getHeure1SVTSM, "S1 - S3 - S1A"),
-                new MatiereDefinition("SVT S (SE)", FusionRepartitionTirage::getSvtSE,
-                        FusionRepartitionTirage::getDate1SVTSE, FusionRepartitionTirage::getHeure1SVTSE, "S2 - S2A - S4 - S5"),
-
-                // Philosophie
-                new MatiereDefinition("PHILO L", FusionRepartitionTirage::getPhiloL,
-                        FusionRepartitionTirage::getDate1PHILOL, FusionRepartitionTirage::getHeure1PHILOL, "L'1 - L1A - L1B - L2"),
-                new MatiereDefinition("PHILO S", FusionRepartitionTirage::getPhiloS,
-                        FusionRepartitionTirage::getDate1PHILOS, FusionRepartitionTirage::getHeure1PHILOS, "S1 - S2 - S2A S3 - S4 - S5"),
-
-                // Histoire-Géo
-                new MatiereDefinition("HISTOIRE-GEO", FusionRepartitionTirage::getHg,
-                        FusionRepartitionTirage::getDate1HG, FusionRepartitionTirage::getHeure1HG, "L'1 - L1A - L1B - L2 - S1 - S2 - S2A - S3 - S4 - S5"),
-
-                // Langues diverses
-                new MatiereDefinition("ALLEMAND LV1", FusionRepartitionTirage::getAllemendLV1,
-                        FusionRepartitionTirage::getDate1ALL1, FusionRepartitionTirage::getHeure1ALL1, "L'1 - L1A - L1B - L2"),
-                new MatiereDefinition("ALLEMAND LV2", FusionRepartitionTirage::getAllemendLV2,
-                        FusionRepartitionTirage::getDate1ALL2, FusionRepartitionTirage::getHeure1ALL2, "L'1 - L1A - L1B - L2"),
-                new MatiereDefinition("ARABE MODERNE LV1", FusionRepartitionTirage::getArabeModerneLV1,
-                        FusionRepartitionTirage::getDate1AM1, FusionRepartitionTirage::getHeure1AM1, "L'1 - L1A - L1B - L2"),
-                new MatiereDefinition("ARABE MODERNE LV2", FusionRepartitionTirage::getArabeModerneLV2,
-                        FusionRepartitionTirage::getDate1AM2, FusionRepartitionTirage::getHeure1AM2, "L'1 - L1A - L1B - L2"),
-                new MatiereDefinition("ESPAGNOL LV1", FusionRepartitionTirage::getEspagnolLV1,
-                        FusionRepartitionTirage::getDate1ESP1, FusionRepartitionTirage::getHeure1ESP1, "L'1 - L1A - L1B - L2"),
-                new MatiereDefinition("ESPAGNOL LV2", FusionRepartitionTirage::getEspagnolLV2,
-                        FusionRepartitionTirage::getDate1ESP2, FusionRepartitionTirage::getHeure1ESP2, "L'1 - L1A - L1B - L2"),
-                new MatiereDefinition("ITALIEN", FusionRepartitionTirage::getItalien,
-                        FusionRepartitionTirage::getDate1ITA, FusionRepartitionTirage::getHeure1ITA, "L'1 - L1A - L1B - L2"),
-                new MatiereDefinition("LATIN", FusionRepartitionTirage::getLatin,
-                        FusionRepartitionTirage::getDate1LAT, FusionRepartitionTirage::getHeure1LAT, "L1A - L1B"),
-                new MatiereDefinition("PORTUGAIS LV1", FusionRepartitionTirage::getPortugaisLV1,
-                        FusionRepartitionTirage::getDate1PORT1, FusionRepartitionTirage::getHeure1PORT1, "L'1 - L1A - L1B - L2"),
-                new MatiereDefinition("PORTUGAIS LV2", FusionRepartitionTirage::getPortugaisLV2,
-                        FusionRepartitionTirage::getDate1PORT2, FusionRepartitionTirage::getHeure1PORT2, "L'1 - L1A - L1B - L2"),
-                new MatiereDefinition("RUSSE", FusionRepartitionTirage::getRusse,
-                        FusionRepartitionTirage::getDate1RUS, FusionRepartitionTirage::getHeure1RUS, "L'1 - L2"),
-
-                new MatiereDefinition("LLA", FusionRepartitionTirage::getLla,
-                        FusionRepartitionTirage::getDate1LLA, FusionRepartitionTirage::getHeure1LLA, "LA - L-AR"),
-
-                // Enseignements techniques/économiques
-                new MatiereDefinition("ECONOMIE", FusionRepartitionTirage::getEconomie,
-                        FusionRepartitionTirage::getDate1ECO, FusionRepartitionTirage::getHeure1ECO, "L2"),
-                new MatiereDefinition("SES", FusionRepartitionTirage::getSes,
-                        FusionRepartitionTirage::getDate1SES, FusionRepartitionTirage::getHeure1SES, "STEG"),
-                new MatiereDefinition("GELEC", FusionRepartitionTirage::getGelec,
-                        FusionRepartitionTirage::getDate1GE, FusionRepartitionTirage::getHeure1GE, "STIDD"),
-                new MatiereDefinition("GEMEC", FusionRepartitionTirage::getGemec,
-                        FusionRepartitionTirage::getDate1GM, FusionRepartitionTirage::getHeure1GM, "STIDD"),
-                new MatiereDefinition("MO", FusionRepartitionTirage::getMo,
-                        FusionRepartitionTirage::getDate1MO, FusionRepartitionTirage::getHeure1MO, "STEG"),
-                new MatiereDefinition("GCF", FusionRepartitionTirage::getGcf,
-                        FusionRepartitionTirage::getDate1GCF, FusionRepartitionTirage::getHeure1GCF, "STEG")
-        );
-
-        // Si une liste de matières est fournie, on filtre
-        List<String> matieresDemandees = matieres != null ? matieres.stream()
-                .map(String::trim)
-                .map(String::toUpperCase)
-                .collect(Collectors.toList()) : null;
-
+        // Parcours de chaque enregistrement de fusion
         for (FusionRepartitionTirage data : list) {
-            for (MatiereDefinition def : matieresDefinitions) {
-                // Vérifier le filtre
-                if (matieresDemandees != null && !matieresDemandees.contains(def.libelle.toUpperCase())) {
+            // Parcours des matières effectives de cet enregistrement
+            for (Map.Entry<String, Integer> entry : data.getMatieres().entrySet()) {
+                String codeMatiere = entry.getKey();
+                Integer effectif = entry.getValue();
+
+                if (effectif == null || effectif <= 0) {
                     continue;
                 }
-                long effectif = def.effectifExtractor.extract(data);
-                if (effectif > 0) {
-                    String date = def.dateExtractor.extract(data);
-                    String horaire = def.horaireExtractor.extract(data);
-                    generateEtiquettePage(document, logo, data, def.libelle, def.listeSerie, effectif, date, horaire,
-                            helv10, helv12Bold, helv14, helv22, helv24Bold, helv16Bold, helv26Bold, helv16);
-                    document.newPage();
+
+                // Vérification du filtre éventuel
+                if (codesDemandes != null && !codesDemandes.contains(codeMatiere.toUpperCase())) {
+                    continue;
                 }
+
+                // Recherche de la règle correspondante
+                RegleMatiere regle = regleParCode.get(codeMatiere.toUpperCase());
+                if (regle == null) {
+                    // Si aucune règle trouvée, on ignore (ou on pourrait logger une warning)
+                    continue;
+                }
+
+                // Construction de la chaîne des séries à partir du Set de la règle
+                String series = (regle.getSeries() != null && !regle.getSeries().isEmpty())
+                        ? String.join(" - ", regle.getSeries())
+                        : "";
+
+                // Utilisation de date1 et heure1 (comme dans l'original)
+                String date = regle.getDate1();
+                String horaire = regle.getHeure1();
+
+                // Génération de l'étiquette pour cette matière
+                generateEtiquettePage(document, logo, data,
+                        codeMatiere,          // libelle matière (code)
+                        series,                // liste des séries
+                        effectif.longValue(),  // effectif
+                        date, horaire,
+                        helv10, helv12Bold, helv14, helv22, helv24Bold, helv16Bold, helv26Bold, helv16);
+
+                document.newPage();
             }
         }
 
         document.close();
     }
+
 
     private String normaliserLibelle(String libelle) {
         if (libelle == null) return "";

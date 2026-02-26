@@ -9,6 +9,8 @@ import com.officedubac.project.models.*;
 import com.officedubac.project.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.bson.Document;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
@@ -25,61 +27,11 @@ public class DecompteFeuilleJuryService
 
     private final RepartitionFeuilleCEPRepository repartitionFeuilleCEPRepository;
 
+    private final FusionRepartitionFeuilleRepository fusionRepartitionFeuilleRepository;
+
     private final RepartitionFeuilleCESRepository repartitionFeuilleCESRepository;
 
-    private static final Set<String> SERIES_L = Set.of("L'1", "L1A", "L1B", "L2");
-    private static final Set<String> SERIES_LA = Set.of("LA");
-    private static final Set<String> SERIES_S = Set.of("S1", "S2", "S3", "S4", "S5");
-    private static final Set<String> SERIES_SM = Set.of("S1", "S1A", "S3");
-    private static final Set<String> SERIES_SE = Set.of("S2", "S2A", "S4", "S5");
-    private static final Set<String> SERIES_SA = Set.of("S1A", "S2A");
-
-    // Méthode principale
-
-    private boolean hasSerie(SourceCandidat c, Collection<String> series) {
-        return c.getSerie() != null && series.contains(c.getSerie());
-    }
-
-    private boolean hasCode(SourceCandidat c, String... codes) {
-        return c.getSerie() != null && Arrays.asList(codes).contains(c.getSerie());
-    }
-
-    private long countOption(List<SourceCandidat> groupe, String option)
-    {
-        return groupe.stream()
-                .filter(c -> c.getMatiere1() != null && option.equals(c.getMatiere1()))
-                .count();
-    }
-
-    private List<String> detectOptions(SourceCandidat c)
-    {
-        List<String> opts = new ArrayList<>();
-
-        if (c.getMatiere1() != null && !c.getMatiere1().isBlank())
-            opts.add("(LV1) " + c.getMatiere1().trim());
-
-        if (c.getMatiere2() != null && !c.getMatiere2().isBlank())
-            opts.add("(LV2) " + c.getMatiere2().trim());
-
-        if (c.getMatiere3() != null && !c.getMatiere3().isBlank())
-            opts.add("(PC/SVT) " + c.getMatiere3().trim());
-
-        return opts;
-    }
-
-
-    private String toJson(Map<String, Long> map) {
-        try {
-            return new ObjectMapper().writeValueAsString(map);
-        } catch (Exception e) {
-            return "{}";
-        }
-    }
-
-    private String safe(String val) {
-        return val == null ? "" : val.trim();
-    }
-
+    private final MongoTemplate mongoTemplate;
 
     public List<RepartitionFeuilleCEPDTO> repartitionParCEP() {
 
@@ -413,6 +365,23 @@ public class DecompteFeuilleJuryService
                 .toList();
     }
 
+    public void unionCollections()
+    {
+        List<Document> collectionA = mongoTemplate.findAll(Document.class, "repartition_feuille_CEP");
+        log.info("collectionA size = {}", collectionA.size());
+        log.info("Retrouver tirage CS...");
+        List<Document> collectionB = mongoTemplate.findAll(Document.class, "repartition_feuille_CES");
+        log.info("collectionB size = {}", collectionB.size());
+        List<Document> all = new ArrayList<>();
+        collectionA.forEach(doc -> doc.remove("_id"));
+        collectionB.forEach(doc -> doc.remove("_id"));
+        all.addAll(collectionA);
+        all.addAll(collectionB);
+        log.info("Total à insérer = {}", all.size());
+        mongoTemplate.dropCollection("fusion_repartition_feuille");
+        mongoTemplate.insert(all, "fusion_repartition_feuille");
+    }
+
     // Méthode utilitaire
     private long countSerie(List<SourceCandidat> groupe, String serie) {
         return groupe.stream()
@@ -421,19 +390,9 @@ public class DecompteFeuilleJuryService
     }
 
 
-
-    public Map<String, List<SourceCandidat>> getCdtsByAcademie()
+    public Map<String, List<FusionRepartitionFeuille>> getRepCPByAcademie()
     {
-        List<SourceCandidat> allUsers = sourceCandidatRepository.findAll();
-        return allUsers
-                .stream()
-                .filter(p -> p.getAcaCentEcrit() != null)
-                .collect(Collectors.groupingBy(s -> s.getAcaCentEcrit()));
-    }
-
-    public Map<String, List<RepartitionFeuilleCEP>> getRepCPByAcademie()
-    {
-        List<RepartitionFeuilleCEP> allUsers = repartitionFeuilleCEPRepository.findAll();
+        List<FusionRepartitionFeuille> allUsers = fusionRepartitionFeuilleRepository.findAll();
         return allUsers
                 .stream()
                 .filter(p -> p.getAcademia() != null)

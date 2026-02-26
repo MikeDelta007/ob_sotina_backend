@@ -11,8 +11,8 @@ import org.springframework.data.mongodb.core.mapping.Document;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Document(collection = "repartition_feuille_CEP")
-public class RepartitionFeuilleCEP
+@Document(collection = "fusion_repartition_feuille")
+public class FusionRepartitionFeuille
 {
     @Id
     private String id;

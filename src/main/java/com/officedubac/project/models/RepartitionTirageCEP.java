@@ -9,10 +9,12 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.util.Map;
 
+
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
+@Document(collection = "repartition_tirage_CEP")
 public class RepartitionTirageCEP
 {
     @Id

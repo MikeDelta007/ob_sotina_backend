@@ -47,7 +47,7 @@ public class DataImportController
         try
         {
             this.tirageJuryMatService.unionCollections();
-            return ResponseEntity.ok("Fusion réussie");
+            return ResponseEntity.ok("Fusion effectuée avec succès");
         }
         catch (Exception e)
         {
@@ -55,6 +55,24 @@ public class DataImportController
                     .body("Erreur fusion: " + e.getMessage());
         }
     }
+
+    //SOTINA
+    @PostMapping(value="/fusion-feuille")
+    public ResponseEntity<?> fusionFeuille()
+    {
+        try
+        {
+            this.decompteFeuilleJuryService.unionCollections();
+            return ResponseEntity.ok("Fusion effectuée avec succès");
+        }
+        catch (Exception e)
+        {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body("Erreur fusion: " + e.getMessage());
+        }
+    }
+
+
 
     //SOTINA
     @PostMapping("/data-candidats")
@@ -161,8 +179,8 @@ public class DataImportController
 
     //SOTINA
     @Operation(summary="")
-    @GetMapping(value="/feuilleCP-by-aca")
-    public ResponseEntity<Map<String, List<RepartitionFeuilleCEP>>> repFCP() throws Exception
+    @GetMapping(value="/all-feuille-by-aca")
+    public ResponseEntity<Map<String, List<FusionRepartitionFeuille>>> repFCP() throws Exception
     {
         return ResponseEntity.ok(this.decompteFeuilleJuryService.getRepCPByAcademie());
     }
@@ -184,16 +202,7 @@ public class DataImportController
     }
 
     //SOTINA
-    @PutMapping("/prog-tirage-etiquette")
-    public ResponseEntity<String> progTirageEtiquette(@RequestBody HoraireRequest request) {
-        try {
-            tirageJuryMatService.prog_tirage_etiquette(request); // passe le DTO directement
-            return ResponseEntity.ok("Horaires mis à jour avec succès");
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .body("Erreur mise à jour : " + e.getMessage());
-        }
-    }
+
 
     @GetMapping("/horaires")
     public HoraireRequest getHoraires() {
