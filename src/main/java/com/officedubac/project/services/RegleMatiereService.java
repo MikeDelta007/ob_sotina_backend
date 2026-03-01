@@ -39,7 +39,12 @@ public class RegleMatiereService
                     r.setType(updated.getType());
                     r.setChamp(updated.getChamp());
                     r.setValeur(updated.getValeur());
+                    r.setGroupe(updated.getGroupe());
                     r.setSeries(updated.getSeries());
+                    r.setHeure1(updated.getHeure1());
+                    r.setHeure2(updated.getHeure2());
+                    r.setDate1(updated.getDate1());
+                    r.setDate2(updated.getDate2());
                     return repository.save(r);
                 })
                 .orElseThrow(() -> new RuntimeException("Règle non trouvée"));

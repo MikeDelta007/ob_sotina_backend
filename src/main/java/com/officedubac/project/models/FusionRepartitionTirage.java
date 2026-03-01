@@ -26,5 +26,5 @@ public class FusionRepartitionTirage
     private String academia;
     private Long effectif;
 
-    private Map<String, Integer> matieres;
+    private Map<String, GroupeMatiere> matieres;
 }

@@ -1,5 +1,6 @@
 package com.officedubac.project.dto;
 
+import com.officedubac.project.models.GroupeMatiere;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -19,5 +20,5 @@ public class RepartitionTirageCSDTO
     private String academia;
     private Long effectif;
 
-    private Map<String, Integer> matieres;
+    private Map<String, GroupeMatiere> matieres;
 }

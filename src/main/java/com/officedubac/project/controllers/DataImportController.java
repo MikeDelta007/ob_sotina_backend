@@ -132,11 +132,12 @@ public class DataImportController
     }
 
     //SOTINA - Export Excel
-    @Operation(summary="")
-    @GetMapping(value="/repCP-all")
-    public ResponseEntity<List<RepartitionTirageCEP>> repCP_() throws Exception
+    @Operation(summary = "Récupère la répartition des tirages CEP par académie pour une matière et un groupe choisi")
+    @GetMapping(value = "/repTirage-all")
+    public ResponseEntity<List<Map<String, Object>>> repCPAll(@RequestParam String codeMatiere, @RequestParam String groupeChoisi) throws Exception
     {
-        return ResponseEntity.ok(this.tirageJuryMatService.getRepCP_());
+        List<Map<String, Object>> result = tirageJuryMatService.getJurySummaryAllAcademies(codeMatiere, groupeChoisi);
+        return ResponseEntity.ok(result);
     }
 
     @Operation(summary="")

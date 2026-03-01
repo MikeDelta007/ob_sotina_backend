@@ -37,28 +37,8 @@ public class TirageJuryMatService
 
     private final MongoTemplate mongoTemplate;
 
-    private static final Set<String> SERIES_L = Set.of("L'1", "L1A", "L1B", "L2");
-    private static final Set<String> SERIES_LA = Set.of("LA");
-    private static final Set<String> SERIES_S = Set.of("S1", "S2", "S3", "S4", "S5");
-    private static final Set<String> SERIES_SM = Set.of("S1", "S1A", "S3");
-    private static final Set<String> SERIES_SE = Set.of("S2", "S2A", "S4", "S5");
-    private static final Set<String> SERIES_SA = Set.of("S1A", "S2A");
-    private static final Set<String> SERIES_STIDD = Set.of("STIDD");
-    private static final Set<String> SERIES_STEG = Set.of("STEG");
-
-    // Méthode principale
-
-    private boolean hasSerie(SourceCandidat c, Collection<String> series) {
-        return c.getSerie() != null && series.contains(c.getSerie());
-    }
-
-    private boolean hasCode(SourceCandidat c, String... codes) {
-        return c.getSerie() != null && Arrays.asList(codes).contains(c.getSerie());
-    }
-
-
-    public List<RepartitionTirageCEPDTO> repartitionParCEP() {
-
+    public List<RepartitionTirageCEPDTO> repartitionParCEP()
+    {
         // 🔹 récupérer tous les candidats
         List<SourceCandidat> candidats = sourceCandidatRepository.findAll();
 
@@ -66,8 +46,7 @@ public class TirageJuryMatService
         List<RegleMatiere> regles = regleMatiereRepository.findAll();
 
         // 🔹 regrouper les candidats par jury
-        Map<Integer, List<SourceCandidat>> candidatsParJury =
-                candidats.stream().collect(Collectors.groupingBy(SourceCandidat::getJury));
+        Map<Integer, List<SourceCandidat>> candidatsParJury = candidats.stream().collect(Collectors.groupingBy(SourceCandidat::getJury));
 
         // 🔹 supprimer l'ancienne répartition
         repartitionTirageCEPRepository.deleteAll();
@@ -75,10 +54,10 @@ public class TirageJuryMatService
         List<RepartitionTirageCEP> entities = new ArrayList<>();
         List<RepartitionTirageCEPDTO> dtos = new ArrayList<>();
 
-        try {
-
-            for (Map.Entry<Integer, List<SourceCandidat>> entry : candidatsParJury.entrySet()) {
-
+        try
+        {
+            for (Map.Entry<Integer, List<SourceCandidat>> entry : candidatsParJury.entrySet())
+            {
                 Integer jury = entry.getKey();
                 List<SourceCandidat> groupe = entry.getValue();
 
@@ -87,13 +66,12 @@ public class TirageJuryMatService
                 Integer session = groupe.get(0).getSession();
                 long effectif = groupe.size();
 
-                // 🔥 Map dynamique des compteurs initialisée à 0
-                Map<String, Integer> compteurs = new HashMap<>();
-                regles.forEach(r -> compteurs.put(r.getCode(), 0));
+                Map<String, GroupeMatiere> compteurs = new HashMap<>();
+regles.forEach(r -> {
+    GroupeMatiere gm = new GroupeMatiere(0.0, 0.0); // Double si tu veux +0.5
+    compteurs.put(r.getCode(), gm);
+});
 
-                // =====================================================
-                // 🚀 UNE SEULE BOUCLE SUR TOUS LES CANDIDATS DU JURY
-                // =====================================================
                 for (SourceCandidat c : groupe)
                 {
                     for (RegleMatiere r : regles)
@@ -137,16 +115,29 @@ public class TirageJuryMatService
                             }
                         }
 
-                        // 🔥 si le candidat correspond à la règle, incrémenter le compteur
                         if (match) {
-                            compteurs.merge(r.getCode(), 1, Integer::sum);
+                            // Récupère ou crée l'objet GroupeMatiere pour cette matière
+                            GroupeMatiere gm = compteurs.computeIfAbsent(r.getCode(), k -> new GroupeMatiere(0.0, 0.0));
+
+                            if ("1ERGRP".equals(r.getGroupe()))
+                            {
+                                gm.setPremierGroupe(gm.getPremierGroupe() + 1);
+                            }
+                            else if ("1ER2NDGRP".equals(r.getGroupe()))
+                            {
+                                gm.setPremierGroupe(gm.getPremierGroupe() + 1);
+                                gm.setSecondGroupe(Math.round((gm.getSecondGroupe() + 0.5) * 10) / 10.0);
+                            }
+                            else
+                            {
+                                gm.setPremierGroupe(gm.getPremierGroupe() + 1);
+                            }
+                            // Remets à jour la map (optionnel si l'objet est mutable)
+                            compteurs.put(r.getCode(), gm);
                         }
                     }
                 }
 
-                // =====================================================
-                // 🧠 Construire le DTO avec la map dynamique
-                // =====================================================
                 RepartitionTirageCEPDTO dto = RepartitionTirageCEPDTO.builder()
                         .jury(jury)
                         .session(session)
@@ -158,9 +149,6 @@ public class TirageJuryMatService
 
                 dtos.add(dto);
 
-                // =====================================================
-                // ⚡ Construire l'entité DB
-                // =====================================================
                 RepartitionTirageCEP entity = RepartitionTirageCEP.builder()
                         .jury(jury)
                         .session(session)
@@ -186,7 +174,6 @@ public class TirageJuryMatService
                 .sorted(Comparator.comparing(RepartitionTirageCEPDTO::getJury))
                 .toList();
     }
-
 
     public List<RepartitionTirageCSDTO> repartitionParCS()
     {
@@ -217,13 +204,12 @@ public class TirageJuryMatService
                 Integer session = groupe.get(0).getSession();
                 long effectif = groupe.size();
 
-                // 🔥 Map dynamique des compteurs initialisée à 0
-                Map<String, Integer> compteurs = new HashMap<>();
-                regles.forEach(r -> compteurs.put(r.getCode(), 0));
+                Map<String, GroupeMatiere> compteurs = new HashMap<>();
+                regles.forEach(r -> {
+                    GroupeMatiere gm = new GroupeMatiere(0.0, 0.0); // Double si tu veux +0.5
+                    compteurs.put(r.getCode(), gm);
+                });
 
-                // =====================================================
-                // 🚀 UNE SEULE BOUCLE SUR TOUS LES CANDIDATS DU JURY
-                // =====================================================
                 for (SourceCandidat c : groupe) {
 
                     for (RegleMatiere r : regles) {
@@ -268,16 +254,30 @@ public class TirageJuryMatService
                             }
                         }
 
-                        // 🔥 si le candidat correspond à la règle, incrémenter le compteur
-                        if (match) {
-                            compteurs.merge(r.getCode(), 1, Integer::sum);
+                        if (match)
+                        {
+                            // Récupère ou crée l'objet GroupeMatiere pour cette matière
+                            GroupeMatiere gm = compteurs.computeIfAbsent(r.getCode(), k -> new GroupeMatiere(0.0, 0.0));
+
+                            if ("1ERGRP".equals(r.getGroupe()))
+                            {
+                                gm.setPremierGroupe(gm.getPremierGroupe() + 1);
+                            }
+                            else if ("1ER2NDGRP".equals(r.getGroupe()))
+                            {
+                                gm.setPremierGroupe(gm.getPremierGroupe() + 1);
+                                gm.setSecondGroupe(Math.round((gm.getSecondGroupe() + 0.5) * 10) / 10.0);
+                            }
+                            else
+                            {
+                                gm.setPremierGroupe(gm.getPremierGroupe() + 1);
+                            }
+                            // Remets à jour la map (optionnel si l'objet est mutable)
+                            compteurs.put(r.getCode(), gm);
                         }
                     }
                 }
 
-                // =====================================================
-                // 🧠 Construire le DTO avec la map dynamique
-                // =====================================================
                 RepartitionTirageCSDTO dto = RepartitionTirageCSDTO.builder()
                         .jury(jury)
                         .session(session)
@@ -318,10 +318,9 @@ public class TirageJuryMatService
                 .toList();
     }
 
-
     public void unionCollections()
     {
-
+        /**
         long countCep = mongoTemplate
                 .getCollection("repartition_tirage_CEP")
                 .countDocuments();
@@ -330,6 +329,7 @@ public class TirageJuryMatService
                 .getCollection("repartition_tirage_CES")
                 .countDocuments();
 
+
         log.info("Count CEP direct = {}", countCep);
         log.info("Count CES direct = {}", countCes);
         log.info("Database name = {}", mongoTemplate.getDb().getName());
@@ -337,23 +337,29 @@ public class TirageJuryMatService
 
         log.info("Collections = {}", mongoTemplate.getCollectionNames());
         log.info("Retrouver tirage CP...");
+         */
         List<Document> collectionA = mongoTemplate.findAll(Document.class, "repartition_tirage_CEP");
+        /**
         log.info("collectionA size = {}", collectionA.size());
         log.info("Retrouver tirage CS...");
+         */
         List<Document> collectionB = mongoTemplate.findAll(Document.class, "repartition_tirage_CES");
-        log.info("collectionB size = {}", collectionB.size());
+        // log.info("collectionB size = {}", collectionB.size());
         List<Document> all = new ArrayList<>();
         collectionA.forEach(doc -> doc.remove("_id"));
         collectionB.forEach(doc -> doc.remove("_id"));
         all.addAll(collectionA);
         all.addAll(collectionB);
-        log.info("Total à insérer = {}", all.size());
+        // log.info("Total à insérer = {}", all.size());
         mongoTemplate.dropCollection("fusion_repartition_tirage");
         mongoTemplate.insert(all, "fusion_repartition_tirage");
     }
 
-
-
+    public List<FusionRepartitionTirage> getAllTirage()
+    {
+        List<FusionRepartitionTirage> allRep = fusionRepartitionTirageRepository.findAll();
+        return allRep;
+    }
 
     public Page<SourceCandidatDTO> getListCandidats(int page, int size)
     {
@@ -408,7 +414,6 @@ public class TirageJuryMatService
         return new PageImpl<>(dtos, pageable, total);
     }
 
-
     public Map<String, List<RepartitionTirageCEP>> getRepCPByAcademie()
     {
         List<RepartitionTirageCEP> allUsers = repartitionTirageCEPRepository.findAll();
@@ -451,6 +456,77 @@ public class TirageJuryMatService
                 .stream()
                 .findFirst()
                 .orElseGet(HoraireRequest::new);
+    }
+
+    public List<Map<String, Object>> getJurySummaryAllAcademies(String codeMatiere, String groupeChoisi) {
+        // Récupérer toutes les tirages qui contiennent la matière
+        List<FusionRepartitionTirage> tirages = fusionRepartitionTirageRepository.findAll().stream()
+                .filter(f -> f.getMatieres() != null && f.getMatieres().containsKey(codeMatiere))
+                .collect(Collectors.toList());
+
+        // Grouper par académie
+        Map<String, List<FusionRepartitionTirage>> groupedByAcademia = tirages.stream()
+                .collect(Collectors.groupingBy(FusionRepartitionTirage::getAcademia));
+
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        // Boucle sur chaque académie
+        for (Map.Entry<String, List<FusionRepartitionTirage>> entry : groupedByAcademia.entrySet()) {
+            String academia = entry.getKey();
+            List<FusionRepartitionTirage> tiragesAcademia = entry.getValue();
+
+            // Transformer chaque tirage en map avec les infos et la valeur du groupe choisi
+            List<Map<String, Object>> rows = tiragesAcademia.stream().map(f -> {
+                        GroupeMatiere gm = f.getMatieres().get(codeMatiere);
+                        double valeur = 0.0;
+                        if (gm != null) {
+                            if ("1ER".equalsIgnoreCase(groupeChoisi)) {
+                                valeur = gm.getPremierGroupe();
+                            } else if ("2ND".equalsIgnoreCase(groupeChoisi)) {
+                                valeur = gm.getSecondGroupe();
+                            }
+                        }
+
+                        // On ignore les valeurs nulles ou <= 0
+                        if (valeur <= 0) return null;
+
+                        Map<String, Object> map = new HashMap<>();
+                        map.put("matiere", codeMatiere);
+                        map.put("session", f.getSession());
+                        map.put("jury", f.getJury());
+                        map.put("centreEcrit", f.getCentreEcrit());
+                        map.put("academia", f.getAcademia());
+                        map.put("effectif", valeur);
+
+                        return map;
+                    })
+                    .filter(Objects::nonNull) // supprimer les entrées null (valeur <= 0)
+                    .collect(Collectors.toList());
+
+            // Calcul de la ligne TOTAL pour cette académie
+            double totalValeur = rows.stream()
+                    .mapToDouble(m -> (Double) m.get("effectif"))
+                    .sum();
+
+            if (!rows.isEmpty()) { // n'ajouter le total que si au moins une ligne valide
+                Map<String, Object> totalMap = new HashMap<>();
+                totalMap.put("matiere", codeMatiere);
+                totalMap.put("session", "TOTAL");
+                totalMap.put("jury", "");
+                totalMap.put("centreEcrit", "");
+                totalMap.put("academia", academia);
+                totalMap.put("effectif", totalValeur);
+
+                // Tri des lignes de l’académie par effectif décroissant
+                rows.sort((m1, m2) -> Double.compare((Double) m2.get("effectif"), (Double) m1.get("effectif")));
+
+                // Ajouter les lignes de l’académie puis le total
+                result.addAll(rows);
+                result.add(totalMap);
+            }
+        }
+
+        return result;
     }
 
 }

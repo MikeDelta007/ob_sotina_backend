@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.web.bind.annotation.*;
@@ -27,6 +28,7 @@ import java.util.stream.Stream;
 
 @CrossOrigin("*")
 @RestController
+@Slf4j
 @RequestMapping("/api/v1/pdf")
 @RequiredArgsConstructor
 @Tag(name="PDF Controller", description = "Endpoints responsables de la gestion des PDF")
@@ -42,7 +44,7 @@ public class PdfController
 
 
 
-
+    /**
     @Operation(summary = "Génération de l'étiquette de table - Format A4 Paysage")
     @GetMapping("/generate-etiquette-paysage")
     public void generateEtiquettes(@RequestParam(value = "matieres", required = false) List<String> matieres,
@@ -91,18 +93,22 @@ public class PdfController
                 null;
 
         // Parcours de chaque enregistrement de fusion
-        for (FusionRepartitionTirage data : list) {
+        for (FusionRepartitionTirage data : list)
+        {
             // Parcours des matières effectives de cet enregistrement
-            for (Map.Entry<String, Integer> entry : data.getMatieres().entrySet()) {
+            for (Map.Entry<String, Integer> entry : data.getMatieres().entrySet())
+            {
                 String codeMatiere = entry.getKey();
                 Integer effectif = entry.getValue();
 
-                if (effectif == null || effectif <= 0) {
+                if (effectif == null || effectif <= 0)
+                {
                     continue;
                 }
 
                 // Vérification du filtre éventuel
-                if (codesDemandes != null && !codesDemandes.contains(codeMatiere.toUpperCase())) {
+                if (codesDemandes != null && !codesDemandes.contains(codeMatiere.toUpperCase()))
+                {
                     continue;
                 }
 
@@ -127,9 +133,9 @@ public class PdfController
                         codeMatiere,          // libelle matière (code)
                         series,                // liste des séries
                         effectif.longValue(),  // effectif
-                        date, horaire,
+                        date,
+                        horaire,
                         helv10, helv12Bold, helv14, helv22, helv24Bold, helv16Bold, helv26Bold, helv16);
-
                 document.newPage();
             }
         }
@@ -137,27 +143,8 @@ public class PdfController
         document.close();
     }
 
+    */
 
-    private String normaliserLibelle(String libelle) {
-        if (libelle == null) return "";
-
-        String upper = libelle.toUpperCase();
-
-        if (upper.startsWith("FRANCAIS")) return "FRANCAIS";
-        if (upper.startsWith("MATH")) return "MATHEMATIQUES";
-        if (upper.startsWith("PC")) return "SCIENCES PHYSIQUES";
-        if (upper.startsWith("SVT")) return "SCIENCES DE LA VIE ET DE LA TERRE";
-        if (upper.startsWith("PHILO")) return "PHILOSOPHIE";
-        if (upper.startsWith("HISTOIRE-GEO")) return "HISTOIRE - GEOGRAPHIE";
-        if (upper.startsWith("SES")) return "SCIENCES ECONOMIQUES ET SOCIALES";
-        if (upper.startsWith("GELEC")) return "GENIE ELECTRIQUE";
-        if (upper.startsWith("GEMEC")) return "GENIE MECANIQUE";
-        if (upper.startsWith("MO")) return "MANAGEMENT DES ORGANISATIONS";
-        if (upper.startsWith("GCF")) return "GESTION COMPTABLE ET FINANCIERE";
-        if (upper.startsWith("LLA")) return "LANGUE ET LITTERATURE ARABE";
-
-        return libelle; // fallback
-    }
 
     private void generateEtiquettePage(Document document, Image logo, FusionRepartitionTirage data,
                                        String libelleMatiere, String serie, long effectif, String date, String horaire,
@@ -234,9 +221,9 @@ public class PdfController
         epreuveTitle.setAlignment(Element.ALIGN_CENTER);
         leftCell.addElement(epreuveTitle);
 
-        String libelleNormalise = normaliserLibelle(libelleMatiere);
+        String libelleNormalise = repo.findByCode(libelleMatiere).getValeur();
 
-        Paragraph epreuveLibelle = new Paragraph(libelleNormalise, f26Bold);
+        Paragraph epreuveLibelle = new Paragraph(libelleNormalise.toUpperCase(), f26Bold);
         epreuveLibelle.setAlignment(Element.ALIGN_CENTER);
         epreuveLibelle.setSpacingBefore(8f);
         leftCell.addElement(epreuveLibelle);

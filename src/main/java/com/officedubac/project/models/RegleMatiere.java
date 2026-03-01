@@ -18,11 +18,12 @@ public class RegleMatiere
 {
     @Id
     private String id;
-    private String code;          // ex: allemandLV1
-    private Set<String> series;   // obligatoire pour type SERIE
-    private String type;          // SERIE ou OPTION
-    private String champ;         // matiere1/2/3 (si OPTION)
-    private String valeur;        // valeur attendue (si OPTION)
+    private String code;
+    private Set<String> series;
+    private String type;
+    private String champ;
+    private String valeur;
+    private String groupe;
     private String date1;
     private String heure1;
     private String date2;
