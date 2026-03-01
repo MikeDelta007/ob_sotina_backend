@@ -43,12 +43,20 @@ public class PdfController
     private RegleMatiereRepository repo;
 
 
-
-    /**
     @Operation(summary = "Génération de l'étiquette de table - Format A4 Paysage")
     @GetMapping("/generate-etiquette-paysage")
-    public void generateEtiquettes(@RequestParam(value = "matieres", required = false) List<String> matieres,
-                                   HttpServletResponse response) throws IOException, DocumentException {
+    public void generateEtiquettes(
+            @RequestParam(value = "matiere") String matiere,
+            @RequestParam(value = "groupe", required = false) String groupe,
+            HttpServletResponse response) throws IOException, DocumentException {
+
+        // ================= NORMALISATION MATIERE =================
+        if (matiere == null || matiere.trim().isEmpty()) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return;
+        }
+
+        log.info("MATIERE DEMANDEE = {}", matiere);
 
         List<FusionRepartitionTirage> list = repository.findAll();
         if (list.isEmpty()) {
@@ -56,14 +64,13 @@ public class PdfController
             return;
         }
 
-        // Récupérer toutes les règles matières (pour pouvoir retrouver date/heure et séries)
+        // ================= REGLES =================
         List<RegleMatiere> regles = repo.findAll();
-        // Indexer les règles par code pour un accès rapide
         Map<String, RegleMatiere> regleParCode = regles.stream()
                 .collect(Collectors.toMap(
                         r -> r.getCode().toUpperCase(),
                         r -> r,
-                        (r1, r2) -> r1 // en cas de doublon, on garde le premier
+                        (r1, r2) -> r1
                 ));
 
         response.setContentType("application/pdf");
@@ -73,7 +80,7 @@ public class PdfController
         PdfWriter.getInstance(document, response.getOutputStream());
         document.open();
 
-        // Polices (identique)
+        // ================= POLICES =================
         Font helv10 = FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL);
         Font helv12Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 60);
         Font helv14 = FontFactory.getFont(FontFactory.HELVETICA, 17, Font.BOLD);
@@ -83,71 +90,87 @@ public class PdfController
         Font helv16 = FontFactory.getFont(FontFactory.HELVETICA, 16);
         Font helv26Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 30);
 
-        // Logo
-        Image logo = Image.getInstance(new ClassPathResource("images/logo-UCAD_.png").getInputStream().readAllBytes());
+        Image logo = Image.getInstance(
+                new ClassPathResource("images/logo-UCAD_.png")
+                        .getInputStream().readAllBytes());
         logo.scaleToFit(70f, 70f);
 
-        // Si une liste de matières est fournie, on la transforme en set pour filtrage (insensible à la casse)
-        Set<String> codesDemandes = (matieres != null) ?
-                matieres.stream().map(String::trim).map(String::toUpperCase).collect(Collectors.toSet()) :
-                null;
+        // ================= PARCOURS OPTIMISÉ =================
+        for (FusionRepartitionTirage data : list) {
 
-        // Parcours de chaque enregistrement de fusion
-        for (FusionRepartitionTirage data : list)
-        {
-            // Parcours des matières effectives de cet enregistrement
-            for (Map.Entry<String, Integer> entry : data.getMatieres().entrySet())
-            {
-                String codeMatiere = entry.getKey();
-                Integer effectif = entry.getValue();
-
-                if (effectif == null || effectif <= 0)
-                {
-                    continue;
-                }
-
-                // Vérification du filtre éventuel
-                if (codesDemandes != null && !codesDemandes.contains(codeMatiere.toUpperCase()))
-                {
-                    continue;
-                }
-
-                // Recherche de la règle correspondante
-                RegleMatiere regle = regleParCode.get(codeMatiere.toUpperCase());
-                if (regle == null) {
-                    // Si aucune règle trouvée, on ignore (ou on pourrait logger une warning)
-                    continue;
-                }
-
-                // Construction de la chaîne des séries à partir du Set de la règle
-                String series = (regle.getSeries() != null && !regle.getSeries().isEmpty())
-                        ? String.join(" - ", regle.getSeries())
-                        : "";
-
-                // Utilisation de date1 et heure1 (comme dans l'original)
-                String date = regle.getDate1();
-                String horaire = regle.getHeure1();
-
-                // Génération de l'étiquette pour cette matière
-                generateEtiquettePage(document, logo, data,
-                        codeMatiere,          // libelle matière (code)
-                        series,                // liste des séries
-                        effectif.longValue(),  // effectif
-                        date,
-                        horaire,
-                        helv10, helv12Bold, helv14, helv22, helv24Bold, helv16Bold, helv26Bold, helv16);
-                document.newPage();
+            if (data.getMatieres() == null) {
+                continue;
             }
+
+            // ✅ ACCÈS DIRECT À LA MATIÈRE (ULTRA IMPORTANT)
+            GroupeMatiere gm = data.getMatieres().get(matiere);
+
+            if (gm == null) {
+                continue;
+            }
+
+            // ================= EFFECTIF =================
+            Double effectif = null;
+            String grp = null;
+
+            if ("1ERGRP".equalsIgnoreCase(groupe)) {
+                effectif = gm.getPremierGroupe();
+                grp = "PREMIER GROUPE";
+            } else if ("2NDGRP".equalsIgnoreCase(groupe)) {
+                effectif = gm.getSecondGroupe();
+                grp = "SECOND GROUPE";
+            }
+
+            if (effectif == null || effectif <= 0) {
+                continue;
+            }
+
+            // ================= REGLE =================
+            RegleMatiere regle = regleParCode.get(matiere);
+            if (regle == null) {
+                log.warn("Aucune règle trouvée pour {}", matiere);
+                continue;
+            }
+
+            String series = (regle.getSeries() != null && !regle.getSeries().isEmpty())
+                    ? String.join(" - ", regle.getSeries())
+                    : "";
+
+            String date = Optional.ofNullable(regle.getDate1()).orElse("");
+            String horaire = Optional.ofNullable(regle.getHeure1()).orElse("");
+
+            RegleMatiere regle_ = repo.findByCode(matiere);
+
+            String libelleNormalise = Optional.ofNullable(regle_)
+                    .map(RegleMatiere::getValeur)
+                    .orElse(matiere);
+
+            log.info("ICI" + matiere + " - " + libelleNormalise);
+
+            // ================= GENERATION =================
+            generateEtiquettePage(
+                    document,
+                    logo,
+                    data,
+                    libelleNormalise,
+                    series,
+                    effectif.longValue(),
+                    grp,
+                    date,
+                    horaire,
+                    helv10, helv12Bold, helv14, helv22,
+                    helv24Bold, helv16Bold, helv26Bold, helv16
+            );
+
+            document.newPage();
         }
 
         document.close();
     }
 
-    */
-
 
     private void generateEtiquettePage(Document document, Image logo, FusionRepartitionTirage data,
-                                       String libelleMatiere, String serie, long effectif, String date, String horaire,
+                                       String libelleMatiere, String serie, long effectif, String grp, String date, String horaire,
                                        Font f10, Font f12Bold, Font f14, Font f22, Font f22Bold, Font f16Bold, Font f26Bold, Font f16) throws DocumentException {
         // --- 1. EN-TÊTE ---
         PdfPTable header = new PdfPTable(3);
@@ -197,7 +220,7 @@ public class PdfController
         info.setWidthPercentage(100);
         info.setWidths(new float[]{1.2f, 4f});
 
-        addInfoRow(info, "ACADEMIE :", getAcademieFullName(data.getAcademia()) + "                                 PREMIER GROUPE", f14, f22);
+        addInfoRow(info, "ACADEMIE :", getAcademieFullName(data.getAcademia()) + "                                 " + grp, f14, f22);
         addInfoRow(info, "CENTRE :", data.getCentreEcrit(), f14, f22);
         addInfoRow(info, "JURY :", String.valueOf(data.getJury()), f14, f22);
         addInfoRow(info, "SERIE (S) :", serie, f14, f22); // à affiner si plusieurs séries possibles
@@ -221,9 +244,7 @@ public class PdfController
         epreuveTitle.setAlignment(Element.ALIGN_CENTER);
         leftCell.addElement(epreuveTitle);
 
-        String libelleNormalise = repo.findByCode(libelleMatiere).getValeur();
-
-        Paragraph epreuveLibelle = new Paragraph(libelleNormalise.toUpperCase(), f26Bold);
+        Paragraph epreuveLibelle = new Paragraph(libelleMatiere.toUpperCase(), f26Bold);
         epreuveLibelle.setAlignment(Element.ALIGN_CENTER);
         epreuveLibelle.setSpacingBefore(8f);
         leftCell.addElement(epreuveLibelle);
