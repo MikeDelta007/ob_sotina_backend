@@ -56,7 +56,7 @@ public class PdfController
             return;
         }
 
-        log.info("MATIERE DEMANDEE = {}", matiere);
+        //log.info("MATIERE DEMANDEE = {}", matiere);
 
         List<FusionRepartitionTirage> list = repository.findAll();
         if (list.isEmpty()) {
@@ -112,18 +112,8 @@ public class PdfController
             // ================= EFFECTIF =================
             Double effectif = null;
             String grp = null;
-
-            if ("1ERGRP".equalsIgnoreCase(groupe)) {
-                effectif = gm.getPremierGroupe();
-                grp = "PREMIER GROUPE";
-            } else if ("2NDGRP".equalsIgnoreCase(groupe)) {
-                effectif = gm.getSecondGroupe();
-                grp = "SECOND GROUPE";
-            }
-
-            if (effectif == null || effectif <= 0) {
-                continue;
-            }
+            String date = "";
+            String horaire = "";
 
             // ================= REGLE =================
             RegleMatiere regle = regleParCode.get(matiere);
@@ -136,8 +126,25 @@ public class PdfController
                     ? String.join(" - ", regle.getSeries())
                     : "";
 
-            String date = Optional.ofNullable(regle.getDate1()).orElse("");
-            String horaire = Optional.ofNullable(regle.getHeure1()).orElse("");
+            if ("1ER".equalsIgnoreCase(groupe))
+            {
+                effectif = gm.getPremierGroupe();
+                grp = "PREMIER GROUPE";
+                date = Optional.ofNullable(regle.getDate1()).orElse("");
+                horaire = Optional.ofNullable(regle.getHeure1()).orElse("");
+            }
+            else if ("2ND".equalsIgnoreCase(groupe))
+            {
+                effectif = gm.getSecondGroupe();
+                grp = "SECOND GROUPE";
+                date = Optional.ofNullable(regle.getDate2()).orElse("");
+                horaire = Optional.ofNullable(regle.getHeure2()).orElse("");
+            }
+
+
+            if (effectif == null || effectif <= 0) {
+                continue;
+            }
 
             RegleMatiere regle_ = repo.findByCode(matiere);
 
@@ -145,7 +152,7 @@ public class PdfController
                     .map(RegleMatiere::getValeur)
                     .orElse(matiere);
 
-            log.info("ICI" + matiere + " - " + libelleNormalise);
+            // log.info("ICI" + matiere + " - " + libelleNormalise);
 
             // ================= GENERATION =================
             generateEtiquettePage(
@@ -220,7 +227,7 @@ public class PdfController
         info.setWidthPercentage(100);
         info.setWidths(new float[]{1.2f, 4f});
 
-        addInfoRow(info, "ACADEMIE :", getAcademieFullName(data.getAcademia()) + "                                 " + grp, f14, f22);
+        addInfoRow(info, "ACADEMIE :", getAcademieFullName(data.getAcademia()) + "                               " + "[" + grp + "]", f14, f22);
         addInfoRow(info, "CENTRE :", data.getCentreEcrit(), f14, f22);
         addInfoRow(info, "JURY :", String.valueOf(data.getJury()), f14, f22);
         addInfoRow(info, "SERIE (S) :", serie, f14, f22); // à affiner si plusieurs séries possibles
@@ -272,7 +279,7 @@ public class PdfController
         dateLabel.setPadding(8f);
         calTable.addCell(dateLabel);
 
-        PdfPCell dateValue = new PdfPCell(new Phrase(date != null ? date : "1er JOUR", f14));
+        PdfPCell dateValue = new PdfPCell(new Phrase(date != null ? date : "", f14));
         dateValue.setBorder(Rectangle.BOX);
         dateValue.setPadding(8f);
         calTable.addCell(dateValue);
@@ -282,7 +289,7 @@ public class PdfController
         horaireLabel.setPadding(8f);
         calTable.addCell(horaireLabel);
 
-        PdfPCell horaireValue = new PdfPCell(new Phrase(horaire != null ? horaire : "14H30-17h 30", f14));
+        PdfPCell horaireValue = new PdfPCell(new Phrase(horaire != null ? horaire : "", f14));
         horaireValue.setBorder(Rectangle.BOX);
         horaireValue.setPadding(8f);
         calTable.addCell(horaireValue);
