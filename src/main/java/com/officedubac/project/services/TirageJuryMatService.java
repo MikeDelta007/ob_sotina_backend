@@ -67,10 +67,10 @@ public class TirageJuryMatService
                 long effectif = groupe.size();
 
                 Map<String, GroupeMatiere> compteurs = new HashMap<>();
-regles.forEach(r -> {
-    GroupeMatiere gm = new GroupeMatiere(0.0, 0.0); // Double si tu veux +0.5
-    compteurs.put(r.getCode(), gm);
-});
+                regles.forEach(r -> {
+                    GroupeMatiere gm = new GroupeMatiere(0.0, 0.0); // Double si tu veux +0.5
+                    compteurs.put(r.getCode(), gm);
+                });
 
                 for (SourceCandidat c : groupe)
                 {
