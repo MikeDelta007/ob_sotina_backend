@@ -3,6 +3,7 @@ package com.officedubac.project.controllers;
 import com.officedubac.project.dto.*;
 import com.officedubac.project.models.*;
 import com.officedubac.project.repository.CandidatRepository;
+import com.officedubac.project.repository.FusionRepartitionTirageRepository;
 import com.officedubac.project.repository.NotificationRepository;
 import com.officedubac.project.services.*;
 import io.swagger.v3.oas.annotations.Operation;
@@ -36,6 +37,9 @@ public class DataImportController
     private final ParametrageService parametrageService;
     @Autowired
     private final TirageJuryMatService tirageJuryMatService;
+
+    @Autowired
+    private final FusionRepartitionTirageRepository fusionRepartitionTirageRepository;
 
     @Autowired
     private final DecompteFeuilleJuryService decompteFeuilleJuryService;
@@ -206,8 +210,19 @@ public class DataImportController
 
 
     @GetMapping("/horaires")
-    public HoraireRequest getHoraires() {
+    public HoraireRequest getHoraires()
+    {
         return tirageJuryMatService.getHoraires();
+    }
+
+
+    //SOTINA
+    @GetMapping("/repartition/{id}/complete")
+    public RepartitionCompleteDTO getComplete(@PathVariable String id) {
+        FusionRepartitionTirage rep = fusionRepartitionTirageRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Introuvable"));
+
+        return tirageJuryMatService.construire(rep);
     }
 
 }

@@ -16,6 +16,7 @@ import org.springframework.stereotype.Service;
 
 import javax.xml.transform.Source;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -439,8 +440,6 @@ public class TirageJuryMatService
                 .collect(Collectors.groupingBy(s -> s.getAcademia()));
     }
 
-
-
     public Map<String, List<FusionRepartitionTirage>> getAllFusionRepTirage()
     {
         List<FusionRepartitionTirage> allRepTirage = fusionRepartitionTirageRepository.findAll();
@@ -527,6 +526,65 @@ public class TirageJuryMatService
         }
 
         return result;
+    }
+
+
+
+    public RepartitionCompleteDTO construire(FusionRepartitionTirage rep) {
+        // 1️⃣ Récupération des matières (déjà typées 👍)
+        Map<String, GroupeMatiere> matieres = rep.getMatieres();
+        // 2️⃣ Extraction des codes
+        List<String> codes = new ArrayList<>(matieres.keySet());
+        // 3️⃣ Chargement des règles en une seule requête
+        Map<String, RegleMatiere> reglesMap = regleMatiereRepository
+                .findAllByCodeIn(codes)
+                .stream()                     // now you can stream
+                .collect(Collectors.toMap(
+                        RegleMatiere::getCode,
+                        Function.identity(),
+                        (a, b) -> a
+                ));
+        // 4️⃣ Construction des DTO
+        List<MatiereComposeeDTO> matieresFinales = new ArrayList<>();
+
+        for (Map.Entry<String, GroupeMatiere> entry : matieres.entrySet())
+        {
+            String code = entry.getKey();
+            GroupeMatiere valeur = entry.getValue();
+
+            Double premier = valeur.getPremierGroupe();
+
+            // Ignorer les enregistrements où premierGroupe est null ou 0
+            if (premier == null || premier == 0.0) {
+                continue;
+            }
+
+            Double second = valeur.getSecondGroupe();
+            RegleMatiere regle = reglesMap.get(code);
+
+            MatiereComposeeDTO dto = MatiereComposeeDTO.builder()
+                    .code(code)
+                    .nom(regle != null ? regle.getValeur() : null)
+                    .series(regle != null ? regle.getSeries() : null)
+                    .premierGroupe(premier)
+                    .secondGroupe(second)
+                    .build();
+
+            matieresFinales.add(dto);
+        }
+
+        // 5️⃣ Construction finale
+        return RepartitionCompleteDTO.builder()
+                .centre(rep.getCentreEcrit())
+                .academie(rep.getAcademia())
+                .session(rep.getSession())
+                .jury(rep.getJury())
+                .matieres(matieresFinales)
+                .build();
+    }
+
+    private Double getDouble(Object value) {
+        return value != null ? Double.valueOf(value.toString()) : null;
     }
 
 }
