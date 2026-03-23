@@ -7,6 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+import java.util.List;
 import java.util.Map;
 
 @AllArgsConstructor
@@ -20,7 +21,7 @@ public class RepartitionTirageCEPDTO
     private String centreEcrit;
     private String academia;
     private Long effectif;
-
+    private List<String> series;
     private Map<String, GroupeMatiere> matieres;
 
 }

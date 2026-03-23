@@ -33,7 +33,8 @@ public class DecompteFeuilleJuryService
 
     private final MongoTemplate mongoTemplate;
 
-    public List<RepartitionFeuilleCEPDTO> repartitionParCEP() {
+    public List<RepartitionFeuilleCEPDTO> repartitionParCEP()
+    {
 
         List<SourceCandidat> candidats = sourceCandidatRepository.findAll();
 
@@ -178,6 +179,8 @@ public class DecompteFeuilleJuryService
                         .effectif(effectif)
                         .centreExamen(centreExam)
                         .session(session)
+                        .cp(true)
+                        .cs(false)
                         .F6(F6)
                         .Lprime(Lprime)
                         .L1A(L1A)
@@ -226,7 +229,7 @@ public class DecompteFeuilleJuryService
 
     public List<RepartitionFeuilleCESDTO> repartitionParCS() {
 
-        List<SourceCandidat> candidats = sourceCandidatRepository.findByCentreEcritSecondaireIsNotNull();
+        List<SourceCandidat> candidats = sourceCandidatRepository.findCandidatsWithCentreSecondaire();
 
         Map<String, List<SourceCandidat>> candidatsParCS =
                 candidats.stream().collect(Collectors.groupingBy(SourceCandidat::getCentreEcritSecondaire));
@@ -254,7 +257,7 @@ public class DecompteFeuilleJuryService
                 long L1B = countSerie(groupe, "L1B");
                 long L2 = countSerie(groupe, "L2");
                 long LA = countSerie(groupe, "LA");
-                long LAR = countSerie(groupe, "LAR");
+                long LAR = countSerie(groupe, "L-AR");
                 long S1 = countSerie(groupe, "S1");
                 long S1A = countSerie(groupe, "S1A");
                 long S2 = countSerie(groupe, "S2");
@@ -328,6 +331,8 @@ public class DecompteFeuilleJuryService
                         .effectif(effectif)
                         .centreExamen(centreExam)
                         .session(session)
+                        .cp(false)
+                        .cs(true)
                         .F6(F6)
                         .Lprime(Lprime)
                         .L1A(L1A)

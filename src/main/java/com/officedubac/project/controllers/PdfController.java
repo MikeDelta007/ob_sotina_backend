@@ -451,10 +451,11 @@ public class PdfController
     private FontConfiguration initializeFonts() {
         FontConfiguration fonts = new FontConfiguration();
         fonts.titleFont = FontFactory.getFont(FontFactory.TIMES_BOLD, 16);
-        fonts.normalFont = FontFactory.getFont(FontFactory.TIMES, 11);
+        fonts.normalFont = FontFactory.getFont(FontFactory.TIMES, 10);
         fonts.boldFont = FontFactory.getFont(FontFactory.TIMES_BOLD, 11);
         fonts.headerFont = FontFactory.getFont(FontFactory.TIMES_BOLD, 12);
         fonts.smallFont = FontFactory.getFont(FontFactory.TIMES, 9);
+        fonts.verySmallFont = FontFactory.getFont(FontFactory.TIMES, 8);
         return fonts;
     }
 
@@ -463,9 +464,9 @@ public class PdfController
      */
     private Image loadAndScaleLogo() throws IOException, BadElementException {
         Image logo = Image.getInstance(
-                new ClassPathResource("images/logo-UCAD_.png").getInputStream().readAllBytes()
+                new ClassPathResource("images/sn.png").getInputStream().readAllBytes()
         );
-        logo.scaleToFit(60f, 60f);
+        logo.scaleToFit(60f, 45f);
         return logo;
     }
 
@@ -503,9 +504,10 @@ public class PdfController
 
         // Cellule texte
         Paragraph headerText = new Paragraph(
-                "UNIVERSITE CHEIKH ANTA DIOP DE DAKAR\nOFFICE DU BACCALAUREAT\n" +
-                        "- - - - - - - - -\nDIVISION PEDAGOGIE",
-                fonts.smallFont
+                "REPUBLIQUE DU SENEGAL\nUn Peuple - Un But - Une Foi\n" +
+                        "Ministère de l'Enseignement Supérieur, \nde la Recherche et de l'Innovation" +
+                        "\n--------------------\nOFFICE DU BACCALAUREAT\nDIVISION PEDAGOGIE",
+                fonts.verySmallFont
         );
         headerText.setLeading(14f, 0);
         headerText.setAlignment(Element.ALIGN_LEFT);
@@ -631,12 +633,10 @@ public class PdfController
         mainInfoTable.addCell(new PdfPCell(firstLineTable));
 
         // Collect distinct series and compute max value
-        Set<String> distinctSeries = new HashSet<>();
-        double maxValue = Double.POSITIVE_INFINITY;
+
+        double maxValue = Double.NEGATIVE_INFINITY;
 
         for (MatiereComposeeDTO matiere : data.getMatieres()) {
-            // Add all series for this subject
-            distinctSeries.addAll(matiere.getSeries());
 
             // Update max with premierGroupe
             if (matiere.getPremierGroupe() > maxValue) {
@@ -648,11 +648,22 @@ public class PdfController
             }
         }
 
+        // System.out.println("FI LAA" + maxValue);
+
         // Sort series alphabetically for consistent display
-        List<String> sortedSeries = new ArrayList<>(distinctSeries);
-        Collections.sort(sortedSeries);
-        String seriesList = String.join(", ", sortedSeries);
+        List<String> distinctSeries = data.getSeries();
+        // System.out.println("SERIES" + distinctSeries.toString());
+
         int seriesCount = distinctSeries.size();
+        String seriesList = "";
+        if (seriesCount > 1)
+        {
+            seriesList = String.join(", ", distinctSeries);
+        }
+        if (seriesCount == 1)
+        {
+            seriesList = String.join("", distinctSeries);
+        }
 
         // Format max value (adjust formatting as needed)
         String maxValueStr = String.valueOf(maxValue);
@@ -806,6 +817,7 @@ public class PdfController
         Font boldFont;
         Font headerFont;
         Font smallFont;
+        Font verySmallFont;
     }
 
     private static class InfoItem {

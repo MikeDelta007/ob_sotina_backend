@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.Document;
 
+import java.util.List;
 import java.util.Map;
 
 
@@ -25,6 +26,7 @@ public class RepartitionTirageCEP
     private String centreEcrit;
     private String academia;
     private Long effectif;
+    private List<String> series;
 
     private Map<String, GroupeMatiere> matieres;
 

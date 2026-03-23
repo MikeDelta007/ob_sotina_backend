@@ -12,6 +12,8 @@ import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
 
 import javax.xml.transform.Source;
@@ -38,13 +40,33 @@ public class TirageJuryMatService
 
     private final MongoTemplate mongoTemplate;
 
+
+    public List<String> findDistinctSeriesByCentre(String centre)
+    {
+        Query query = new Query();
+        query.addCriteria(Criteria.where("centreEcritPrincipal").is(centre));
+
+        return mongoTemplate.findDistinct(query, "serie", SourceCandidat.class, String.class);
+    }
+
+    public List<String> findDistinctSeriesByCentre_(String centre)
+    {
+        Query query = new Query();
+        query.addCriteria(Criteria.where("centreEcritSecondaire").is(centre));
+
+        return mongoTemplate.findDistinct(query, "serie", SourceCandidat.class, String.class);
+    }
+
     public List<RepartitionTirageCEPDTO> repartitionParCEP()
     {
-        // 🔹 récupérer tous les candidats
-        List<SourceCandidat> candidats = sourceCandidatRepository.findAll();
 
         // 🔹 charger les règles dynamiques depuis la base
         List<RegleMatiere> regles = regleMatiereRepository.findAll();
+
+        // 🔹 récupérer tous les candidats
+        List<SourceCandidat> candidats = sourceCandidatRepository.findLightCandidats();
+
+        System.out.println(candidats.size());
 
         // 🔹 regrouper les candidats par jury
         Map<Integer, List<SourceCandidat>> candidatsParJury = candidats.stream().collect(Collectors.groupingBy(SourceCandidat::getJury));
@@ -54,6 +76,8 @@ public class TirageJuryMatService
 
         List<RepartitionTirageCEP> entities = new ArrayList<>();
         List<RepartitionTirageCEPDTO> dtos = new ArrayList<>();
+
+        List<String> series;
 
         try
         {
@@ -66,6 +90,8 @@ public class TirageJuryMatService
                 String academia = groupe.get(0).getAcaCentEcrit();
                 Integer session = groupe.get(0).getSession();
                 long effectif = groupe.size();
+
+                series = findDistinctSeriesByCentre(centreEcrit);
 
                 Map<String, GroupeMatiere> compteurs = new HashMap<>();
                 regles.forEach(r -> {
@@ -156,6 +182,7 @@ public class TirageJuryMatService
                         .centreEcrit(centreEcrit)
                         .academia(academia)
                         .effectif(effectif)
+                        .series(series)
                         .matieres(new HashMap<>(compteurs))
                         .build();
 
@@ -178,10 +205,12 @@ public class TirageJuryMatService
 
     public List<RepartitionTirageCSDTO> repartitionParCS()
     {
-        // 🔹 récupérer tous les candidats
-        List<SourceCandidat> candidats = sourceCandidatRepository.findByCentreEcritSecondaireIsNotNull();
         // 🔹 charger les règles dynamiques depuis la base
         List<RegleMatiere> regles = regleMatiereRepository.findAll();
+        // 🔹 récupérer tous les candidats
+        List<SourceCandidat> candidats = sourceCandidatRepository.findCandidatsWithCentreSecondaire();
+
+        System.out.println(candidats.size());
 
         // 🔹 regrouper les candidats par jury
         Map<Integer, List<SourceCandidat>> candidatsParJury =
@@ -192,6 +221,8 @@ public class TirageJuryMatService
 
         List<RepartitionTirageCES> entities = new ArrayList<>();
         List<RepartitionTirageCSDTO> dtos = new ArrayList<>();
+
+        List<String> series_;
 
         try {
 
@@ -204,6 +235,8 @@ public class TirageJuryMatService
                 String academia = groupe.get(0).getAcaCentEcrit();
                 Integer session = groupe.get(0).getSession();
                 long effectif = groupe.size();
+
+                series_ = findDistinctSeriesByCentre_(centreEcrit);
 
                 Map<String, GroupeMatiere> compteurs = new HashMap<>();
                 regles.forEach(r -> {
@@ -299,6 +332,7 @@ public class TirageJuryMatService
                         .centreEcrit(centreEcrit)
                         .academia(academia)
                         .effectif(effectif)
+                        .series(series_)
                         .matieres(new HashMap<>(compteurs))
                         .build();
 
@@ -530,12 +564,13 @@ public class TirageJuryMatService
 
 
 
-    public RepartitionCompleteDTO construire(FusionRepartitionTirage rep) {
-        // 1️⃣ Récupération des matières (déjà typées 👍)
+    public RepartitionCompleteDTO construire(FusionRepartitionTirage rep)
+    {
+        // 1️Récupération des matières (déjà typées 👍)
         Map<String, GroupeMatiere> matieres = rep.getMatieres();
-        // 2️⃣ Extraction des codes
+        // Extraction des codes
         List<String> codes = new ArrayList<>(matieres.keySet());
-        // 3️⃣ Chargement des règles en une seule requête
+        // Chargement des règles en une seule requête
         Map<String, RegleMatiere> reglesMap = regleMatiereRepository
                 .findAllByCodeIn(codes)
                 .stream()                     // now you can stream
@@ -544,7 +579,7 @@ public class TirageJuryMatService
                         Function.identity(),
                         (a, b) -> a
                 ));
-        // 4️⃣ Construction des DTO
+        // Construction des DTO
         List<MatiereComposeeDTO> matieresFinales = new ArrayList<>();
 
         for (Map.Entry<String, GroupeMatiere> entry : matieres.entrySet())
@@ -579,6 +614,7 @@ public class TirageJuryMatService
                 .academie(rep.getAcademia())
                 .session(rep.getSession())
                 .jury(rep.getJury())
+                .series(rep.getSeries())
                 .matieres(matieresFinales)
                 .build();
     }

@@ -839,6 +839,8 @@ public class ParametrageService
     //SOTINA
     public boolean importCdtByFile(String filePath) {
 
+        sourceCandidatRepository.deleteAll();
+
         final int BATCH_SIZE = 500;
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -974,7 +976,7 @@ public class ParametrageService
             case 18 -> sc.setEprFacListA(value);
             case 19 -> sc.setEprFacListB(value);
             case 25 -> sc.setCentreEcritPrincipal(value);
-            case 27 -> sc.setCentreEcritSecondaire(value);
+            case 27 -> sc.setCentreEcritSecondaire(value.trim().isEmpty() ? null : value);
             case 51 -> sc.setAcaEtab(value);
             case 52 -> sc.setAcaCentEcrit(value);
             case 66 -> sc.setSession(parseInteger(value));

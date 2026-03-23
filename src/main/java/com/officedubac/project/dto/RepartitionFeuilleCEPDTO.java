@@ -16,7 +16,8 @@ public class RepartitionFeuilleCEPDTO
     private String centreExamen;
     private String academia;
     private Long effectif;
-
+    private Boolean cs;
+    private Boolean cp;
     private Long F6;
     private Long Lprime;
     private Long L1A;
