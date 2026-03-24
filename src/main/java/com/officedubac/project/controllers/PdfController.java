@@ -505,7 +505,7 @@ public class PdfController
         // Cellule texte
         Paragraph headerText = new Paragraph(
                 "REPUBLIQUE DU SENEGAL\nUn Peuple - Un But - Une Foi\n" +
-                        "Ministère de l'Enseignement Supérieur, \nde la Recherche et de l'Innovation" +
+                        "Ministère de l'Enseignement supérieur, \nde la Recherche et de l'Innovation" +
                         "\n--------------------\nOFFICE DU BACCALAUREAT\nDIVISION PEDAGOGIE",
                 fonts.verySmallFont
         );
@@ -538,7 +538,7 @@ public class PdfController
 
         // Cellule texte
         Paragraph headerText = new Paragraph(
-                "Fait à............................................le...../...../" + a,
+                "Fait à......................................le......../......../" + a,
                 fonts.boldFont
         );
         headerText.setLeading(14f, 0);
@@ -619,7 +619,7 @@ public class PdfController
         academieCell.setHorizontalAlignment(Element.ALIGN_LEFT);
         academieCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
         academieCell.setPaddingBottom(5f);
-        academieCell.setPaddingTop(10f);
+        academieCell.setPaddingTop(5f);
         firstLineTable.addCell(academieCell);
 
         PdfPCell centreCell = new PdfPCell(new Phrase("Centre d'écrit : " + centre, fonts.boldFont));
@@ -627,26 +627,10 @@ public class PdfController
         centreCell.setHorizontalAlignment(Element.ALIGN_LEFT);
         academieCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
         centreCell.setPaddingBottom(5f);
-        centreCell.setPaddingTop(10f);
+        centreCell.setPaddingTop(5f);
         firstLineTable.addCell(centreCell);
 
         mainInfoTable.addCell(new PdfPCell(firstLineTable));
-
-        // Collect distinct series and compute max value
-
-        double maxValue = Double.NEGATIVE_INFINITY;
-
-        for (MatiereComposeeDTO matiere : data.getMatieres()) {
-
-            // Update max with premierGroupe
-            if (matiere.getPremierGroupe() > maxValue) {
-                maxValue = matiere.getPremierGroupe();
-            }
-            // Update max with secondGroupe
-            if (matiere.getSecondGroupe() > maxValue) {
-                maxValue = matiere.getSecondGroupe();
-            }
-        }
 
         // System.out.println("FI LAA" + maxValue);
 
@@ -666,7 +650,7 @@ public class PdfController
         }
 
         // Format max value (adjust formatting as needed)
-        String maxValueStr = String.valueOf(maxValue);
+        String maxValueStr = String.valueOf(data.getEffectif());
 
         // Ligne Jury, Effectif, Nbre séries, Séries
         PdfPTable secondLineTable = new PdfPTable(4);
@@ -688,7 +672,7 @@ public class PdfController
         cell.setBorder(Rectangle.NO_BORDER);
         cell.setHorizontalAlignment(Element.ALIGN_LEFT);
         cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        cell.setPaddingBottom(8f);
+        cell.setPaddingBottom(5f);
         return cell;
     }
 
@@ -762,28 +746,28 @@ public class PdfController
         PdfPCell discCell = new PdfPCell(new Phrase(discipline, font));
         discCell.setHorizontalAlignment(Element.ALIGN_CENTER);
         discCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        discCell.setPadding(5f);
+        discCell.setPadding(2f);
         table.addCell(discCell);
 
         // Effectif
         PdfPCell effCell = new PdfPCell(new Phrase(effectif, font));
         effCell.setHorizontalAlignment(Element.ALIGN_CENTER);
         effCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        effCell.setPadding(5f);
+        effCell.setPadding(2f);
         table.addCell(effCell);
 
         // Groupe 1
         PdfPCell g1Cell = new PdfPCell(new Phrase(groupe1, font));
         g1Cell.setHorizontalAlignment(Element.ALIGN_CENTER);
         g1Cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        g1Cell.setPadding(5f);
+        g1Cell.setPadding(2f);
         table.addCell(g1Cell);
 
         // Groupe 2
         PdfPCell g2Cell = new PdfPCell(new Phrase(groupe2, font));
         g2Cell.setHorizontalAlignment(Element.ALIGN_CENTER);
         g2Cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        g2Cell.setPadding(5f);
+        g2Cell.setPadding(2f);
         table.addCell(g2Cell);
     }
 
@@ -794,17 +778,17 @@ public class PdfController
         PdfPCell totalLabel = new PdfPCell(new Phrase("TOTAL DES ENVELOPPES A LIVRER ", fonts.boldFont));
         totalLabel.setColspan(2);
         totalLabel.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        totalLabel.setPadding(8f);
+        totalLabel.setPadding(2f);
         table.addCell(totalLabel);
 
         PdfPCell totalValue = new PdfPCell(new Phrase(String.valueOf(total1), fonts.boldFont));
         totalValue.setHorizontalAlignment(Element.ALIGN_CENTER);
-        totalValue.setPadding(8f);
+        totalValue.setPadding(2f);
         table.addCell(totalValue);
 
         PdfPCell totalValue2 = new PdfPCell(new Phrase(String.valueOf(total2), fonts.boldFont));
         totalValue2.setHorizontalAlignment(Element.ALIGN_CENTER);
-        totalValue2.setPadding(8f);
+        totalValue2.setPadding(2f);
         table.addCell(totalValue2);
     }
 

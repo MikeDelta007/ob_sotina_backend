@@ -69,7 +69,11 @@ public class TirageJuryMatService
         System.out.println(candidats.size());
 
         // 🔹 regrouper les candidats par jury
-        Map<Integer, List<SourceCandidat>> candidatsParJury = candidats.stream().collect(Collectors.groupingBy(SourceCandidat::getJury));
+        Map<String, List<SourceCandidat>> candidatsParJuryCentre =
+                candidats.stream()
+                        .collect(Collectors.groupingBy(
+                                c -> c.getCentreEcritPrincipal() + "_" + c.getJury()
+                        ));
 
         // 🔹 supprimer l'ancienne répartition
         repartitionTirageCEPRepository.deleteAll();
@@ -81,11 +85,11 @@ public class TirageJuryMatService
 
         try
         {
-            for (Map.Entry<Integer, List<SourceCandidat>> entry : candidatsParJury.entrySet())
+            for (Map.Entry<String, List<SourceCandidat>> entry : candidatsParJuryCentre.entrySet())
             {
-                Integer jury = entry.getKey();
-                List<SourceCandidat> groupe = entry.getValue();
 
+                List<SourceCandidat> groupe = entry.getValue();
+                Integer jury = groupe.get(0).getJury();
                 String centreEcrit = groupe.get(0).getCentreEcritPrincipal();
                 String academia = groupe.get(0).getAcaCentEcrit();
                 Integer session = groupe.get(0).getSession();
@@ -208,29 +212,30 @@ public class TirageJuryMatService
         // 🔹 charger les règles dynamiques depuis la base
         List<RegleMatiere> regles = regleMatiereRepository.findAll();
         // 🔹 récupérer tous les candidats
-        List<SourceCandidat> candidats = sourceCandidatRepository.findCandidatsWithCentreSecondaire();
+        List<SourceCandidat> candidats_ = sourceCandidatRepository.findCandidatsWithCentreSecondaire();
 
-        System.out.println(candidats.size());
+        System.out.println(candidats_.size());
 
-        // 🔹 regrouper les candidats par jury
-        Map<Integer, List<SourceCandidat>> candidatsParJury =
-                candidats.stream().collect(Collectors.groupingBy(SourceCandidat::getJury));
+        Map<String, List<SourceCandidat>> candidatsParJuryCentre_ =
+                candidats_.stream()
+                        .collect(Collectors.groupingBy(
+                                c -> c.getCentreEcritSecondaire() + "_" + c.getJury()
+                        ));
 
         // 🔹 supprimer l'ancienne répartition
         repartitionTirageCSRepository.deleteAll();
 
-        List<RepartitionTirageCES> entities = new ArrayList<>();
-        List<RepartitionTirageCSDTO> dtos = new ArrayList<>();
-
+        List<RepartitionTirageCES> entities_ = new ArrayList<>();
+        List<RepartitionTirageCSDTO> dtos_ = new ArrayList<>();
         List<String> series_;
 
         try {
 
-            for (Map.Entry<Integer, List<SourceCandidat>> entry : candidatsParJury.entrySet()) {
+            for (Map.Entry<String, List<SourceCandidat>> entry_ : candidatsParJuryCentre_.entrySet())
+            {
+                List<SourceCandidat> groupe = entry_.getValue();
 
-                Integer jury = entry.getKey();
-                List<SourceCandidat> groupe = entry.getValue();
-
+                Integer jury = groupe.get(0).getJury();
                 String centreEcrit = groupe.get(0).getCentreEcritSecondaire();
                 String academia = groupe.get(0).getAcaCentEcrit();
                 Integer session = groupe.get(0).getSession();
@@ -321,7 +326,7 @@ public class TirageJuryMatService
                         .matieres(new HashMap<>(compteurs))
                         .build();
 
-                dtos.add(dto);
+                dtos_.add(dto);
 
                 // =====================================================
                 // ⚡ Construire l'entité DB
@@ -336,7 +341,7 @@ public class TirageJuryMatService
                         .matieres(new HashMap<>(compteurs))
                         .build();
 
-                entities.add(entity);
+                entities_.add(entity);
             }
 
         } catch (Exception e) {
@@ -345,10 +350,10 @@ public class TirageJuryMatService
         }
 
         // 🔹 sauvegarde en base
-        repartitionTirageCSRepository.saveAll(entities);
+        repartitionTirageCSRepository.saveAll(entities_);
 
         // 🔹 retour trié par jury
-        return dtos.stream()
+        return dtos_.stream()
                 .sorted(Comparator.comparing(RepartitionTirageCSDTO::getJury))
                 .toList();
     }
@@ -613,6 +618,7 @@ public class TirageJuryMatService
                 .centre(rep.getCentreEcrit())
                 .academie(rep.getAcademia())
                 .session(rep.getSession())
+                .effectif(rep.getEffectif())
                 .jury(rep.getJury())
                 .series(rep.getSeries())
                 .matieres(matieresFinales)

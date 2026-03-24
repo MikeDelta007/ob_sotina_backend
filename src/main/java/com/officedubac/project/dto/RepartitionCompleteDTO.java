@@ -13,6 +13,7 @@ public class RepartitionCompleteDTO
     private String academie;
     private int session;
     private int jury;
+    private Long effectif;
     private List<String> series;
     private List<MatiereComposeeDTO> matieres;
 }
