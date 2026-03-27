@@ -14,6 +14,8 @@ public class RepartitionCompleteDTO
     private int session;
     private int jury;
     private Long effectif;
+    private Boolean cp;
+    private Boolean cs;
     private List<String> series;
     private List<MatiereComposeeDTO> matieres;
 }

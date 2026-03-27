@@ -17,4 +17,6 @@ public class MatiereComposeeDTO
     private Double premierGroupe;
     private Double secondGroupe;
 
+    private String champ;
+
 }

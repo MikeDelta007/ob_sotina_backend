@@ -20,6 +20,8 @@ public class RepartitionTirageCSDTO
     private String centreEcrit;
     private String academia;
     private Long effectif;
+    private Boolean cp;
+    private Boolean cs;
     private List<String> series;
     private Map<String, GroupeMatiere> matieres;
 }

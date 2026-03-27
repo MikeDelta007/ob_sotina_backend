@@ -27,6 +27,8 @@ public class RepartitionTirageCES
     private String academia;
     private Long effectif;
     private List<String> series;
+    private Boolean cs;
+    private Boolean cp;
 
     private Map<String, GroupeMatiere> matieres;
 }

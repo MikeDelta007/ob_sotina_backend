@@ -9,7 +9,6 @@ import com.officedubac.project.dto.MatiereComposeeDTO;
 import com.officedubac.project.dto.RepartitionCompleteDTO;
 import com.officedubac.project.models.*;
 import com.officedubac.project.repository.*;
-import com.officedubac.project.services.CandidatService;
 import com.officedubac.project.services.TirageJuryMatService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -20,13 +19,11 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.web.bind.annotation.*;
 
-import java.awt.*;
 import java.io.IOException;
-import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 @CrossOrigin("*")
 @RestController
@@ -614,7 +611,7 @@ public class PdfController
         String academie = data.getAcademie() != null ? data.getAcademie() : "N/A";
         String centre = data.getCentre() != null ? data.getCentre() : "N/A";
 
-        PdfPCell academieCell = new PdfPCell(new Phrase("ACADEMIE : " + getAcademieFullName(academie), fonts.boldFont));
+        PdfPCell academieCell = new PdfPCell(new Phrase("Académie : " + getAcademieFullName(academie), fonts.boldFont));
         academieCell.setBorder(Rectangle.NO_BORDER);
         academieCell.setHorizontalAlignment(Element.ALIGN_LEFT);
         academieCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
@@ -622,7 +619,11 @@ public class PdfController
         academieCell.setPaddingTop(5f);
         firstLineTable.addCell(academieCell);
 
-        PdfPCell centreCell = new PdfPCell(new Phrase("Centre d'écrit : " + centre, fonts.boldFont));
+        String result = centre
+                + (Boolean.TRUE.equals(data.getCp()) ? " (CP)" : "")
+                + (Boolean.TRUE.equals(data.getCs()) ? " (CS)" : "");
+
+        PdfPCell centreCell = new PdfPCell(new Phrase("Centre d'écrit ( " + result + ") :" + centre, fonts.boldFont));
         centreCell.setBorder(Rectangle.NO_BORDER);
         centreCell.setHorizontalAlignment(Element.ALIGN_LEFT);
         academieCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
@@ -676,6 +677,7 @@ public class PdfController
         return cell;
     }
 
+
     private void addDisciplinesTable(Document document, FontConfiguration fonts, RepartitionCompleteDTO data) throws DocumentException {
         PdfPTable mainTable = new PdfPTable(4);
         mainTable.setWidthPercentage(100);
@@ -683,28 +685,53 @@ public class PdfController
         // En-têtes du tableau
         addTableHeaders(mainTable, fonts);
 
-        int totalPremierIndicator = 0;
-        int totalSecondIndicator = 0;
+        AtomicInteger totalPremierIndicator = new AtomicInteger();
+        AtomicInteger totalSecondIndicator = new AtomicInteger();
 
         // Lignes de données
         if (data.getMatieres() != null && !data.getMatieres().isEmpty()) {
-            for (MatiereComposeeDTO row : data.getMatieres())
-            {
-                double premier = row.getPremierGroupe();
-                String value = premier > 0 ? "1" : "0";
-                if (premier > 0) {
-                    totalPremierIndicator++;
-                    totalSecondIndicator++;
-                }
 
-                addDisciplineRow(mainTable,
-                        row.getNom() + " (" + String.join(", ", row.getSeries()) + ")",
-                        row.getPremierGroupe().toString(),
-                        value, value,
-                        fonts.normalFont);
+            data.getMatieres().stream()
+                    .sorted(Comparator.comparing(MatiereComposeeDTO::getNom, Comparator.naturalOrder()))
+                    .forEach(row -> {
 
-            }
-        } else {
+                        double premier = row.getPremierGroupe();
+                        String value = premier > 0 ? "1" : "0";
+
+                        if (premier > 0) {
+                            totalPremierIndicator.getAndIncrement();
+                            totalSecondIndicator.getAndIncrement();
+                        }
+
+                        String champ = row.getChamp();
+                        String mappedChamp;
+                        List<String> target = Arrays.asList("L2", "L'1", "L1B", "L1A", "LA", "L-AR");
+
+                        if ("matiere1".equals(champ) && row.getSeries().stream().anyMatch(target::contains))
+                        {
+                            mappedChamp = " - LV1";
+                        }
+                        else if ("matiere2".equals(champ))
+                        {
+                            mappedChamp = " - LV2";
+                        }
+                        else
+                        {
+                            mappedChamp = "";
+                        }
+
+                        addDisciplineRow(
+                                mainTable,
+                                row.getNom() + mappedChamp + " (" + String.join(", ", row.getSeries()) + ")",
+                                row.getPremierGroupe().toString(),
+                                value, value,
+                                fonts.normalFont
+                        );
+                    });
+        }
+
+        else
+        {
             // Ajouter une ligne indiquant l'absence de données
             PdfPCell emptyCell = new PdfPCell(new Phrase("Aucune matière à afficher", fonts.normalFont));
             emptyCell.setColspan(4);
@@ -715,7 +742,7 @@ public class PdfController
         }
 
         // Ligne total
-        addTotalRow(mainTable, fonts, totalPremierIndicator, totalSecondIndicator);
+        addTotalRow(mainTable, fonts, totalPremierIndicator.get(), totalSecondIndicator.get());
         document.add(mainTable);
     }
 

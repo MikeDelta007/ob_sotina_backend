@@ -187,6 +187,7 @@ public class TirageJuryMatService
                         .academia(academia)
                         .effectif(effectif)
                         .series(series)
+                        .cp(true)
                         .matieres(new HashMap<>(compteurs))
                         .build();
 
@@ -338,6 +339,7 @@ public class TirageJuryMatService
                         .academia(academia)
                         .effectif(effectif)
                         .series(series_)
+                        .cs(true)
                         .matieres(new HashMap<>(compteurs))
                         .build();
 
@@ -360,6 +362,7 @@ public class TirageJuryMatService
 
     public void unionCollections()
     {
+        mongoTemplate.dropCollection("fusion_repartition_tirage");
         /**
         long countCep = mongoTemplate
                 .getCollection("repartition_tirage_CEP")
@@ -391,7 +394,7 @@ public class TirageJuryMatService
         all.addAll(collectionA);
         all.addAll(collectionB);
         // log.info("Total à insérer = {}", all.size());
-        mongoTemplate.dropCollection("fusion_repartition_tirage");
+
         mongoTemplate.insert(all, "fusion_repartition_tirage");
     }
 
@@ -602,12 +605,14 @@ public class TirageJuryMatService
             Double second = valeur.getSecondGroupe();
             RegleMatiere regle = reglesMap.get(code);
 
+            assert regle != null;
             MatiereComposeeDTO dto = MatiereComposeeDTO.builder()
                     .code(code)
-                    .nom(regle != null ? regle.getValeur() : null)
-                    .series(regle != null ? regle.getSeries() : null)
+                    .nom(regle.getValeur())
+                    .series(regle.getSeries())
                     .premierGroupe(premier)
                     .secondGroupe(second)
+                    .champ(regle.getChamp() != null ? regle.getChamp() : "")
                     .build();
 
             matieresFinales.add(dto);
@@ -621,6 +626,8 @@ public class TirageJuryMatService
                 .effectif(rep.getEffectif())
                 .jury(rep.getJury())
                 .series(rep.getSeries())
+                .cp(rep.getCp())
+                .cs(rep.getCs())
                 .matieres(matieresFinales)
                 .build();
     }
