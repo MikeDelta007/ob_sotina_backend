@@ -1,10 +1,7 @@
 package com.officedubac.project.services;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.officedubac.project.dto.RepartitionFeuilleCEPDTO;
-import com.officedubac.project.dto.RepartitionFeuilleCESDTO;
-import com.officedubac.project.dto.RepartitionTirageCEPDTO;
-import com.officedubac.project.dto.RepartitionTirageCSDTO;
+import com.officedubac.project.dto.*;
 import com.officedubac.project.models.*;
 import com.officedubac.project.repository.*;
 import lombok.RequiredArgsConstructor;
@@ -16,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 @Service
@@ -33,10 +31,12 @@ public class DecompteFeuilleJuryService
 
     private final MongoTemplate mongoTemplate;
 
+    private final EtablissementRepository etablissementRepository;
+
     public List<RepartitionFeuilleCEPDTO> repartitionParCEP()
     {
 
-        List<SourceCandidat> candidats = sourceCandidatRepository.findAll();
+        List<SourceCandidat> candidats = sourceCandidatRepository.findLightCandidats();
 
         // Regroupement par CEP
         Map<String, List<SourceCandidat>> candidatsParCEP =
@@ -411,5 +411,23 @@ public class DecompteFeuilleJuryService
                 .stream()
                 .filter(p -> p.getAcademia() != null)
                 .collect(Collectors.groupingBy(s -> s.getAcademia()));
+    }
+
+
+    public RepartitionCompleteFDTO construire(FusionRepartitionFeuille rep)
+    {
+        return RepartitionCompleteFDTO.builder()
+                .centre(rep.getCentreEcrit())
+                .academie(rep.getAcademia())
+                .session(rep.getSession())
+                .effectif(rep.getEffectif())
+                .nbJury(rep.getNbJury())
+                .cp(rep.getCp())
+                .cs(rep.getCs())
+                .localite(etablissementRepository.findByName(rep.getCentreEcrit()).getVille().getName())
+                .fb(rep.getFeuille_brouillon())
+                .ic(rep.getFeuille_intercalaire())
+                .fd(rep.getFeuille_double())
+                .build();
     }
 }
