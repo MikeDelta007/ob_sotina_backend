@@ -91,6 +91,9 @@ public class ParametrageService
     private final SourceCandidatRepository sourceCandidatRepository;
 
     @Autowired
+    private final SourceCandidatCGSRepository sourceCandidatCGSRepository;
+
+    @Autowired
     private MongoTemplate mongoTemplate;
 
     @Autowired
@@ -943,6 +946,141 @@ public class ParametrageService
     }
 
 
+    public boolean importCdtByFile_(String filePath) {
+
+        sourceCandidatCGSRepository.deleteAll();
+
+        final int BATCH_SIZE = 500;
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
+        try (OPCPackage opcPackage = OPCPackage.open(filePath)) {
+
+            XSSFReader reader = new XSSFReader(opcPackage);
+            SharedStringsTable sst = (SharedStringsTable) reader.getSharedStringsTable();
+            XMLReader parser = XMLHelper.newXMLReader();
+            List<SourceCandidatCGS> batchList = new ArrayList<>(BATCH_SIZE);
+            DefaultHandler handler = new DefaultHandler() {
+
+                private String lastContents;
+                private boolean isString;
+                private int currentColumn = -1;
+                private SourceCandidatCGS currentCandidat;
+                private int currentRowNumber = 0;
+
+                @Override
+                public void startElement(String uri, String localName, String qName, Attributes attributes) {
+
+                    if ("row".equals(qName)) {
+
+                        String rowNum = attributes.getValue("r");
+                        currentRowNumber = rowNum != null ? Integer.parseInt(rowNum) : 0;
+
+                        // 🔥 Ignorer la première ligne
+                        if (currentRowNumber == 1) {
+                            currentCandidat = null;
+                            return;
+                        }
+
+                        currentCandidat = new SourceCandidatCGS();
+                    }
+
+                    if ("c".equals(qName) && currentCandidat != null) {
+
+                        String cellType = attributes.getValue("t");
+                        isString = "s".equals(cellType);
+
+                        String cellRef = attributes.getValue("r");
+                        currentColumn = getColumnIndex(cellRef);
+                    }
+
+                    lastContents = "";
+                }
+
+                @Override
+                public void characters(char[] ch, int start, int length) {
+                    lastContents += new String(ch, start, length);
+                }
+
+                @Override
+                public void endElement(String uri, String localName, String qName) {
+
+                    if (currentCandidat == null) return; // 🔥 ignore ligne 1
+
+                    if ("v".equals(qName)) {
+
+                        String value = lastContents;
+
+                        if (isString) {
+                            int idx = Integer.parseInt(value);
+                            value = sst.getItemAt(idx).getString();
+                        }
+
+                        mapValueToCandidat_(currentCandidat, currentColumn, value, formatter);
+                    }
+
+                    if ("row".equals(qName)) {
+
+                        batchList.add(currentCandidat);
+
+                        if (batchList.size() >= BATCH_SIZE) {
+                            mongoTemplate.insert(batchList, SourceCandidatCGS.class);
+                            batchList.clear();
+                        }
+                    }
+                }
+            };
+
+
+            parser.setContentHandler(handler);
+
+            try (InputStream sheet = reader.getSheetsData().next()) {
+                parser.parse(new InputSource(sheet));
+            }
+
+            if (!batchList.isEmpty()) {
+                mongoTemplate.insert(batchList, SourceCandidat.class);
+            }
+
+            return true;
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    private void mapValueToCandidat_(SourceCandidatCGS sc,
+                                    int columnIndex,
+                                    String value,
+                                    DateTimeFormatter formatter) {
+
+        if (value == null || value.isEmpty()) return;
+
+        switch (columnIndex) {
+
+            case 0 -> sc.setFirstname(value);
+            case 1 -> sc.setLastname(value);
+
+            case 2 -> {
+                try {
+                    sc.setDate_birth(LocalDate.parse(value, formatter));
+                } catch (Exception ignored) {}
+            }
+
+            case 3 -> sc.setPlace_birth(value);
+            case 4 -> sc.setGender(value);
+            case 5 -> sc.setLevel(value);
+            case 6 -> sc.setDiscipline(value);
+            case 7 -> sc.setCentreCompo(value);
+            case 8 -> sc.setEtab(value);
+            case 9 -> sc.setAcademia(value);
+            case 10 -> sc.setSerie(value);
+            case 11 -> sc.setSession(parseLong(value));
+
+
+        }
+    }
+
     private void mapValueToCandidat(SourceCandidat sc,
                                     int columnIndex,
                                     String value,
@@ -986,6 +1124,14 @@ public class ParametrageService
     private Integer parseInteger(String value) {
         try {
             return Integer.parseInt(value.trim());
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private Long parseLong(String value) {
+        try {
+            return Long.parseLong(value.trim());
         } catch (Exception e) {
             return null;
         }

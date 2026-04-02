@@ -5,6 +5,7 @@ import com.officedubac.project.models.*;
 import com.officedubac.project.repository.CandidatRepository;
 import com.officedubac.project.repository.FusionRepartitionTirageRepository;
 import com.officedubac.project.repository.NotificationRepository;
+import com.officedubac.project.repository.RepartitionTirageCGSRepository;
 import com.officedubac.project.services.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -39,7 +40,13 @@ public class DataImportController
     private final TirageJuryMatService tirageJuryMatService;
 
     @Autowired
+    private final TirageJuryMatCGSService tirageJuryMatCGSService;
+
+    @Autowired
     private final FusionRepartitionTirageRepository fusionRepartitionTirageRepository;
+
+    @Autowired
+    private final RepartitionTirageCGSRepository repartitionTirageCGSRepository;
 
     @Autowired
     private final DecompteFeuilleJuryService decompteFeuilleJuryService;
@@ -224,5 +231,95 @@ public class DataImportController
 
         return tirageJuryMatService.construire(rep);
     }
+
+
+
+
+    @PostMapping("/repartition-cgs")
+    public ResponseEntity<List<RepartitionTirageCGSDTO>> repartitionTirageCGS()
+    {
+        return ResponseEntity.ok(this.tirageJuryMatCGSService.repartitionParCGS());
+    }
+
+
+    @GetMapping("/repartition-cgs/{id}/complete")
+    public RepartitionCompleteCGSDTO getComplete_(@PathVariable String id) {
+        RepartitionTirageCGS rep = repartitionTirageCGSRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Introuvable"));
+
+        return tirageJuryMatCGSService.construire(rep);
+    }
+
+
+    @GetMapping(value = "/repTirageCGS-all")
+    public ResponseEntity<List<Map<String, Object>>> repCGSAll(@RequestParam String codeMatiere, @RequestParam String groupeChoisi) throws Exception
+    {
+        List<Map<String, Object>> result = tirageJuryMatCGSService.getCentreSummaryAllAcademies(codeMatiere, groupeChoisi);
+        return ResponseEntity.ok(result);
+    }
+
+
+    @GetMapping("/get-all-candidatsCGS/{page}/{size}")
+    public ResponseEntity<?> getCandidats_(
+            @PathVariable int page,
+            @PathVariable int size
+    ) {
+        Page<SourceCandidatCGSDTO> p = this.tirageJuryMatCGSService.getListCandidats(page, size);
+
+        Map<String, Object> res = new HashMap<>();
+        res.put("content", p.getContent());
+        res.put("totalElements", p.getTotalElements());
+        res.put("totalPages", p.getTotalPages());
+        res.put("size", p.getSize());
+        res.put("page", p.getNumber());
+
+        return ResponseEntity.ok(res);
+    }
+
+    @Operation(summary="")
+    @GetMapping(value="/repCGS-by-aca")
+    public ResponseEntity<Map<String, List<RepartitionTirageCGS>>> repCP_() throws Exception
+    {
+        return ResponseEntity.ok(this.tirageJuryMatCGSService.getRepCGSByAcademie());
+    }
+
+
+    @PostMapping("/data-candidatsCGS")
+    public String importCdtsByFile_(@RequestParam("file") MultipartFile file)
+    {
+        String message;
+        try
+        {
+            // Sauvegarder le fichier temporairement
+            File tempFile = File.createTempFile("data_cdt_", ".xlsx");
+            file.transferTo(tempFile);
+            // Appeler le service
+            boolean ok = parametrageService.importCdtByFile_(tempFile.getAbsolutePath());
+            // Supprimer le fichier temporaire après import
+            tempFile.delete();
+            if (ok)
+            {
+                message = "Les données ont été chargées avec succés.";
+            }
+            else
+            {
+                message = "Aucune donnée n\'a été chargée";
+            }
+            return message;
+        }
+        catch (IOException e)
+        {
+            e.printStackTrace();
+            return "Erreur lors de l'import : " + e.getMessage();
+        }
+    }
+
+    @Operation(summary="")
+    @GetMapping(value="/get-all-fusion-tirageCGS")
+    public ResponseEntity<Map<String, List<RepartitionTirageCGS>>> fusionRep_() throws Exception
+    {
+        return ResponseEntity.ok(this.tirageJuryMatCGSService.getAllRepTirage());
+    }
+
 
 }

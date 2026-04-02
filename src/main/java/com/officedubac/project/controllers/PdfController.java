@@ -447,6 +447,7 @@ public class PdfController
     }
 
 
+    /**
     @Operation(summary = "Génération du document BDR LS")
     @GetMapping("/generate-bdr-feuilles")
     public void generateBDRFDocument(HttpServletResponse response) throws IOException, DocumentException {
@@ -511,6 +512,7 @@ public class PdfController
             }
         }
     }
+    */
 
     /**
      * Configuration des polices utilisées dans le document
@@ -554,6 +556,7 @@ public class PdfController
         //System.out.println("addDisciplinesTable"); // LOG
     }
 
+    /**
     private void buildDocument_(Document document, FontConfiguration fonts, Image logo, RepartitionCompleteFDTO data) throws DocumentException {
         // En-tête avec logo
         addHeader(document, fonts, logo);
@@ -564,6 +567,7 @@ public class PdfController
         // Tableau des disciplines
         addDisciplinesTable_(document, fonts, data);
     }
+     */
 
     /**
      * Ajoute l'en-tête avec logo, texte républicain et code
@@ -747,7 +751,7 @@ public class PdfController
         document.add(mainInfoTable);
     }
 
-
+    /**
     private void addMainInfo_(Document document, FontConfiguration fonts, RepartitionCompleteFDTO data) throws DocumentException {
         // Titre
         Paragraph titre = new Paragraph("BACCALAUREAT GENERAL SESSION NORMALE " + data.getSession(), fonts.boldFont);
@@ -805,6 +809,7 @@ public class PdfController
 
         document.add(mainInfoTable);
     }
+     */
 
     private PdfPCell createCell(String text, Font font, boolean isBold) {
         PdfPCell cell = new PdfPCell(new Phrase(text, font));
@@ -884,6 +889,7 @@ public class PdfController
         document.add(mainTable);
     }
 
+    /**
     private void addDisciplinesTable_(Document document, FontConfiguration fonts, RepartitionCompleteFDTO data) throws DocumentException {
         PdfPTable mainTable = new PdfPTable(4);
         mainTable.setWidthPercentage(100);
@@ -951,6 +957,7 @@ public class PdfController
         addTotalRow(mainTable, fonts, totalPremierIndicator.get(), totalSecondIndicator.get());
         document.add(mainTable);
     }
+     */
 
     /**
      * Ajoute les en-têtes du tableau
