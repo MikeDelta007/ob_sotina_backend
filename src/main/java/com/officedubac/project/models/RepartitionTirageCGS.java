@@ -25,10 +25,10 @@ public class RepartitionTirageCGS
     private String centreEcrit;
     private String academia;
     private String discipline;
-    private String level;
     private Long effectif;
     private List<String> series;
 
-    private Map<String, GroupeMatiereCGS> matieres;
+    private Double eff1ere;
+    private Double effTle;
 
 }

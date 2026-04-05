@@ -242,21 +242,23 @@ public class DataImportController
     }
 
 
+    /**
     @GetMapping("/repartition-cgs/{id}/complete")
     public RepartitionCompleteCGSDTO getComplete_(@PathVariable String id) {
         RepartitionTirageCGS rep = repartitionTirageCGSRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Introuvable"));
 
         return tirageJuryMatCGSService.construire(rep);
-    }
+    }*/
 
 
     @GetMapping(value = "/repTirageCGS-all")
-    public ResponseEntity<List<Map<String, Object>>> repCGSAll(@RequestParam String codeMatiere, @RequestParam String groupeChoisi) throws Exception
+    public ResponseEntity<List<Map<String, Object>>> repCGSAll() throws Exception
     {
-        List<Map<String, Object>> result = tirageJuryMatCGSService.getCentreSummaryAllAcademies(codeMatiere, groupeChoisi);
+        List<Map<String, Object>> result = tirageJuryMatCGSService.getCentreSummaryAllAcademies();
         return ResponseEntity.ok(result);
     }
+
 
 
     @GetMapping("/get-all-candidatsCGS/{page}/{size}")

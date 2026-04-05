@@ -82,6 +82,7 @@ public class TirageJuryMatCGSService
         List<RepartitionTirageCGS> entities = new ArrayList<>();
         List<RepartitionTirageCGSDTO> dtos = new ArrayList<>();
 
+
         try {
 
             for (Map.Entry<String, Map<String, List<SourceCandidatCGS>>> centreEntry : candidatsParCentre.entrySet()) {
@@ -108,6 +109,8 @@ public class TirageJuryMatCGSService
                             compteurs.put(r.getValeur(), new GroupeMatiereCGS(0.0, 0.0))
                     );
 
+                    double effectif1ere = 0;
+                    double effectifTle = 0;
                     // 🔹 calcul
                     for (SourceCandidatCGS c : groupe)
                     {
@@ -118,15 +121,10 @@ public class TirageJuryMatCGSService
                         {
                             if (!c.getLevel().equalsIgnoreCase(r.getLevel())) continue;
 
-                            GroupeMatiereCGS gm = compteurs.computeIfAbsent(
-                                    r.getValeur(),
-                                    k -> new GroupeMatiereCGS(0.0, 0.0)
-                            );
-
-                            if ("PREMIERE".equalsIgnoreCase(r.getLevel())) {
-                                gm.setMatiere1ere(gm.getMatiere1ere() + 1);
-                            } else if ("TERMINALE".equalsIgnoreCase(r.getLevel())) {
-                                gm.setMatiereTle(gm.getMatiereTle() + 1);
+                            if ("PREMIERE".equalsIgnoreCase(c.getLevel())) {
+                                effectif1ere++;
+                            } else if ("TERMINALE".equalsIgnoreCase(c.getLevel())) {
+                                effectifTle++;
                             }
                         }
                     }
@@ -138,7 +136,8 @@ public class TirageJuryMatCGSService
                             .academia(academia)
                             .effectif(effectif)
                             .discipline(discipline)
-                            .matieres(new HashMap<>(compteurs))
+                            .eff1ere(effectif1ere)
+                            .effTle(effectifTle)
                             .build();
 
                     dtos.add(dto);
@@ -151,7 +150,8 @@ public class TirageJuryMatCGSService
                             .effectif(effectif)
                             .discipline(discipline)
                             .series(series)
-                            .matieres(new HashMap<>(compteurs))
+                            .eff1ere(effectif1ere)
+                            .effTle(effectifTle)
                             .build();
                     entities.add(entity);
                 }
@@ -226,81 +226,81 @@ public class TirageJuryMatCGSService
                 .collect(Collectors.groupingBy(RepartitionTirageCGS::getAcademia));
     }
 
-    public List<Map<String, Object>> getCentreSummaryAllAcademies(String codeMatiere, String groupeChoisi)
-    {
-        // Récupérer toutes les tirages qui contiennent la matière
-        List<RepartitionTirageCGS> tirages = repartitionTirageCGSRepository.findAll().stream()
-                .filter(f -> f.getMatieres() != null && f.getMatieres().containsKey(codeMatiere))
-                .toList();
 
-        // Grouper par académie
-        Map<String, List<RepartitionTirageCGS>> groupedByAcademia = tirages.stream()
-                .collect(Collectors.groupingBy(RepartitionTirageCGS::getAcademia));
+
+    public List<Map<String, Object>> getCentreSummaryAllAcademies()
+    {
+        List<RepartitionTirageCGS> tirages = repartitionTirageCGSRepository.findAll();
+
+        // 🔹 1. Grouper par académie
+        Map<String, Map<String, List<RepartitionTirageCGS>>> data =
+                tirages.stream()
+                        .collect(Collectors.groupingBy(
+                                RepartitionTirageCGS::getAcademia,
+                                Collectors.groupingBy(RepartitionTirageCGS::getCentreEcrit)
+                        ));
 
         List<Map<String, Object>> result = new ArrayList<>();
 
-        // Boucle sur chaque académie
-        for (Map.Entry<String, List<RepartitionTirageCGS>> entry : groupedByAcademia.entrySet()) {
-            String academia = entry.getKey();
-            List<RepartitionTirageCGS> tiragesAcademia = entry.getValue();
+        // 🔹 2. Parcours académies
+        for (Map.Entry<String, Map<String, List<RepartitionTirageCGS>>> acadEntry : data.entrySet()) {
 
-            // Transformer chaque tirage en map avec les infos et la valeur du groupe choisi
-            List<Map<String, Object>> rows = tiragesAcademia.stream().map(f -> {
-                        GroupeMatiereCGS gm = f.getMatieres().get(codeMatiere);
-                        double valeur = 0.0;
-                        if (gm != null)
-                        {
-                            if ("PREMIERE".equalsIgnoreCase(groupeChoisi)) {
-                                valeur = gm.getMatiere1ere();
-                            } else if ("TERMINALE".equalsIgnoreCase(groupeChoisi)) {
-                                valeur = gm.getMatiereTle();
-                            }
-                        }
+            String academia = acadEntry.getKey();
+            Map<String, List<RepartitionTirageCGS>> centresMap = acadEntry.getValue();
 
-                        // On ignore les valeurs nulles ou <= 0
-                        if (valeur <= 0) return null;
+            Map<String, Object> academiaMap = new HashMap<>();
+            academiaMap.put("academia", academia);
 
-                        Map<String, Object> map = new HashMap<>();
-                        map.put("matiere", codeMatiere);
-                        map.put("session", f.getSession());
-                        map.put("discipline", f.getDiscipline());
-                        map.put("level", f.getLevel());
-                        map.put("centreEcrit", f.getCentreEcrit());
-                        map.put("academia", f.getAcademia());
-                        map.put("effectif", valeur);
+            List<Map<String, Object>> centresList = new ArrayList<>();
 
-                        return map;
-                    })
-                    .filter(Objects::nonNull) // supprimer les entrées null (valeur <= 0)
-                    .collect(Collectors.toList());
+            // 🔹 3. Parcours centres
+            for (Map.Entry<String, List<RepartitionTirageCGS>> centreEntry : centresMap.entrySet()) {
 
-            // Calcul de la ligne TOTAL pour cette académie
-            double totalValeur = rows.stream()
-                    .mapToDouble(m -> (Double) m.get("effectif"))
-                    .sum();
+                String centre = centreEntry.getKey();
+                List<RepartitionTirageCGS> tiragesCentre = centreEntry.getValue();
 
-            if (!rows.isEmpty()) { // n'ajouter le total que si au moins une ligne valide
-                Map<String, Object> totalMap = new HashMap<>();
-                totalMap.put("matiere", codeMatiere);
-                totalMap.put("session", "TOTAL");
-                totalMap.put("discipline", "");
-                totalMap.put("level", "");
-                totalMap.put("centreEcrit", "");
-                totalMap.put("academia", academia);
-                totalMap.put("effectif", totalValeur);
+                Map<String, Object> centreMap = new HashMap<>();
+                centreMap.put("centreEcrit", centre);
 
-                // Tri des lignes de l’académie par effectif décroissant
-                rows.sort((m1, m2) -> Double.compare((Double) m2.get("effectif"), (Double) m1.get("effectif")));
+                List<Map<String, Object>> disciplinesList = new ArrayList<>();
 
-                // Ajouter les lignes de l’académie puis le total
-                result.addAll(rows);
-                result.add(totalMap);
+                // 🔹 4. Parcours disciplines
+                for (RepartitionTirageCGS r : tiragesCentre) {
+
+                    Map<String, Object> disciplineMap = new HashMap<>();
+
+                    long eff1 = r.getEff1ere() != null ? r.getEff1ere().longValue() : 0;
+                    long effT = r.getEffTle() != null ? r.getEffTle().longValue() : 0;
+
+                    disciplineMap.put("discipline", r.getDiscipline());
+                    disciplineMap.put("eff1ere", eff1);
+                    disciplineMap.put("effTle", effT);
+                    disciplineMap.put("effectif", eff1 + effT);
+
+                    disciplinesList.add(disciplineMap);
+                }
+
+                // 🔹 (optionnel) tri des disciplines
+                disciplinesList.sort(Comparator.comparing(d -> (String) d.get("discipline")));
+
+                centreMap.put("disciplines", disciplinesList);
+                centresList.add(centreMap);
             }
+
+            // 🔹 (optionnel) tri des centres
+            centresList.sort(Comparator.comparing(c -> (String) c.get("centreEcrit")));
+
+            academiaMap.put("centres", centresList);
+            result.add(academiaMap);
         }
+
+        // 🔹 (optionnel) tri académies
+        result.sort(Comparator.comparing(a -> (String) a.get("academia")));
 
         return result;
     }
 
+    /**
     public RepartitionCompleteCGSDTO construire(RepartitionTirageCGS rep)
     {
         // 1️Récupération des matières (déjà typées 👍)
@@ -355,6 +355,6 @@ public class TirageJuryMatCGSService
                 .series(rep.getSeries())
                 .matieres(matieresFinales)
                 .build();
-    }
+    }*/
 
 }

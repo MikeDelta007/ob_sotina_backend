@@ -1038,12 +1038,14 @@ public class ParametrageService
             }
 
             if (!batchList.isEmpty()) {
-                mongoTemplate.insert(batchList, SourceCandidat.class);
+                mongoTemplate.insert(batchList, SourceCandidatCGS.class);
             }
 
             return true;
 
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             e.printStackTrace();
             return false;
         }

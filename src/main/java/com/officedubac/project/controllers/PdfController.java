@@ -36,16 +36,28 @@ import java.util.stream.Collectors;
 public class PdfController
 {
 
+    @Autowired
     private FusionRepartitionTirageRepository repository;
 
+    @Autowired
+    private RepartitionTirageCGSRepository repositorycgs;
+
+    @Autowired
     private RegleMatiereRepository repo;
 
+    @Autowired
+    private RegleMatiereCGSRepository repocgs;
+
+    @Autowired
     private FusionRepartitionTirageRepository ftr;
 
+    @Autowired
     private FusionRepartitionFeuilleRepository ffeuil;
 
+    @Autowired
     private TirageJuryMatService tirageJuryMatService;
 
+    @Autowired
     private DecompteFeuilleJuryService decompteFeuilleJuryService;
 
 
@@ -182,6 +194,103 @@ public class PdfController
     }
 
 
+    @Operation(summary = "Génération de l'étiquette de table - Format A4 Paysage")
+    @GetMapping("/generate-etiquetteCGS-paysage")
+    public void generateEtiquettes(HttpServletResponse response) throws IOException, DocumentException {
+        List<RepartitionTirageCGS> list = repositorycgs.findAll();
+        log.info(list.toString());
+        if (list.isEmpty()) {
+            response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+            return;
+        }
+
+        // 🔹 Charger les règles
+        List<RegleMatiereCGS> regles = repocgs.findAll();
+        Map<String, RegleMatiereCGS> regleParCode = regles.stream()
+                .collect(Collectors.toMap(
+                        r -> r.getValeur().toUpperCase(),
+                        r -> r,
+                        (r1, r2) -> r1
+                ));
+
+        response.setContentType("application/pdf");
+        response.setHeader("Content-Disposition", "inline; filename=etiquettes_bac.pdf");
+
+        Document document = new Document(PageSize.A4.rotate(), 36f, 36f, 36f, 36f);
+        PdfWriter.getInstance(document, response.getOutputStream());
+        document.open();
+
+        // 🔹 Polices
+        Font helv10 = FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL);
+        Font helv12Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 60);
+        Font helv14 = FontFactory.getFont(FontFactory.HELVETICA, 17, Font.BOLD);
+        Font helv22 = FontFactory.getFont(FontFactory.HELVETICA, 22, Font.NORMAL);
+        Font helv24Bold = FontFactory.getFont(FontFactory.HELVETICA, 24, Font.BOLD);
+        Font helv16Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16);
+        Font helv16 = FontFactory.getFont(FontFactory.HELVETICA, 16);
+        Font helv26Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 30);
+
+        // 🔹 Logo
+        Image logo = Image.getInstance(new ClassPathResource("images/sn.png").getInputStream().readAllBytes());
+        logo.scaleToFit(70f, 70f);
+
+        // 🔹 Parcours optimisé : pour chaque centre et discipline
+        for (RepartitionTirageCGS data : list) {
+            if (data.getDiscipline() == null) continue;
+
+            String matiere = data.getDiscipline().toUpperCase();
+            RegleMatiereCGS regle = regleParCode.get(matiere);
+            if (regle == null)
+            {
+                log.warn("Aucune règle trouvée pour {}", matiere);
+                continue;
+            }
+
+            String series = (data.getSeries() != null && !data.getSeries().isEmpty())
+                    ? String.join(" - ", data.getSeries())
+                    : "";
+
+            // 🔹 Génération pour PREMIERE
+            if (data.getEff1ere() != null && data.getEff1ere() > 0) {
+                generateEtiquetteCGSPage(
+                        document,
+                        logo,
+                        data,
+                        matiere,
+                        series,
+                        data.getEff1ere().longValue(),
+                        "PREMIERE",
+                        Optional.ofNullable(regle.getDate()).orElse(""),
+                        Optional.ofNullable(regle.getHeure()).orElse(""),
+                        helv10, helv12Bold, helv14, helv22,
+                        helv24Bold, helv16Bold, helv26Bold, helv16
+                );
+                document.newPage();
+            }
+
+            // 🔹 Génération pour TERMINALE
+            if (data.getEffTle() != null && data.getEffTle() > 0) {
+                generateEtiquetteCGSPage(
+                        document,
+                        logo,
+                        data,
+                        matiere,
+                        series,
+                        data.getEffTle().longValue(),
+                        "TERMINALE",
+                        Optional.ofNullable(regle.getDate()).orElse(""),
+                        Optional.ofNullable(regle.getHeure()).orElse(""),
+                        helv10, helv12Bold, helv14, helv22,
+                        helv24Bold, helv16Bold, helv26Bold, helv16
+                );
+                document.newPage();
+            }
+        }
+
+        document.close();
+    }
+
+
     private void generateEtiquettePage(Document document, Image logo, FusionRepartitionTirage data,
                                        String libelleMatiere, String serie, long effectif, String grp, String date, String horaire,
                                        Font f10, Font f12Bold, Font f14, Font f22, Font f22Bold, Font f16Bold, Font f26Bold, Font f16) throws DocumentException {
@@ -239,6 +348,135 @@ public class PdfController
         addInfoRow(info, "ACADEMIE :", getAcademieFullName(data.getAcademia()) + "                               " + "[" + grp + "]", f14, f22);
         addInfoRow(info, "CENTRE :", data.getCentreEcrit(), f14, f22);
         addInfoRow(info, "JURY :", String.valueOf(data.getJury()), f14, f22);
+        addInfoRow(info, "SERIE (S) :", serie, f14, f22); // à affiner si plusieurs séries possibles
+        addInfoRow(info, "CANDIDATS :", effectif + "        NT : " + Math.round(effectif * 1.05), f14, f22); // NT = effectif par défaut
+
+        document.add(info);
+        document.add(new Paragraph("\n"));
+
+        // --- 4. BAS DE PAGE : EPREUVE et CALENDRIER ---
+        PdfPTable footer = new PdfPTable(2);
+        footer.setWidthPercentage(100);
+        footer.setWidths(new float[]{2.55f, 1.5f});
+        footer.setSpacingBefore(10f);
+
+        // Cellule gauche
+        PdfPCell leftCell = new PdfPCell();
+        leftCell.setBorder(Rectangle.BOX);
+        leftCell.setPadding(15f);
+
+        Paragraph epreuveTitle = new Paragraph("EPREUVE", f16);
+        epreuveTitle.setAlignment(Element.ALIGN_CENTER);
+        leftCell.addElement(epreuveTitle);
+
+        Paragraph epreuveLibelle = new Paragraph(libelleMatiere.toUpperCase(), f26Bold);
+        epreuveLibelle.setAlignment(Element.ALIGN_CENTER);
+        epreuveLibelle.setSpacingBefore(8f);
+        leftCell.addElement(epreuveLibelle);
+
+        footer.addCell(leftCell);
+
+        // Cellule droite
+        PdfPCell rightCell = new PdfPCell();
+        rightCell.setBorder(Rectangle.BOX);
+        rightCell.setPadding(15f);
+
+        PdfPTable calTable = new PdfPTable(2);
+        calTable.setWidthPercentage(100);
+        calTable.setWidths(new float[]{1.25f, 2f});
+
+        PdfPCell calTitle = new PdfPCell(new Phrase("CALENDRIER", f16));
+        calTitle.setColspan(2);
+        calTitle.setBorder(Rectangle.BOX);
+        calTitle.setHorizontalAlignment(Element.ALIGN_CENTER);
+        calTitle.setPadding(8f);
+        calTable.addCell(calTitle);
+
+        PdfPCell dateLabel = new PdfPCell(new Phrase("DATE :", f16));
+        dateLabel.setBorder(Rectangle.BOX);
+        dateLabel.setPadding(8f);
+        calTable.addCell(dateLabel);
+
+        PdfPCell dateValue = new PdfPCell(new Phrase(date != null ? date : "", f14));
+        dateValue.setBorder(Rectangle.BOX);
+        dateValue.setPadding(8f);
+        calTable.addCell(dateValue);
+
+        PdfPCell horaireLabel = new PdfPCell(new Phrase("HORAIRE :", f16));
+        horaireLabel.setBorder(Rectangle.BOX);
+        horaireLabel.setPadding(8f);
+        calTable.addCell(horaireLabel);
+
+        PdfPCell horaireValue = new PdfPCell(new Phrase(horaire != null ? horaire : "", f14));
+        horaireValue.setBorder(Rectangle.BOX);
+        horaireValue.setPadding(8f);
+        calTable.addCell(horaireValue);
+
+        rightCell.addElement(calTable);
+        footer.addCell(rightCell);
+
+        document.add(footer);
+    }
+
+
+    private void generateEtiquetteCGSPage(Document document, Image logo, RepartitionTirageCGS data,
+                                       String libelleMatiere, String serie, long effectif, String grp, String date, String horaire,
+                                       Font f10, Font f12Bold, Font f14, Font f22, Font f22Bold, Font f16Bold, Font f26Bold, Font f16) throws DocumentException {
+        // --- 1. EN-TÊTE ---
+        PdfPTable header = new PdfPTable(3);
+        header.setWidthPercentage(100);
+        header.setWidths(new float[]{0.55f, 4f, 1f});
+
+        PdfPCell imageCell = new PdfPCell(logo);
+        imageCell.setBorder(Rectangle.NO_BORDER);
+        imageCell.setHorizontalAlignment(Element.ALIGN_LEFT);
+        imageCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        header.addCell(imageCell);
+
+        // Cellule texte
+        Paragraph headerText = new Paragraph(
+                "REPUBLIQUE DU SENEGAL\nUn Peuple - Un But - Une Foi\n" +
+                        "Ministère de l'Enseignement supérieur, de la Recherche et de l'Innovation" +
+                        "\nOFFICE DU BACCALAUREAT",
+                f10
+        );
+        headerText.setLeading(14f, 0);
+        headerText.setAlignment(Element.ALIGN_LEFT);
+
+        PdfPCell textCell = new PdfPCell(headerText);
+        textCell.setBorder(Rectangle.NO_BORDER);
+        textCell.setHorizontalAlignment(Element.ALIGN_LEFT);
+        textCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        header.addCell(textCell);
+
+
+        PdfPCell codeAcademie = new PdfPCell(new Phrase("", f12Bold));
+        codeAcademie.setBorder(Rectangle.NO_BORDER);
+        codeAcademie.setHorizontalAlignment(Element.ALIGN_CENTER);
+        codeAcademie.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        header.addCell(codeAcademie);
+
+        document.add(header);
+
+        // --- 2. TITRES CENTRAUX ---
+        Paragraph office = new Paragraph("OFFICE DU BACCALAUREAT", f16Bold);
+        office.setAlignment(Element.ALIGN_CENTER);
+        office.setSpacingBefore(10f);
+        document.add(office);
+
+        Paragraph session = new Paragraph("CONCOURS GENERAL SENEGALAIS " + data.getSession(), f22Bold);
+        session.setAlignment(Element.ALIGN_CENTER);
+        session.setSpacingAfter(20f);
+        document.add(session);
+
+        // --- 3. TABLEAU DES INFORMATIONS ---
+        PdfPTable info = new PdfPTable(2);
+        info.setWidthPercentage(100);
+        info.setWidths(new float[]{1.2f, 4f});
+
+        addInfoRow(info, "ACADEMIE :", data.getAcademia(), f14, f22);
+        addInfoRow(info, "CENTRE :", data.getCentreEcrit(), f14, f22);
+        addInfoRow(info, "CLASSE :", grp, f14, f22);
         addInfoRow(info, "SERIE (S) :", serie, f14, f22); // à affiner si plusieurs séries possibles
         addInfoRow(info, "CANDIDATS :", effectif + "        NT : " + Math.round(effectif * 1.05), f14, f22); // NT = effectif par défaut
 

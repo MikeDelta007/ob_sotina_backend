@@ -18,7 +18,6 @@ import java.util.Map;
 @Data
 public class RepartitionTirageCGSDTO
 {
-    private String id;
     private Long session;
     private String centreEcrit;
     private String academia;
@@ -26,6 +25,7 @@ public class RepartitionTirageCGSDTO
     private Long effectif;
     private List<String> series;
 
-    private Map<String, GroupeMatiereCGS> matieres;
+    private Double eff1ere;
+    private Double effTle;
 
 }
