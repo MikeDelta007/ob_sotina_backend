@@ -96,7 +96,7 @@ public class PdfController
         Font helv26Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 30);
 
         Image logo = Image.getInstance(
-                new ClassPathResource("images/logo-UCAD_.png")
+                new ClassPathResource("images/sn.png")
                         .getInputStream().readAllBytes());
         logo.scaleToFit(70f, 70f);
 
@@ -503,7 +503,7 @@ public class PdfController
         Paragraph headerText = new Paragraph(
                 "REPUBLIQUE DU SENEGAL\nUn Peuple - Un But - Une Foi\n" +
                         "Ministère de l'Enseignement supérieur, \nde la Recherche et de l'Innovation" +
-                        "\n--------------------\nOFFICE DU BACCALAUREAT\nDIVISION PEDAGOGIE",
+                        "\n*******************\nOFFICE DU BACCALAUREAT\nDIVISION PEDAGOGIE",
                 fonts.verySmallFont
         );
         headerText.setLeading(14f, 0);
