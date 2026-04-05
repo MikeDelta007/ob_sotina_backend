@@ -23,6 +23,7 @@ public class FusionRepartitionFeuille
     private Long effectif;
     private Boolean cs;
     private Boolean cp;
+    private int nbJury;
     private Long F6;
     private Long Lprime;
     private Long L1A;
