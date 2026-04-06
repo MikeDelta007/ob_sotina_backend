@@ -232,15 +232,17 @@ public class DataImportController
         return tirageJuryMatService.construire(rep);
     }
 
-
-
+    @GetMapping("/repartition/complete")
+    public List<RepartitionCompleteCGSDTO> getCompleteRep()
+    {
+        return tirageJuryMatService.construire_();
+    }
 
     @PostMapping("/repartition-cgs")
     public ResponseEntity<List<RepartitionTirageCGSDTO>> repartitionTirageCGS()
     {
         return ResponseEntity.ok(this.tirageJuryMatCGSService.repartitionParCGS());
     }
-
 
     /**
     @GetMapping("/repartition-cgs/{id}/complete")

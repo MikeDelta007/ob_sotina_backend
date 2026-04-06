@@ -13,7 +13,6 @@ public class RepartitionCompleteCGSDTO
     private String centre;
     private String academie;
     private Long session;
-    private int jury;
     private Long effectif;
     private List<String> series;
     private List<MatiereComposeeCGSDTO> matieres;

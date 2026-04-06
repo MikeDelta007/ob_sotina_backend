@@ -5,9 +5,7 @@ import com.lowagie.text.Font;
 import com.lowagie.text.Image;
 import com.lowagie.text.Rectangle;
 import com.lowagie.text.pdf.*;
-import com.officedubac.project.dto.MatiereComposeeDTO;
-import com.officedubac.project.dto.RepartitionCompleteDTO;
-import com.officedubac.project.dto.RepartitionCompleteFDTO;
+import com.officedubac.project.dto.*;
 import com.officedubac.project.models.*;
 import com.officedubac.project.repository.*;
 import com.officedubac.project.services.DecompteFeuilleJuryService;
@@ -198,7 +196,7 @@ public class PdfController
     @GetMapping("/generate-etiquetteCGS-paysage")
     public void generateEtiquettes(HttpServletResponse response) throws IOException, DocumentException {
         List<RepartitionTirageCGS> list = repositorycgs.findAll();
-        log.info(list.toString());
+        //log.info(list.toString());
         if (list.isEmpty()) {
             response.setStatus(HttpServletResponse.SC_NO_CONTENT);
             return;
@@ -216,10 +214,6 @@ public class PdfController
         response.setContentType("application/pdf");
         response.setHeader("Content-Disposition", "inline; filename=etiquettes_bac.pdf");
 
-        Document document = new Document(PageSize.A4.rotate(), 36f, 36f, 36f, 36f);
-        PdfWriter.getInstance(document, response.getOutputStream());
-        document.open();
-
         // 🔹 Polices
         Font helv10 = FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL);
         Font helv12Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 60);
@@ -229,6 +223,10 @@ public class PdfController
         Font helv16Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16);
         Font helv16 = FontFactory.getFont(FontFactory.HELVETICA, 16);
         Font helv26Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 30);
+
+        Document document = new Document(PageSize.A4.rotate(), 36f, 36f, 36f, 36f);
+        PdfWriter.getInstance(document, response.getOutputStream());
+        document.open();
 
         // 🔹 Logo
         Image logo = Image.getInstance(new ClassPathResource("images/sn.png").getInputStream().readAllBytes());
@@ -247,7 +245,7 @@ public class PdfController
             }
 
             String series = (data.getSeries() != null && !data.getSeries().isEmpty())
-                    ? String.join(" - ", data.getSeries())
+                    ? String.join(", ", data.getSeries())
                     : "";
 
             // 🔹 Génération pour PREMIERE
@@ -309,7 +307,7 @@ public class PdfController
         Paragraph headerText = new Paragraph(
                 "REPUBLIQUE DU SENEGAL\nUn Peuple - Un But - Une Foi\n" +
                         "Ministère de l'Enseignement supérieur, de la Recherche et de l'Innovation" +
-                        "\nOFFICE DU BACCALAUREAT",
+                        "\nOffice du Baccalauréat",
                 f10
         );
         headerText.setLeading(14f, 0);
@@ -349,7 +347,7 @@ public class PdfController
         addInfoRow(info, "CENTRE :", data.getCentreEcrit(), f14, f22);
         addInfoRow(info, "JURY :", String.valueOf(data.getJury()), f14, f22);
         addInfoRow(info, "SERIE (S) :", serie, f14, f22); // à affiner si plusieurs séries possibles
-        addInfoRow(info, "CANDIDATS :", effectif + "        NT : " + Math.round(effectif * 1.05), f14, f22); // NT = effectif par défaut
+        addInfoRow(info, "CANDIDATS :", effectif + "        NT : " + (Math.round(effectif * 1.05) + 1), f14, f22); // NT = effectif par défaut
 
         document.add(info);
         document.add(new Paragraph("\n"));
@@ -437,7 +435,7 @@ public class PdfController
         Paragraph headerText = new Paragraph(
                 "REPUBLIQUE DU SENEGAL\nUn Peuple - Un But - Une Foi\n" +
                         "Ministère de l'Enseignement supérieur, de la Recherche et de l'Innovation" +
-                        "\nOFFICE DU BACCALAUREAT",
+                        "\nOffice du Baccalauréat",
                 f10
         );
         headerText.setLeading(14f, 0);
@@ -464,7 +462,7 @@ public class PdfController
         office.setSpacingBefore(10f);
         document.add(office);
 
-        Paragraph session = new Paragraph("CONCOURS GENERAL SENEGALAIS " + data.getSession(), f22Bold);
+        Paragraph session = new Paragraph("CONCOURS GENERAL SENEGALAIS\nSESSION " + data.getSession(), f22Bold);
         session.setAlignment(Element.ALIGN_CENTER);
         session.setSpacingAfter(20f);
         document.add(session);
@@ -477,8 +475,9 @@ public class PdfController
         addInfoRow(info, "ACADEMIE :", data.getAcademia(), f14, f22);
         addInfoRow(info, "CENTRE :", data.getCentreEcrit(), f14, f22);
         addInfoRow(info, "CLASSE :", grp, f14, f22);
-        addInfoRow(info, "SERIE (S) :", serie, f14, f22); // à affiner si plusieurs séries possibles
-        addInfoRow(info, "CANDIDATS :", effectif + "        NT : " + Math.round(effectif * 1.05), f14, f22); // NT = effectif par défaut
+        // addInfoRow(info, "SERIE (S) :", serie, f14, f22); // à affiner si plusieurs séries possibles
+        addInfoRow(info, "SERIE (S) :", "TOUTES SERIES", f14, f22); // à affiner si plusieurs séries possibles
+        addInfoRow(info, "CANDIDATS :", effectif + "        NT : " + (Math.round(effectif * 1.055) + 1), f14, f22); // NT = effectif par défaut
 
         document.add(info);
         document.add(new Paragraph("\n"));
@@ -625,7 +624,8 @@ public class PdfController
 
     @Operation(summary = "Génération du document BDR LS")
     @GetMapping("/generate-bdr")
-    public void generateBDRDocument(HttpServletResponse response) throws IOException, DocumentException {
+    public void generateBDRDocument(HttpServletResponse response) throws IOException, DocumentException
+    {
         response.setContentType("application/pdf");
         response.setHeader("Content-Disposition", "inline; filename=BDR_LS_2025.pdf");
 
@@ -670,6 +670,63 @@ public class PdfController
                     if (i < allFRT.size() - 1) {
                         document.newPage();
                     }
+                }
+            }
+
+        } catch (Exception e) {
+            System.err.println("Erreur dans la génération du PDF : " + e.getMessage());
+            e.printStackTrace();
+            throw new RuntimeException("Erreur lors de la génération du PDF", e);
+        } finally {
+            if (document != null && document.isOpen()) {
+                document.close();
+            }
+        }
+    }
+
+
+    @Operation(summary = "Génération du document BDR LS")
+    @GetMapping("/generate-bdr-cgs")
+    public void generateBDRDocument_(HttpServletResponse response) throws IOException, DocumentException {
+        response.setContentType("application/pdf");
+        response.setHeader("Content-Disposition", "inline; filename=BDR_LS_2025.pdf");
+
+        Document document = new Document(PageSize.A4, 50f, 50f, 50f, 50f);
+        PdfWriter writer = PdfWriter.getInstance(document, response.getOutputStream());
+        FooterEvent event = new FooterEvent(initializeFonts().verySmallFont);
+        writer.setPageEvent(event);
+        document.open();
+
+        try {
+
+            FontConfiguration fonts = initializeFonts();
+            Image logo = loadAndScaleLogo();
+            List<RepartitionCompleteCGSDTO> allRep = tirageJuryMatService.construire_();
+            //System.out.println("Nombre de répartitions trouvées : " + allFRT.size());
+
+            if (allRep.isEmpty()) {
+                document.add(new Paragraph("Aucune répartition trouvée pour cette session.", fonts.normalFont));
+            }
+            else
+            {
+                int index = 0;
+                for (RepartitionCompleteCGSDTO data : allRep)
+                {
+                    if (data == null) {
+                        System.out.println("Données nulles pour cette répartition");
+                        document.add(new Paragraph("Données incomplètes pour ce centre.", fonts.normalFont));
+                        continue;
+                    }
+
+                    // Afficher les données reçues
+                    // System.out.println("Données construites : session=" + data.getSession() + ", centre=" + data.getCentre() + ", nbMatieres=" + (data.getMatieres() != null ? data.getMatieres().size() : 0));
+
+                    buildDocumentCGS(document, fonts, logo, data);
+
+                    if (index < allRep.size() - 1) {
+                        document.newPage();
+                    }
+                    index++;
                 }
             }
 
@@ -763,6 +820,7 @@ public class PdfController
         fonts.headerFont = FontFactory.getFont(FontFactory.TIMES_BOLD, 12);
         fonts.smallFont = FontFactory.getFont(FontFactory.TIMES, 9);
         fonts.verySmallFont = FontFactory.getFont(FontFactory.TIMES, 8);
+        fonts.boldSmallFont = FontFactory.getFont(FontFactory.TIMES_BOLD, 10);
         return fonts;
     }
 
@@ -789,6 +847,20 @@ public class PdfController
         // System.out.println("addMainInfo"); // LOG
         // Tableau des disciplines
         addDisciplinesTable(document, fonts, data);
+        addFooter(document, fonts);
+        addFooter_(document, fonts);
+        //System.out.println("addDisciplinesTable"); // LOG
+    }
+
+    private void buildDocumentCGS(Document document, FontConfiguration fonts, Image logo, RepartitionCompleteCGSDTO data) throws DocumentException {
+        // En-tête avec logo
+        addHeader(document, fonts, logo);
+        // System.out.println("addHeader"); // LOG
+        // Informations principales
+        addMainInfoCGS(document, fonts, data);
+        // System.out.println("addMainInfo"); // LOG
+        // Tableau des disciplines
+        addDisciplinesTableCGS(document, fonts, data);
         addFooter(document, fonts);
         addFooter_(document, fonts);
         //System.out.println("addDisciplinesTable"); // LOG
@@ -826,7 +898,7 @@ public class PdfController
         Paragraph headerText = new Paragraph(
                 "REPUBLIQUE DU SENEGAL\nUn Peuple - Un But - Une Foi\n" +
                         "Ministère de l'Enseignement supérieur, \nde la Recherche et de l'Innovation" +
-                        "\n*******************\nOFFICE DU BACCALAUREAT\nDIVISION PEDAGOGIE",
+                        "\nOffice du Baccalauréat",
                 fonts.verySmallFont
         );
         headerText.setLeading(14f, 0);
@@ -839,7 +911,7 @@ public class PdfController
         header.addCell(textCell);
 
         // Cellule code académie
-        PdfPCell codeAcademie = new PdfPCell(new Phrase("BORDEREAU DE CONVOYAGE DE SUJETS", fonts.boldFont));
+        PdfPCell codeAcademie = new PdfPCell(new Phrase("BORDEREAU DE CONVOYAGE\nDE SUJETS", fonts.boldFont));
         codeAcademie.setBorder(Rectangle.NO_BORDER);
         codeAcademie.setHorizontalAlignment(Element.ALIGN_CENTER);
         codeAcademie.setVerticalAlignment(Element.ALIGN_MIDDLE);
@@ -858,7 +930,7 @@ public class PdfController
 
         // Cellule texte
         Paragraph headerText = new Paragraph(
-                "Fait à......................................le......../......../" + a,
+                "Reçu à......................................le......../......../" + a,
                 fonts.boldFont
         );
         headerText.setLeading(14f, 0);
@@ -872,7 +944,7 @@ public class PdfController
         header.addCell(textCell);
 
         // Cellule code académie
-        PdfPCell codeAcademie = new PdfPCell(new Phrase("Reçu par..........................................................", fonts.boldFont));
+        PdfPCell codeAcademie = new PdfPCell(new Phrase("Par..........................................................", fonts.boldFont));
         codeAcademie.setBorder(Rectangle.NO_BORDER);
         codeAcademie.setPaddingTop(10f);
         codeAcademie.setHorizontalAlignment(Element.ALIGN_CENTER);
@@ -983,6 +1055,76 @@ public class PdfController
         secondLineTable.addCell(createCell("EFF. : " + maxValueStr, fonts.normalFont, false));
         secondLineTable.addCell(createCell("NBR DE SERIE (S) : " + seriesCount, fonts.normalFont, false));
         secondLineTable.addCell(createCell("SERIE (S) : " + seriesList, fonts.normalFont, false));
+
+        mainInfoTable.addCell(new PdfPCell(secondLineTable));
+
+        document.add(mainInfoTable);
+    }
+
+    private void addMainInfoCGS(Document document, FontConfiguration fonts, RepartitionCompleteCGSDTO data) throws DocumentException {
+        // Titre
+        Paragraph titre = new Paragraph("CONCOURS GENERAL SENEGALAIS - SESSION : " + data.getSession(), fonts.boldFont);
+        titre.setAlignment(Element.ALIGN_CENTER);
+        titre.setSpacingBefore(5f);
+        titre.setSpacingAfter(5f);
+        document.add(titre);
+
+        // Tableau principal
+        PdfPTable mainInfoTable = new PdfPTable(1);
+        mainInfoTable.setWidthPercentage(100);
+
+        // Ligne Académie / Centre
+        PdfPTable firstLineTable = new PdfPTable(2);
+        firstLineTable.setWidthPercentage(100);
+        firstLineTable.setWidths(new float[]{5f, 5f});
+
+        String academie = data.getAcademie() != null ? data.getAcademie() : "N/A";
+        String centre = data.getCentre() != null ? data.getCentre() : "N/A";
+
+        PdfPCell academieCell = new PdfPCell(new Phrase(academie, fonts.boldFont));
+        academieCell.setBorder(Rectangle.NO_BORDER);
+        academieCell.setHorizontalAlignment(Element.ALIGN_LEFT);
+        academieCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        academieCell.setPaddingBottom(5f);
+        academieCell.setPaddingTop(5f);
+        firstLineTable.addCell(academieCell);
+
+        PdfPCell centreCell = new PdfPCell(new Phrase("Centre d'écrit : " + centre, fonts.boldFont));
+        centreCell.setBorder(Rectangle.NO_BORDER);
+        centreCell.setHorizontalAlignment(Element.ALIGN_LEFT);
+        academieCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        centreCell.setPaddingBottom(5f);
+        centreCell.setPaddingTop(5f);
+        firstLineTable.addCell(centreCell);
+
+        mainInfoTable.addCell(new PdfPCell(firstLineTable));
+
+        List<String> distinctSeries = data.getSeries();
+
+        int seriesCount = distinctSeries.size();
+        String seriesList = "";
+        if (seriesCount > 1)
+        {
+            seriesList = String.join(", ", distinctSeries);
+        }
+        if (seriesCount == 1)
+        {
+            seriesList = String.join("", distinctSeries);
+        }
+
+        // Format max value (adjust formatting as needed)
+        String maxValueStr = String.valueOf(data.getEffectif());
+
+        // Ligne Jury, Effectif, Nbre séries, Séries
+        PdfPTable secondLineTable = new PdfPTable(3);
+        secondLineTable.setWidthPercentage(100);
+        secondLineTable.setWidths(new float[]{2f, 2f, 2f});
+
+        secondLineTable.addCell(createCell("EFFECTIF DU CENTRE : " + maxValueStr, fonts.normalFont, false));
+        // seriesCount
+        secondLineTable.addCell(createCell("NBR. DE SERIE (S) : " + "-", fonts.normalFont, false));
+        // seriesList
+        secondLineTable.addCell(createCell("SERIE (S) : " + "TOUTES SERIES", fonts.normalFont, false));
 
         mainInfoTable.addCell(new PdfPCell(secondLineTable));
 
@@ -1127,6 +1269,63 @@ public class PdfController
         document.add(mainTable);
     }
 
+    private void addDisciplinesTableCGS(Document document, FontConfiguration fonts, RepartitionCompleteCGSDTO data) throws DocumentException {
+        PdfPTable mainTable = new PdfPTable(5);
+        mainTable.setWidthPercentage(100);
+        mainTable.setWidths(new float[]{3f, 1.5f, 1.5f, 1.5f, 1.5f});
+        // En-têtes du tableau
+        addTableHeadersCGS(mainTable, fonts);
+
+        AtomicInteger totalPremierIndicator = new AtomicInteger();
+        AtomicInteger totalTerminaleIndicator = new AtomicInteger();
+
+        // Lignes de données
+        if (data.getMatieres() != null && !data.getMatieres().isEmpty()) {
+
+            data.getMatieres().stream()
+                    .sorted(Comparator.comparing(MatiereComposeeCGSDTO::getDiscipline, Comparator.naturalOrder()))
+                    .forEach(row -> {
+
+                        String value1 = row.getPremiere() > 0 ? "1" : "0";
+                        String value2 = row.getTerminale() > 0 ? "1" : "0";
+
+                        if (row.getPremiere() > 0)
+                        {
+                            totalPremierIndicator.getAndIncrement();
+                        }
+
+                        if (row.getTerminale() > 0)
+                        {
+                            totalTerminaleIndicator.getAndIncrement();
+                        }
+
+                        addDisciplineRowCGS(
+                                mainTable,
+                                row.getDiscipline(),
+                                row.getPremiere().toString(),
+                                row.getTerminale().toString(),
+                                value1, value2,
+                                fonts.normalFont
+                        );
+                    });
+        }
+
+        else
+        {
+            // Ajouter une ligne indiquant l'absence de données
+            PdfPCell emptyCell = new PdfPCell(new Phrase("Aucune matière à afficher", fonts.normalFont));
+            emptyCell.setColspan(5);
+            emptyCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            emptyCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+            emptyCell.setPadding(5f);
+            mainTable.addCell(emptyCell);
+        }
+
+        // Ligne total
+        addTotalRowCGS(mainTable, fonts, totalPremierIndicator.get(), totalTerminaleIndicator.get());
+        document.add(mainTable);
+    }
+
     /**
     private void addDisciplinesTable_(Document document, FontConfiguration fonts, RepartitionCompleteFDTO data) throws DocumentException {
         PdfPTable mainTable = new PdfPTable(4);
@@ -1211,6 +1410,17 @@ public class PdfController
         }
     }
 
+    private void addTableHeadersCGS(PdfPTable table, FontConfiguration fonts) {
+        String[] headers = {"DISCIPLINES","EFFECTIFS EN\nPREMIERE", "EFFECTIFS EN\nTERMINALE", "ENVELOPPES EN\nPREMIERE", "ENVELOPPES EN\nTERMINALE", };
+        for (String header : headers) {
+            PdfPCell cell = new PdfPCell(new Phrase(header, fonts.boldSmallFont));
+            cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+            cell.setPadding(5f);
+            table.addCell(cell);
+        }
+    }
+
     /**
      * Ajoute toutes les lignes de disciplines
      */
@@ -1249,12 +1459,65 @@ public class PdfController
         table.addCell(g2Cell);
     }
 
+    private void addDisciplineRowCGS(PdfPTable table, String discipline, String env1ere,
+                                     String envTle, String cdt1ere, String cdtTle, Font font) {
+        // Discipline
+        PdfPCell discCell = new PdfPCell(new Phrase(discipline, font));
+        discCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        discCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        discCell.setPadding(2f);
+        table.addCell(discCell);
+
+        PdfPCell env1ere_ = new PdfPCell(new Phrase(env1ere, font));
+        env1ere_.setHorizontalAlignment(Element.ALIGN_CENTER);
+        env1ere_.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        env1ere_.setPadding(2f);
+        table.addCell(env1ere_);
+
+        PdfPCell envTle_ = new PdfPCell(new Phrase(envTle, font));
+        envTle_.setHorizontalAlignment(Element.ALIGN_CENTER);
+        envTle_.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        envTle_.setPadding(2f);
+        table.addCell(envTle_);
+
+        PdfPCell cdt1ere_ = new PdfPCell(new Phrase(cdt1ere, font));
+        cdt1ere_.setHorizontalAlignment(Element.ALIGN_CENTER);
+        cdt1ere_.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        cdt1ere_.setPadding(2f);
+        table.addCell(cdt1ere_);
+
+        PdfPCell cdtTle_ = new PdfPCell(new Phrase(cdtTle, font));
+        cdtTle_.setHorizontalAlignment(Element.ALIGN_CENTER);
+        cdtTle_.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        cdtTle_.setPadding(2f);
+        table.addCell(cdtTle_);
+    }
+
     /**
      * Ajoute la ligne TOTAL ENV
      */
     private void addTotalRow(PdfPTable table, FontConfiguration fonts, int total1, int total2) {
         PdfPCell totalLabel = new PdfPCell(new Phrase("TOTAL DES ENVELOPPES A LIVRER ", fonts.boldFont));
         totalLabel.setColspan(2);
+        totalLabel.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        totalLabel.setPadding(2f);
+        table.addCell(totalLabel);
+
+        PdfPCell totalValue = new PdfPCell(new Phrase(String.valueOf(total1), fonts.boldFont));
+        totalValue.setHorizontalAlignment(Element.ALIGN_CENTER);
+        totalValue.setPadding(2f);
+        table.addCell(totalValue);
+
+        PdfPCell totalValue2 = new PdfPCell(new Phrase(String.valueOf(total2), fonts.boldFont));
+        totalValue2.setHorizontalAlignment(Element.ALIGN_CENTER);
+        totalValue2.setPadding(2f);
+        table.addCell(totalValue2);
+    }
+
+
+    private void addTotalRowCGS(PdfPTable table, FontConfiguration fonts, int total1, int total2) {
+        PdfPCell totalLabel = new PdfPCell(new Phrase("TOTAL DES ENVELOPPES A LIVRER DANS LE CENTRE", fonts.boldFont));
+        totalLabel.setColspan(3);
         totalLabel.setHorizontalAlignment(Element.ALIGN_RIGHT);
         totalLabel.setPadding(2f);
         table.addCell(totalLabel);
@@ -1280,6 +1543,7 @@ public class PdfController
         Font headerFont;
         Font smallFont;
         Font verySmallFont;
+        Font boldSmallFont;
     }
 
     private static class InfoItem {

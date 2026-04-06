@@ -38,6 +38,8 @@ public class TirageJuryMatService
 
     private final RegleMatiereRepository regleMatiereRepository;
 
+    private final RepartitionTirageCGSRepository repartitionTirageCGSRepository;
+
     private final MongoTemplate mongoTemplate;
 
 
@@ -630,6 +632,57 @@ public class TirageJuryMatService
                 .cs(rep.getCs())
                 .matieres(matieresFinales)
                 .build();
+    }
+
+    public List<RepartitionCompleteCGSDTO> construire_() {
+
+        List<RepartitionTirageCGS> repTCG = repartitionTirageCGSRepository.findAll();
+
+        Map<String, List<RepartitionTirageCGS>> repCGSByCentre = repTCG
+                .stream()
+                .collect(Collectors.groupingBy(RepartitionTirageCGS::getCentreEcrit));
+
+        List<RepartitionCompleteCGSDTO> rep = new ArrayList<>();
+
+        for (Map.Entry<String, List<RepartitionTirageCGS>> entry : repCGSByCentre.entrySet())
+        {
+            long effectif = 0L;
+            List<RepartitionTirageCGS> groupe = entry.getValue();
+            List<MatiereComposeeCGSDTO> matieresFinales = new ArrayList<>();
+            String centreEcrit = groupe.get(0).getCentreEcrit();
+            String academia = groupe.get(0).getAcademia();
+            long session = groupe.get(0).getSession();
+            List<String> series = groupe.get(0).getSeries();
+
+            for (RepartitionTirageCGS c : groupe)
+            {
+                if (c.getEffectif() != null && c.getEffectif() > effectif)
+                {
+                    effectif = c.getEffectif();
+                }
+
+                MatiereComposeeCGSDTO dto = MatiereComposeeCGSDTO.builder()
+                        .discipline(c.getDiscipline())
+                        .premiere(c.getEff1ere())
+                        .terminale(c.getEffTle())
+                        .build();
+
+                matieresFinales.add(dto);
+            }
+
+            RepartitionCompleteCGSDTO dto = RepartitionCompleteCGSDTO.builder()
+                    .centre(centreEcrit)
+                    .academie(academia)
+                    .session(session)
+                    .effectif(effectif)
+                    .series(series)
+                    .matieres(matieresFinales)
+                    .build();
+
+            rep.add(dto);
+        }
+
+        return rep;
     }
 
     private Double getDouble(Object value) {

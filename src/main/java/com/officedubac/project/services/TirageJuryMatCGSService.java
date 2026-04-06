@@ -89,7 +89,6 @@ public class TirageJuryMatCGSService
 
                 String centreEcrit = centreEntry.getKey();
 
-
                 for (Map.Entry<String, List<SourceCandidatCGS>> disciplineEntry : centreEntry.getValue().entrySet()) {
 
                     String discipline = disciplineEntry.getKey();

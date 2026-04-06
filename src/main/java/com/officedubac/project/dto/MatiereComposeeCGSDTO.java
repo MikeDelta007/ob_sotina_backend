@@ -10,10 +10,7 @@ import java.util.Set;
 @Builder
 public class MatiereComposeeCGSDTO
 {
-    private String code;
-    private String nom;
-    private List<String> series;
-
+    private String discipline;
     private Double premiere;
     private Double terminale;
 
