@@ -82,21 +82,21 @@ public class TirageJuryMatCGSService
         List<RepartitionTirageCGS> entities = new ArrayList<>();
         List<RepartitionTirageCGSDTO> dtos = new ArrayList<>();
 
+        try
+        {
 
-        try {
-
-            for (Map.Entry<String, Map<String, List<SourceCandidatCGS>>> centreEntry : candidatsParCentre.entrySet()) {
-
+            for (Map.Entry<String, Map<String, List<SourceCandidatCGS>>> centreEntry : candidatsParCentre.entrySet())
+            {
                 String centreEcrit = centreEntry.getKey();
-
-                for (Map.Entry<String, List<SourceCandidatCGS>> disciplineEntry : centreEntry.getValue().entrySet()) {
-
+                long effectifSansRedondance = 0;
+                Set<String> elevesUniques = new HashSet<>();
+                for (Map.Entry<String, List<SourceCandidatCGS>> disciplineEntry : centreEntry.getValue().entrySet())
+                {
                     String discipline = disciplineEntry.getKey();
                     List<SourceCandidatCGS> groupe = disciplineEntry.getValue();
                     List<String> series = findDistinctSeriesByCentre(centreEcrit, discipline);
 
                     if (groupe.isEmpty()) continue;
-
                     String academia = groupe.get(0).getAcademia();
                     Long session = groupe.get(0).getSession();
                     long effectif = groupe.size();
@@ -104,36 +104,42 @@ public class TirageJuryMatCGSService
                     // 🔹 init compteurs
                     Map<String, GroupeMatiereCGS> compteurs = new HashMap<>();
 
-                    regles.forEach(r ->
-                            compteurs.put(r.getValeur(), new GroupeMatiereCGS(0.0, 0.0))
-                    );
+                    regles.forEach(r -> compteurs.put(r.getValeur(), new GroupeMatiereCGS(0.0, 0.0)));
 
                     double effectif1ere = 0;
                     double effectifTle = 0;
-                    // 🔹 calcul
+
                     for (SourceCandidatCGS c : groupe)
                     {
+                        String cle = c.getFirstname() + "_" + c.getLastname() + "_" + c.getDate_birth() + "_" + c.getPlace_birth();
+                        // System.out.println(cle);
+                        elevesUniques.add(cle);
                         List<RegleMatiereCGS> rules = reglesParValeur.get(c.getDiscipline());
                         if (rules == null) continue;
 
                         for (RegleMatiereCGS r : rules)
                         {
                             if (!c.getLevel().equalsIgnoreCase(r.getLevel())) continue;
-
-                            if ("PREMIERE".equalsIgnoreCase(c.getLevel())) {
+                            if ("PREMIERE".equalsIgnoreCase(c.getLevel()))
+                            {
                                 effectif1ere++;
-                            } else if ("TERMINALE".equalsIgnoreCase(c.getLevel())) {
+                            }
+                            else if ("TERMINALE".equalsIgnoreCase(c.getLevel()))
+                            {
                                 effectifTle++;
                             }
                         }
                     }
+
+                    effectifSansRedondance = elevesUniques.size();
 
                     // 🔹 DTO
                     RepartitionTirageCGSDTO dto = RepartitionTirageCGSDTO.builder()
                             .session(session)
                             .centreEcrit(centreEcrit)
                             .academia(academia)
-                            .effectif(effectif)
+                            .effectif_discipline(effectif)
+                            .effectif_centre(effectifSansRedondance)
                             .discipline(discipline)
                             .eff1ere(effectif1ere)
                             .effTle(effectifTle)
@@ -146,7 +152,8 @@ public class TirageJuryMatCGSService
                             .session(session)
                             .centreEcrit(centreEcrit)
                             .academia(academia)
-                            .effectif(effectif)
+                            .effectif_discipline(effectif)
+                            .effectif_du_centre(effectifSansRedondance)
                             .discipline(discipline)
                             .series(series)
                             .eff1ere(effectif1ere)
@@ -154,9 +161,12 @@ public class TirageJuryMatCGSService
                             .build();
                     entities.add(entity);
                 }
+                // System.out.println("Etab " + centreEcrit + "cle " + effectifSansRedondance);
             }
 
-        } catch (Exception e) {
+        }
+        catch (Exception e)
+        {
             System.out.println("Erreur répartition CGS : " + e.getMessage());
             e.printStackTrace();
         }

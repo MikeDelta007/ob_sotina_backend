@@ -195,7 +195,7 @@ public class PdfController
     @Operation(summary = "Génération de l'étiquette de table - Format A4 Paysage")
     @GetMapping("/generate-etiquetteCGS-paysage")
     public void generateEtiquettes(HttpServletResponse response) throws IOException, DocumentException {
-        List<RepartitionTirageCGS> list = repositorycgs.findAll();
+        List<RepartitionTirageCGS> list = repositorycgs.findAllByOrderByDisciplineAsc();
         //log.info(list.toString());
         if (list.isEmpty()) {
             response.setStatus(HttpServletResponse.SC_NO_CONTENT);
@@ -222,7 +222,7 @@ public class PdfController
         Font helv24Bold = FontFactory.getFont(FontFactory.HELVETICA, 24, Font.BOLD);
         Font helv16Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 16);
         Font helv16 = FontFactory.getFont(FontFactory.HELVETICA, 16);
-        Font helv26Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 30);
+        Font helv26Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 26);
 
         Document document = new Document(PageSize.A4.rotate(), 36f, 36f, 36f, 36f);
         PdfWriter.getInstance(document, response.getOutputStream());
@@ -249,6 +249,7 @@ public class PdfController
                     : "";
 
             // 🔹 Génération pour PREMIERE
+
             if (data.getEff1ere() != null && data.getEff1ere() > 0) {
                 generateEtiquetteCGSPage(
                         document,
@@ -266,7 +267,9 @@ public class PdfController
                 document.newPage();
             }
 
+
             // 🔹 Génération pour TERMINALE
+            /**
             if (data.getEffTle() != null && data.getEffTle() > 0) {
                 generateEtiquetteCGSPage(
                         document,
@@ -283,6 +286,8 @@ public class PdfController
                 );
                 document.newPage();
             }
+             */
+
         }
 
         document.close();
@@ -369,7 +374,7 @@ public class PdfController
 
         Paragraph epreuveLibelle = new Paragraph(libelleMatiere.toUpperCase(), f26Bold);
         epreuveLibelle.setAlignment(Element.ALIGN_CENTER);
-        epreuveLibelle.setSpacingBefore(8f);
+        epreuveLibelle.setSpacingBefore(5f);
         leftCell.addElement(epreuveLibelle);
 
         footer.addCell(leftCell);
@@ -499,7 +504,7 @@ public class PdfController
 
         Paragraph epreuveLibelle = new Paragraph(libelleMatiere.toUpperCase(), f26Bold);
         epreuveLibelle.setAlignment(Element.ALIGN_CENTER);
-        epreuveLibelle.setSpacingBefore(8f);
+        epreuveLibelle.setSpacingBefore(5f);
         leftCell.addElement(epreuveLibelle);
 
         footer.addCell(leftCell);

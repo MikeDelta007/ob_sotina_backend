@@ -13,4 +13,6 @@ public interface RepartitionTirageCGSRepository extends MongoRepository<Repartit
     List<RepartitionTirageCGS> findBySession(int session);
 
     void deleteBySession(int session);
+
+    List<RepartitionTirageCGS> findAllByOrderByDisciplineAsc();
 }

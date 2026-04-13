@@ -646,21 +646,19 @@ public class TirageJuryMatService
 
         for (Map.Entry<String, List<RepartitionTirageCGS>> entry : repCGSByCentre.entrySet())
         {
-            long effectif = 0L;
             List<RepartitionTirageCGS> groupe = entry.getValue();
             List<MatiereComposeeCGSDTO> matieresFinales = new ArrayList<>();
             String centreEcrit = groupe.get(0).getCentreEcrit();
             String academia = groupe.get(0).getAcademia();
             long session = groupe.get(0).getSession();
+            long effectif_centre = groupe.stream()
+                    .mapToLong(RepartitionTirageCGS::getEffectif_du_centre)
+                    .max()
+                    .orElse(0);
             List<String> series = groupe.get(0).getSeries();
 
             for (RepartitionTirageCGS c : groupe)
             {
-                if (c.getEffectif() != null && c.getEffectif() > effectif)
-                {
-                    effectif = c.getEffectif();
-                }
-
                 MatiereComposeeCGSDTO dto = MatiereComposeeCGSDTO.builder()
                         .discipline(c.getDiscipline())
                         .premiere(c.getEff1ere())
@@ -674,7 +672,7 @@ public class TirageJuryMatService
                     .centre(centreEcrit)
                     .academie(academia)
                     .session(session)
-                    .effectif(effectif)
+                    .effectif(effectif_centre)
                     .series(series)
                     .matieres(matieresFinales)
                     .build();
@@ -683,10 +681,6 @@ public class TirageJuryMatService
         }
 
         return rep;
-    }
-
-    private Double getDouble(Object value) {
-        return value != null ? Double.valueOf(value.toString()) : null;
     }
 
 }

@@ -22,7 +22,8 @@ public class RepartitionTirageCGSDTO
     private String centreEcrit;
     private String academia;
     private String discipline;
-    private Long effectif;
+    private Long effectif_discipline;
+    private Long effectif_centre;
     private List<String> series;
 
     private Double eff1ere;
