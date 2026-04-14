@@ -9,11 +9,11 @@ import com.lowagie.text.pdf.PdfWriter;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 
-public class FooterEvent extends PdfPageEventHelper {
+public class FooterEvent2 extends PdfPageEventHelper {
 
     private Font font;
 
-    public FooterEvent(Font font) {
+    public FooterEvent2(Font font) {
         this.font = font;
     }
 
@@ -29,21 +29,33 @@ public class FooterEvent extends PdfPageEventHelper {
 
         PdfPCell cell = new PdfPCell(
                 new Phrase(
-                        "Bordereau généré le " + dateHeure +
-                                " / Division de la Pédagogie \n© Office du Baccalauréat, tous droits réservés.",
+                        "NB : Pour chaque épreuve, la dotation moyenne par candidat est constituée d’une (1) feuille double, \n" +
+                                "de (2) deux feuilles intercalaires et deux (2) feuilles de brouillon.\n\n",
                         font
                 )
         );
+
+        PdfPCell cell2 = new PdfPCell(
+                new Phrase(
+                        "Bordereau généré le " + dateHeure + " / Division de la Planification \n© Office du Baccalauréat, tous droits réservés.",
+                        font
+                )
+        );
+
         cell.setBorder(Rectangle.NO_BORDER);
         cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        cell2.setBorder(Rectangle.NO_BORDER);
+        cell2.setHorizontalAlignment(Element.ALIGN_CENTER);
 
         footer.addCell(cell);
+        footer.addCell(cell2);
+
 
         // Position du footer
         footer.writeSelectedRows(
                 0, -1,
                 document.leftMargin(),
-                document.bottomMargin() - 5,
+                document.bottomMargin() + 20,
                 writer.getDirectContent()
         );
     }

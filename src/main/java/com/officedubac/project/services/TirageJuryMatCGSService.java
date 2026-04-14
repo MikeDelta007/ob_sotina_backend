@@ -235,8 +235,6 @@ public class TirageJuryMatCGSService
                 .collect(Collectors.groupingBy(RepartitionTirageCGS::getAcademia));
     }
 
-
-
     public List<Map<String, Object>> getCentreSummaryAllAcademies()
     {
         List<RepartitionTirageCGS> tirages = repartitionTirageCGSRepository.findAll();

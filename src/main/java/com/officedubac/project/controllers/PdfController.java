@@ -17,10 +17,14 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.format.datetime.DateFormatter;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -748,13 +752,6 @@ public class PdfController
     }
 
 
-    private Paragraph centered(String text, Font font) {
-        Paragraph p = new Paragraph(text, font);
-        p.setAlignment(Element.ALIGN_CENTER);
-        return p;
-    }
-
-
     @Operation(summary = "Génération du document BDR LS")
     @GetMapping("/generate-bdr-feuilles")
     public void generateBDRFDocument(HttpServletResponse response) throws IOException, DocumentException {
@@ -762,33 +759,36 @@ public class PdfController
         response.setHeader("Content-Disposition", "inline; filename=BDR_LS_2025.pdf");
 
         Document document = new Document(PageSize.A4, 50f, 50f, 50f, 50f);
-        PdfWriter.getInstance(document, response.getOutputStream());
+        PdfWriter writer = PdfWriter.getInstance(document, response.getOutputStream());
+        FooterEvent2 event = new FooterEvent2(initializeFonts().smallFont);
+        writer.setPageEvent(event);
         document.open();
 
-        try
-        {
-            PdfWriter.getInstance(document, new FileOutputStream("bordereau.pdf"));
-            document.open();
+        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        String dateHeure = LocalDate.now().format(formatter);
 
+        try {
             // ===== Fonts =====
             Font titleFont = new Font(Font.HELVETICA, 12, Font.BOLD);
             Font normalFont = new Font(Font.HELVETICA, 10);
+            Font normalFont_ = new Font(Font.HELVETICA, 12);
+            Font normalFontBold = new Font(Font.HELVETICA, 10, Font.BOLD);
             Font boldFont = new Font(Font.HELVETICA, 10, Font.BOLD);
             Font boldFont_ = new Font(Font.HELVETICA, 12, Font.BOLD);
 
             PdfPTable header = new PdfPTable(3);
             header.setWidthPercentage(100);
-            header.setWidths(new float[]{0.90f, 2.5f, 3f});
+            header.setWidths(new float[]{0.90f, 2f, 2.65f});
 
             Image logo = Image.getInstance(
                     new ClassPathResource("images/sn.png")
                             .getInputStream().readAllBytes());
-            logo.scaleToFit(70f, 70f);
+            logo.scaleToFit(75f, 70f);
 
             // Cellule logo
             PdfPCell imageCell = new PdfPCell(logo);
             imageCell.setBorder(Rectangle.NO_BORDER);
-            imageCell.setHorizontalAlignment(Element.ALIGN_LEFT);
+            imageCell.setHorizontalAlignment(Element.ALIGN_CENTER);
             imageCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
             header.addCell(imageCell);
 
@@ -809,8 +809,11 @@ public class PdfController
             header.addCell(textCell);
 
             // Cellule code académie
-            Paragraph ref = new Paragraph("N°_BL-CP 001/UCAD/OB/PFE/PF/aat", boldFont_);
-            header.addCell(ref);
+            PdfPCell refCell = new PdfPCell(new Phrase("N°_BL-CP 001/UCAD/OB/PFE/PF/aat", boldFont_));
+            refCell.setBorder(Rectangle.NO_BORDER);
+            refCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+            refCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+            header.addCell(refCell);
             document.add(header);
 
             document.add(new Paragraph(" "));
@@ -821,11 +824,13 @@ public class PdfController
             PdfPCell leftCell = new PdfPCell(new Phrase("LE DIRECTEUR", titleFont));
             leftCell.setBorder(Rectangle.NO_BORDER);
             leftCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            leftCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
 
             // Colonne droite
-            PdfPCell rightCell = new PdfPCell(new Phrase("Dakar, le 14 avril 2024", normalFont));
+            PdfPCell rightCell = new PdfPCell(new Phrase("Dakar, le " + dateHeure, normalFont));
             rightCell.setBorder(Rectangle.NO_BORDER);
             rightCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            rightCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
 
             // Ajout
             headerTable.addCell(leftCell);
@@ -837,43 +842,59 @@ public class PdfController
             document.add(new Paragraph(" "));
 
             // ===== Titre =====
-            Paragraph titre = new Paragraph(
-                    "BACCALAUREAT DE L’ENSEIGNEMENT SECONDAIRE - SESSION 2025",
-                    titleFont
-            );
-            titre.setAlignment(Element.ALIGN_CENTER);
+            PdfPTable titre = new PdfPTable(1);
+            titre.setWidthPercentage(100);
+            PdfPCell titre_ = new PdfPCell(new Phrase("BACCALAUREAT DE L'ENSEIGNEMENT SECONDAIRE - SESSION 2025", titleFont));
+            PdfPCell titre__ = new PdfPCell(new Phrase("BORDEREAU DE LIVRAISON DU MATERIEL DE COMPOSITION", titleFont));
+
+            titre_.setBorder(PdfPCell.NO_BORDER);
+            titre_.setHorizontalAlignment(Element.ALIGN_CENTER);
+            titre_.setVerticalAlignment(Element.ALIGN_MIDDLE);
+
+            titre__.setBorder(PdfPCell.NO_BORDER);
+            titre__.setHorizontalAlignment(Element.ALIGN_CENTER);
+            titre__.setVerticalAlignment(Element.ALIGN_MIDDLE);
+
+            titre.addCell(titre_);
+            titre.addCell(titre__);
             document.add(titre);
-
-            Paragraph sousTitre = new Paragraph(
-                    "BORDEREAU DE LIVRAISON DU MATERIEL DE COMPOSITION",
-                    titleFont
-            );
-            sousTitre.setAlignment(Element.ALIGN_CENTER);
-            document.add(sousTitre);
-
             document.add(new Paragraph(" "));
 
             // ===== Infos =====
-            document.add(new Paragraph("ACADEMIE : DAKAR", normalFont));
-            document.add(new Paragraph("LOCALITE : DAKAR", normalFont));
-            document.add(new Paragraph("CENTRE : CEM AMADOU TRAWARE", normalFont));
-            document.add(new Paragraph("NOMBRE DE JURY : 1", normalFont));
-            document.add(new Paragraph("NOMBRE DE CANDIDATS : 369", normalFont));
+            Paragraph info1 = new Paragraph("ACADEMIE : DAKAR", normalFont_);
+            info1.setAlignment(Element.ALIGN_CENTER);
+            document.add(info1);
+
+            Paragraph info2 = new Paragraph("LOCALITE DU CENTRE PRINCIPAL : DAKAR", normalFont_);
+            info2.setAlignment(Element.ALIGN_CENTER);
+            document.add(info2);
+
+            Paragraph info3 = new Paragraph("CENTRE : CEM AMADOU TRAWARE", normalFont_);
+            info3.setAlignment(Element.ALIGN_CENTER);
+            document.add(info3);
+
+            Paragraph info4 = new Paragraph("NOMBRE DE JURY : 1", normalFont_);
+            info4.setAlignment(Element.ALIGN_CENTER);
+            document.add(info4);
+
+            Paragraph info5 = new Paragraph("NOMBRE DE CANDIDATS : 369", normalFont_);
+            info5.setAlignment(Element.ALIGN_CENTER);
+            document.add(info5);
 
             document.add(new Paragraph(" "));
 
             // ===== Tableau =====
             PdfPTable table = new PdfPTable(7);
             table.setWidthPercentage(100);
-            table.setHorizontalAlignment(Element.ALIGN_CENTER);
+            table.setWidths(new float[]{2.5f, 1.5f, 1.5f, 1.5f, 1.5f, 1.5f, 1.5f});
 
             String[] headers = {
                     "Matériel de composition",
                     "Quantité prévue",
                     "Stock",
-                    "Quantité remise 1er passage",
+                    "Quantité remise au 1er passage",
                     "Reliquat",
-                    "Quantité remise 2ème passage",
+                    "Quantité remise au 2ème passage",
                     "Reliquat"
             };
 
@@ -881,33 +902,34 @@ public class PdfController
                 PdfPCell cell = new PdfPCell(new Phrase(h, boldFont));
                 cell.setHorizontalAlignment(Element.ALIGN_CENTER);
                 cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+                cell.setPadding(5f);
                 table.addCell(cell);
             }
 
             // ===== Lignes =====
-            table.addCell("Feuilles doubles");
-            table.addCell("4059");
-            table.addCell("");
-            table.addCell("");
-            table.addCell("");
-            table.addCell("");
-            table.addCell("");
+            table.addCell(centeredCell("Feuilles doubles", normalFont));
+            table.addCell(centeredCell("4059", normalFontBold));
+            table.addCell(centeredCell("", normalFont));
+            table.addCell(centeredCell("", normalFont));
+            table.addCell(centeredCell("", normalFont));
+            table.addCell(centeredCell("", normalFont));
+            table.addCell(centeredCell("", normalFont));
 
-            table.addCell("Feuilles Intercalaires");
-            table.addCell("8118");
-            table.addCell("");
-            table.addCell("");
-            table.addCell("");
-            table.addCell("");
-            table.addCell("");
+            table.addCell(centeredCell("Feuilles intercalaires", normalFont));
+            table.addCell(centeredCell("8118", normalFontBold));
+            table.addCell(centeredCell("", normalFont));
+            table.addCell(centeredCell("", normalFont));
+            table.addCell(centeredCell("", normalFont));
+            table.addCell(centeredCell("", normalFont));
+            table.addCell(centeredCell("", normalFont));
 
-            table.addCell("Feuilles de Brouillon");
-            table.addCell("8118");
-            table.addCell("");
-            table.addCell("");
-            table.addCell("");
-            table.addCell("");
-            table.addCell("");
+            table.addCell(centeredCell("Feuilles de brouillon", normalFont));
+            table.addCell(centeredCell("8118", normalFontBold));
+            table.addCell(centeredCell("", normalFont));
+            table.addCell(centeredCell("", normalFont));
+            table.addCell(centeredCell("", normalFont));
+            table.addCell(centeredCell("", normalFont));
+            table.addCell(centeredCell("", normalFont));
 
             document.add(table);
 
@@ -915,55 +937,31 @@ public class PdfController
             PdfPTable signaturesTable = new PdfPTable(2);
             signaturesTable.setWidthPercentage(100);
             signaturesTable.setSpacingBefore(15f);
-            signaturesTable.setHorizontalAlignment(Element.ALIGN_CENTER);
+            signaturesTable.setWidths(new float[]{1f, 1f});
 
             // ===== Colonne 1 =====
             PdfPCell cell1 = new PdfPCell();
             cell1.setBorder(Rectangle.NO_BORDER);
-            cell1.setPadding(15);
+            cell1.setPadding(10);
+            cell1.setHorizontalAlignment(Element.ALIGN_CENTER);
 
-            cell1.addElement(centered("Date du 1er passage :", boldFont));
-            cell1.addElement(new Paragraph(" "));
-            cell1.addElement(centered("..................................................................", normalFont));
-
-            cell1.addElement(new Paragraph(" "));
-            cell1.addElement(centered("Prénoms et NOM du réceptionnaire :", boldFont));
-            cell1.addElement(new Paragraph(" "));
-            cell1.addElement(centered("..................................................................", normalFont));
-
-            cell1.addElement(new Paragraph(" "));
-            cell1.addElement(centered("Téléphone :", boldFont));
-            cell1.addElement(new Paragraph(" "));
-            cell1.addElement(centered("..................................................................", normalFont));
-
-            cell1.addElement(new Paragraph(" "));
-            cell1.addElement(centered("Signature et cachet :", boldFont));
-            cell1.addElement(new Paragraph(" "));
-            cell1.addElement(centered("..................................................................", normalFont));
+            cell1.setPhrase(new Phrase("Date du 1er passage :\n\n..................................................................\n\n" +
+                    "Prénoms et NOM du réceptionnaire :\n\n..................................................................\n\n" +
+                    "Téléphone :\n\n..................................................................\n\n" +
+                    "Adresse email :\n\n..................................................................\n\n" +
+                    "Signature et cachet :\n\n..................................................................", normalFont_));
 
             // ===== Colonne 2 =====
             PdfPCell cell2 = new PdfPCell();
             cell2.setBorder(Rectangle.NO_BORDER);
-            cell2.setPadding(15);
+            cell2.setPadding(10);
+            cell2.setHorizontalAlignment(Element.ALIGN_CENTER);
 
-            cell2.addElement(centered("Date du 2ème passage :", boldFont));
-            cell2.addElement(new Paragraph(" "));
-            cell2.addElement(centered("..................................................................", normalFont));
-
-            cell2.addElement(new Paragraph(" "));
-            cell2.addElement(centered("Prénoms et NOM du réceptionnaire :", boldFont));
-            cell2.addElement(new Paragraph(" "));
-            cell2.addElement(centered("..................................................................", normalFont));
-
-            cell2.addElement(new Paragraph(" "));
-            cell2.addElement(centered("Téléphone :", boldFont));
-            cell2.addElement(new Paragraph(" "));
-            cell2.addElement(centered("..................................................................", normalFont));
-
-            cell2.addElement(new Paragraph(" "));
-            cell2.addElement(centered("Signature et cachet :", boldFont));
-            cell2.addElement(new Paragraph(" "));
-            cell2.addElement(centered("..................................................................", normalFont));
+            cell2.setPhrase(new Phrase("Date du 2ème passage :\n\n..................................................................\n\n" +
+                    "Prénoms et NOM du réceptionnaire :\n\n..................................................................\n\n" +
+                    "Téléphone :\n\n..................................................................\n\n" +
+                    "Adresse email :\n\n..................................................................\n\n" +
+                    "Signature et cachet :\n\n..................................................................", normalFont_));
 
             // Ajout au tableau
             signaturesTable.addCell(cell1);
@@ -974,11 +972,18 @@ public class PdfController
 
             document.close();
 
-        }
-        catch (Exception e)
-        {
+        } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    // Méthode utilitaire pour créer des cellules centrées
+    private PdfPCell centeredCell(String text, Font font) {
+        PdfPCell cell = new PdfPCell(new Phrase(text, font));
+        cell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        cell.setPadding(5f);
+        return cell;
     }
 
     /**
