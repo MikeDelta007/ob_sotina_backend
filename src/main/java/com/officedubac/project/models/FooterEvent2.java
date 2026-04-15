@@ -27,11 +27,13 @@ public class FooterEvent2 extends PdfPageEventHelper {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm");
         String dateHeure = LocalDateTime.now().format(formatter);
 
+        Font italicBigFont = new Font(font.getBaseFont(), 11, Font.ITALIC); // 12 = taille (augmente si besoin)
+
         PdfPCell cell = new PdfPCell(
                 new Phrase(
                         "NB : Pour chaque épreuve, la dotation moyenne par candidat est constituée d’une (1) feuille double, \n" +
                                 "de (2) deux feuilles intercalaires et deux (2) feuilles de brouillon.\n\n",
-                        font
+                        italicBigFont
                 )
         );
 

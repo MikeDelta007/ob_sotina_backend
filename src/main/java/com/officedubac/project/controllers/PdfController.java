@@ -772,7 +772,7 @@ public class PdfController
             Font titleFont = new Font(Font.HELVETICA, 12, Font.BOLD);
             Font normalFont = new Font(Font.HELVETICA, 10);
             Font normalFont_ = new Font(Font.HELVETICA, 12);
-            Font normalFontBold = new Font(Font.HELVETICA, 10, Font.BOLD);
+            Font grandFontBold = new Font(Font.HELVETICA, 12, Font.BOLD);
             Font boldFont = new Font(Font.HELVETICA, 10, Font.BOLD);
             Font boldFont_ = new Font(Font.HELVETICA, 12, Font.BOLD);
 
@@ -861,23 +861,40 @@ public class PdfController
             document.add(new Paragraph(" "));
 
             // ===== Infos =====
-            Paragraph info1 = new Paragraph("ACADEMIE : DAKAR", normalFont_);
+
+            // Créer le paragraphe vide
+            Paragraph info1 = new Paragraph();
+            // Ajouter les parties
+            info1.add(new Chunk("ACADEMIE : ", normalFont));
+            info1.add(new Chunk("DAKAR", grandFontBold));
             info1.setAlignment(Element.ALIGN_CENTER);
             document.add(info1);
 
-            Paragraph info2 = new Paragraph("LOCALITE DU CENTRE PRINCIPAL : DAKAR", normalFont_);
+            Paragraph info2 = new Paragraph();
+            // Ajouter les parties
+            info2.add(new Chunk("LOCALITE DU CENTRE PRINCIPAL : ", normalFont));
+            info2.add(new Chunk("DAKAR", grandFontBold));
             info2.setAlignment(Element.ALIGN_CENTER);
             document.add(info2);
 
-            Paragraph info3 = new Paragraph("CENTRE : CEM AMADOU TRAWARE", normalFont_);
+            Paragraph info3 = new Paragraph();
+            // Ajouter les parties
+            info3.add(new Chunk("CENTRE : ", normalFont));
+            info3.add(new Chunk("CEM AMADOU TRAWARE", grandFontBold));
             info3.setAlignment(Element.ALIGN_CENTER);
             document.add(info3);
 
-            Paragraph info4 = new Paragraph("NOMBRE DE JURY : 1", normalFont_);
+            Paragraph info4 = new Paragraph();
+            // Ajouter les parties
+            info4.add(new Chunk("NOMBRE DE JURY : ", normalFont));
+            info4.add(new Chunk("1", grandFontBold));
             info4.setAlignment(Element.ALIGN_CENTER);
             document.add(info4);
 
-            Paragraph info5 = new Paragraph("NOMBRE DE CANDIDATS : 369", normalFont_);
+            Paragraph info5 = new Paragraph();
+            // Ajouter les parties
+            info5.add(new Chunk("NOMBRE DE CANDIDATS : ", normalFont));
+            info5.add(new Chunk("369", grandFontBold));
             info5.setAlignment(Element.ALIGN_CENTER);
             document.add(info5);
 
@@ -908,7 +925,7 @@ public class PdfController
 
             // ===== Lignes =====
             table.addCell(centeredCell("Feuilles doubles", normalFont));
-            table.addCell(centeredCell("4059", normalFontBold));
+            table.addCell(centeredCell("4059", grandFontBold));
             table.addCell(centeredCell("", normalFont));
             table.addCell(centeredCell("", normalFont));
             table.addCell(centeredCell("", normalFont));
@@ -916,7 +933,7 @@ public class PdfController
             table.addCell(centeredCell("", normalFont));
 
             table.addCell(centeredCell("Feuilles intercalaires", normalFont));
-            table.addCell(centeredCell("8118", normalFontBold));
+            table.addCell(centeredCell("8118", grandFontBold));
             table.addCell(centeredCell("", normalFont));
             table.addCell(centeredCell("", normalFont));
             table.addCell(centeredCell("", normalFont));
@@ -924,7 +941,7 @@ public class PdfController
             table.addCell(centeredCell("", normalFont));
 
             table.addCell(centeredCell("Feuilles de brouillon", normalFont));
-            table.addCell(centeredCell("8118", normalFontBold));
+            table.addCell(centeredCell("8118", grandFontBold));
             table.addCell(centeredCell("", normalFont));
             table.addCell(centeredCell("", normalFont));
             table.addCell(centeredCell("", normalFont));
