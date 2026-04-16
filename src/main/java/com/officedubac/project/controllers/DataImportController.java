@@ -2,10 +2,7 @@ package com.officedubac.project.controllers;
 
 import com.officedubac.project.dto.*;
 import com.officedubac.project.models.*;
-import com.officedubac.project.repository.CandidatRepository;
-import com.officedubac.project.repository.FusionRepartitionTirageRepository;
-import com.officedubac.project.repository.NotificationRepository;
-import com.officedubac.project.repository.RepartitionTirageCGSRepository;
+import com.officedubac.project.repository.*;
 import com.officedubac.project.services.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -44,6 +41,9 @@ public class DataImportController
 
     @Autowired
     private final FusionRepartitionTirageRepository fusionRepartitionTirageRepository;
+
+    @Autowired
+    private final FusionRepartitionFeuilleRepository fusionRepartitionFeuilleRepository;
 
     @Autowired
     private final RepartitionTirageCGSRepository repartitionTirageCGSRepository;
@@ -230,6 +230,15 @@ public class DataImportController
                 .orElseThrow(() -> new RuntimeException("Introuvable"));
 
         return tirageJuryMatService.construire(rep);
+    }
+
+    //SOTINA
+    @GetMapping("/repartition-feuille/{id}/complete")
+    public RepartitionCompleteFDTO getComplete_(@PathVariable String id) {
+        FusionRepartitionFeuille rep = fusionRepartitionFeuilleRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Introuvable"));
+
+        return decompteFeuilleJuryService.construire(rep);
     }
 
     @GetMapping("/repartition/complete")

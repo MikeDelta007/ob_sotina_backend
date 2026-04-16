@@ -13,7 +13,7 @@ public class RepartitionCompleteFDTO
     private String academie;
     private String localite;
     private int session;
-    private int nbJury;
+    private Long nbJury;
     private Long effectif;
     private Boolean cp;
     private Boolean cs;

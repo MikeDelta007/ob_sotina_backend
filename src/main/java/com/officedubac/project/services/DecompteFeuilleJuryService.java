@@ -33,114 +33,101 @@ public class DecompteFeuilleJuryService
 
     private final EtablissementRepository etablissementRepository;
 
+
+    // Méthode utilitaire
+    private long countSerie(List<SourceCandidat> groupe, String serie)
+    {
+        return groupe.stream()
+                .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase(serie))
+                .count();
+    }
+
+
+    private long countJurys(List<SourceCandidat> groupe)
+    {
+        // System.out.println("Taille du groupe : " + groupe.size());
+
+        List<Integer> jurysNonNuls = groupe.stream()
+                .map(SourceCandidat::getJury)
+                .filter(Objects::nonNull)
+                .toList();
+
+        // System.out.println("Jurys non nuls : " + jurysNonNuls.size());
+        // System.out.println("Jurys distincts : " + jurysNonNuls.stream().distinct().count());
+        // System.out.println("Valeurs des jurys : " + jurysNonNuls);
+
+        return jurysNonNuls.stream().distinct().count();
+    }
+
     public List<RepartitionFeuilleCEPDTO> repartitionParCEP()
     {
-
         List<SourceCandidat> candidats = sourceCandidatRepository.findLightCandidats();
-
         // Regroupement par CEP
-        Map<String, List<SourceCandidat>> candidatsParCEP =
-                candidats.stream().collect(Collectors.groupingBy(SourceCandidat::getCentreEcritPrincipal));
-
+        Map<String, List<SourceCandidat>> candidatsParCEP = candidats.stream().collect(Collectors.groupingBy(SourceCandidat::getCentreEcritPrincipal));
         // Suppression ancienne répartition
         repartitionFeuilleCEPRepository.deleteAll();
-
         List<RepartitionFeuilleCEP> entities = new ArrayList<>();
         List<RepartitionFeuilleCEPDTO> dtos = new ArrayList<>();
-
         try
         {
             for (Map.Entry<String, List<SourceCandidat>> entry : candidatsParCEP.entrySet()) {
-
                 String cep = entry.getKey();
                 List<SourceCandidat> groupe = entry.getValue();
-
                 String centreEcrit = groupe.get(0).getCentreEcritPrincipal();
                 String academia = groupe.get(0).getAcaCentEcrit();
                 String centreExam = groupe.get(0).getCentreExamen();
                 Integer session = groupe.get(0).getSession();
+                long nbJury = countJurys(groupe);
                 long effectif = groupe.size();
 
-                long F6 = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("F6"))
-                        .count();
+                long F6 = countSerie(groupe, "F6");
+                long Lprime = countSerie(groupe, "L'1");
+                long L1A = countSerie(groupe, "L1A");
+                long L1B = countSerie(groupe, "L1B");
+                long L2 = countSerie(groupe, "L2");
+                long LA = countSerie(groupe, "LA");
+                long LAR = countSerie(groupe, "L-AR");
+                long S1 = countSerie(groupe, "S1");
+                long S1A = countSerie(groupe, "S1A");
+                long S2 = countSerie(groupe, "S2");
+                long S2A = countSerie(groupe, "S2A");
+                long S3 = countSerie(groupe, "S3");
+                long S4 = countSerie(groupe, "S4");
+                long S5 = countSerie(groupe, "S5");
+                long STEG = countSerie(groupe, "STEG");
+                long STIDD = countSerie(groupe, "STIDD");
+                long T1 = countSerie(groupe, "T1");
+                long T2 = countSerie(groupe, "T2");
 
-                long Lprime = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("L'1"))
-                        .count();
+                // ---------------------------
+                //  CALCUL TOTAL EN UNE SEULE FOIS
+                // ---------------------------
+                long totalBrut =
+                        (Lprime * 9L) + (L1A * 10L) + (L1B * 10L) + (L2 * 10L) + (LA * 10L)
+                                + (LAR * 9L) + (S1 * 10L) + (S1A * 11L)
+                                + (S2 * 10L) + (S2A * 11L) + (S3 * 10L)
+                                + (S4 * 13L) + (S5 * 13L)
+                                + (STEG * 13L) + (STIDD * 11L)
+                                + (T1 * 13L) + (T2 * 11L);
 
-                long L1A = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("L1A"))
-                        .count();
+                // ---------------------------
+                //  CALCUL AVEC BIGDECIMAL (FIABLE)
+                // ---------------------------
+                BigDecimal bdTotal = BigDecimal.valueOf(totalBrut);
+                BigDecimal coeff = new BigDecimal("1.1"); // IMPORTANT
+                BigDecimal bdAdjusted = bdTotal.multiply(coeff);
 
-                long L1B = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("L1B"))
-                        .count();
+                long feuilleDouble = bdAdjusted.setScale(0, RoundingMode.CEILING).longValueExact();
+                long feuilleBrouillon = feuilleDouble * 2;
+                long feuilleIntercalaire = feuilleDouble * 2;
 
-                long L2 = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("L2"))
-                        .count();
-
-                long LA = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("LA"))
-                        .count();
-
-                long LAR = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("LAR"))
-                        .count();
-
-                long S1 = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("S1"))
-                        .count();
-
-                long S1A = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("S1A"))
-                        .count();
-
-                long S2 = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("S2"))
-                        .count();
-
-                long S2A = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("S2A"))
-                        .count();
-
-                long S3 = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("S3"))
-                        .count();
-
-                long S4 = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("S4"))
-                        .count();
-
-                long S5 = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("S5"))
-                        .count();
-
-                long STEG = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("STEG"))
-                        .count();
-
-                long STIDD = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("STIDD"))
-                        .count();
-
-                long T1 = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("T1"))
-                        .count();
-
-                long T2 = groupe.stream()
-                        .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase("T2"))
-                        .count();
-
-
-                // DTO
                 RepartitionFeuilleCEPDTO dto = RepartitionFeuilleCEPDTO.builder()
                         .centreEcrit(centreEcrit)
                         .academia(academia)
                         .effectif(effectif)
                         .centreExamen(centreExam)
                         .session(session)
+                        .nbJury(nbJury)
                         .F6(F6)
                         .Lprime(Lprime)
                         .L1A(L1A)
@@ -159,15 +146,9 @@ public class DecompteFeuilleJuryService
                         .STIDD(STIDD)
                         .T1(T1)
                         .T2(T2)
-                        .feuille_double((long) (Math.ceil((Lprime * 9) + (L1A * 10) + (L1B * 10) + (L2 * 10) + (LA * 10) + (LAR * 9) + (S1 * 10) + (S1A * 11) +
-                                                        (S2 * 10) + (S2A * 11) + (S3 * 10) + (S4 * 13) + (S5 * 13) + (STEG * 13) + (STIDD * 11) +
-                                                        (T1 * 13) + (T2 * 11)) * 1.1))
-                        .feuille_brouillon((long) (Math.ceil((Lprime * 9) + (L1A * 10) + (L1B * 10) + (L2 * 10) + (LA * 10) + (LAR * 9) + (S1 * 10) + (S1A * 11) +
-                                                        (S2 * 10) + (S2A * 11) + (S3 * 10) + (S4 * 13) + (S5 * 13) + (STEG * 13) + (STIDD * 11) +
-                                                        (T1 * 13) + (T2 * 11)) * 1.1) * 2)
-                        .feuille_intercalaire((long) (Math.ceil((Lprime * 9) + (L1A * 10) + (L1B * 10) + (L2 * 10) + (LA * 10) + (LAR * 9) + (S1 * 10) + (S1A * 11) +
-                                                        (S2 * 10) + (S2A * 11) + (S3 * 10) + (S4 * 13) + (S5 * 13) + (STEG * 13) + (STIDD * 11) +
-                                                        (T1 * 13) + (T2 * 11)) * 1.1) * 2)
+                        .feuille_double(feuilleDouble)
+                        .feuille_brouillon(feuilleBrouillon)
+                        .feuille_intercalaire(feuilleIntercalaire)
                         .build();
 
                 dtos.add(dto);
@@ -179,6 +160,7 @@ public class DecompteFeuilleJuryService
                         .effectif(effectif)
                         .centreExamen(centreExam)
                         .session(session)
+                        .nbJury(nbJury)
                         .cp(true)
                         .cs(false)
                         .F6(F6)
@@ -199,16 +181,12 @@ public class DecompteFeuilleJuryService
                         .STIDD(STIDD)
                         .T1(T1)
                         .T2(T2)
-                        .feuille_double((long) (Math.ceil((Lprime * 9) + (L1A * 10) + (L1B * 10) + (L2 * 10) + (LA * 10) + (LAR * 9) + (S1 * 10) + (S1A * 11) +
-                                                        (S2 * 10) + (S2A * 11) + (S3 * 10) + (S4 * 13) + (S5 * 13) + (STEG * 13) + (STIDD * 11) +
-                                                        (T1 * 13) + (T2 * 11)) * 1.1))
-                        .feuille_brouillon((long) (Math.ceil((Lprime * 9) + (L1A * 10) + (L1B * 10) + (L2 * 10) + (LA * 10) + (LAR * 9) + (S1 * 10) + (S1A * 11) +
-                                                        (S2 * 10) + (S2A * 11) + (S3 * 10) + (S4 * 13) + (S5 * 13) + (STEG * 13) + (STIDD * 11) +
-                                                        (T1 * 13) + (T2 * 11)) * 1.1) * 2)
-                        .feuille_intercalaire((long) (Math.ceil((Lprime * 9) + (L1A * 10) + (L1B * 10) + (L2 * 10) + (LA * 10) + (LAR * 9) + (S1 * 10) + (S1A * 11) +
-                                                        (S2 * 10) + (S2A * 11) + (S3 * 10) + (S4 * 13) + (S5 * 13) + (STEG * 13) + (STIDD * 11) +
-                                                        (T1 * 13) + (T2 * 11)) * 1.1) * 2)
+                        .feuille_double(feuilleDouble)
+                        .feuille_brouillon(feuilleBrouillon)
+                        .feuille_intercalaire(feuilleIntercalaire)
                         .build();
+
+                System.out.println("Entity avant sauvegarde - nbJury: " + entity.getNbJury());
 
                 entities.add(entity);
             }
@@ -216,7 +194,7 @@ public class DecompteFeuilleJuryService
         }
         catch (Exception e)
         {
-            System.out.println(e);
+            e.printStackTrace();
         }
         // Sauvegarde en base
         repartitionFeuilleCEPRepository.saveAll(entities);
@@ -231,8 +209,7 @@ public class DecompteFeuilleJuryService
 
         List<SourceCandidat> candidats = sourceCandidatRepository.findCandidatsWithCentreSecondaire();
 
-        Map<String, List<SourceCandidat>> candidatsParCS =
-                candidats.stream().collect(Collectors.groupingBy(SourceCandidat::getCentreEcritSecondaire));
+        Map<String, List<SourceCandidat>> candidatsParCS = candidats.stream().collect(Collectors.groupingBy(SourceCandidat::getCentreEcritSecondaire));
 
         repartitionFeuilleCESRepository.deleteAll();
 
@@ -249,6 +226,7 @@ public class DecompteFeuilleJuryService
                 String academia = groupe.get(0).getAcaCentEcrit();
                 String centreExam = groupe.get(0).getCentreExamen();
                 Integer session = groupe.get(0).getSession();
+                long nbJury = countJurys(groupe);
                 long effectif = groupe.size();
 
                 long F6 = countSerie(groupe, "F6");
@@ -299,6 +277,7 @@ public class DecompteFeuilleJuryService
                         .effectif(effectif)
                         .centreExamen(centreExam)
                         .session(session)
+                        .nbJury(nbJury)
                         .F6(F6)
                         .Lprime(Lprime)
                         .L1A(L1A)
@@ -331,6 +310,7 @@ public class DecompteFeuilleJuryService
                         .effectif(effectif)
                         .centreExamen(centreExam)
                         .session(session)
+                        .nbJury(nbJury)
                         .cp(false)
                         .cs(true)
                         .F6(F6)
@@ -359,8 +339,10 @@ public class DecompteFeuilleJuryService
                 entities.add(entity);
             }
 
-        } catch (Exception e) {
-            System.out.println(e);
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
         }
 
         repartitionFeuilleCESRepository.saveAll(entities);
@@ -387,12 +369,7 @@ public class DecompteFeuilleJuryService
         mongoTemplate.insert(all, "fusion_repartition_feuille");
     }
 
-    // Méthode utilitaire
-    private long countSerie(List<SourceCandidat> groupe, String serie) {
-        return groupe.stream()
-                .filter(c -> c.getSerie() != null && c.getSerie().equalsIgnoreCase(serie))
-                .count();
-    }
+
 
 
     public Map<String, List<FusionRepartitionFeuille>> getRepCPByAcademie()
@@ -424,7 +401,7 @@ public class DecompteFeuilleJuryService
                 .nbJury(rep.getNbJury())
                 .cp(rep.getCp())
                 .cs(rep.getCs())
-                .localite(etablissementRepository.findByName(rep.getCentreEcrit()).getVille().getName())
+                .localite(rep.getCentreExamen())
                 .fb(rep.getFeuille_brouillon())
                 .ic(rep.getFeuille_intercalaire())
                 .fd(rep.getFeuille_double())
