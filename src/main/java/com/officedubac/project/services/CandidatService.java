@@ -745,6 +745,7 @@ public class CandidatService
         List<Candidat> allCandidates = candidatRepository.findByEtablissementIdAndSession(etablissementId, session);
         return allCandidates.stream()
                 .filter(s -> s.getSerie() != null && s.getSerie().getCode() != null)
+                .filter(s -> s.getDecision() == 0 || s.getDecision() == 1)
                 .collect(Collectors.groupingBy(s -> s.getSerie().getCode()));
     }
 

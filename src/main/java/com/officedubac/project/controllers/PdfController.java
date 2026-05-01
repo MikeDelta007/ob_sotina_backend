@@ -202,7 +202,8 @@ public class PdfController
     public void generateEtiquettes(HttpServletResponse response) throws IOException, DocumentException {
         List<RepartitionTirageCGS> list = repositorycgs.findAllByOrderByDisciplineAsc();
         //log.info(list.toString());
-        if (list.isEmpty()) {
+        if (list.isEmpty())
+        {
             response.setStatus(HttpServletResponse.SC_NO_CONTENT);
             return;
         }
@@ -238,7 +239,8 @@ public class PdfController
         logo.scaleToFit(70f, 70f);
 
         // 🔹 Parcours optimisé : pour chaque centre et discipline
-        for (RepartitionTirageCGS data : list) {
+        for (RepartitionTirageCGS data : list)
+        {
             if (data.getDiscipline() == null) continue;
 
             String matiere = data.getDiscipline().toUpperCase();
@@ -255,7 +257,8 @@ public class PdfController
 
             // 🔹 Génération pour PREMIERE
 
-            if (data.getEff1ere() != null && data.getEff1ere() > 0) {
+            if (data.getEff1ere() != null && data.getEff1ere() > 0)
+            {
                 generateEtiquetteCGSPage(
                         document,
                         logo,
@@ -272,10 +275,10 @@ public class PdfController
                 document.newPage();
             }
 
-
             // 🔹 Génération pour TERMINALE
-            /**
-            if (data.getEffTle() != null && data.getEffTle() > 0) {
+
+            if (data.getEffTle() != null && data.getEffTle() > 0)
+            {
                 generateEtiquetteCGSPage(
                         document,
                         logo,
@@ -291,7 +294,6 @@ public class PdfController
                 );
                 document.newPage();
             }
-             */
 
         }
 
