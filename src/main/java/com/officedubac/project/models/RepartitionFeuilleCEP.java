@@ -21,6 +21,7 @@ public class RepartitionFeuilleCEP
     private String academia;
     private String centreExamen;
     private Long effectif;
+    private Long nbJury;
     private Boolean cs;
     private Boolean cp;
     private Long F6;
