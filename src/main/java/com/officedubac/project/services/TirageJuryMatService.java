@@ -43,18 +43,19 @@ public class TirageJuryMatService
     private final MongoTemplate mongoTemplate;
 
 
-    public List<String> findDistinctSeriesByCentre(String centre)
-    {
+    public List<String> findDistinctSeriesByCentreAndJury(String centre, int jury) {
         Query query = new Query();
-        query.addCriteria(Criteria.where("centreEcritPrincipal").is(centre));
+        query.addCriteria(Criteria.where("centreEcritPrincipal").is(centre)
+                .and("jury").is(jury));
 
         return mongoTemplate.findDistinct(query, "serie", SourceCandidat.class, String.class);
     }
 
-    public List<String> findDistinctSeriesByCentre_(String centre)
+    public List<String> findDistinctSeriesByCentreAndJury_(String centre, int jury)
     {
         Query query = new Query();
-        query.addCriteria(Criteria.where("centreEcritSecondaire").is(centre));
+        query.addCriteria(Criteria.where("centreEcritSecondaire").is(centre)
+                .and("jury").is(jury));
 
         return mongoTemplate.findDistinct(query, "serie", SourceCandidat.class, String.class);
     }
@@ -97,7 +98,7 @@ public class TirageJuryMatService
                 Integer session = groupe.get(0).getSession();
                 long effectif = groupe.size();
 
-                series = findDistinctSeriesByCentre(centreEcrit);
+                series = findDistinctSeriesByCentreAndJury(centreEcrit, jury);
 
                 Map<String, GroupeMatiere> compteurs = new HashMap<>();
                 regles.forEach(r -> {
@@ -244,7 +245,7 @@ public class TirageJuryMatService
                 Integer session = groupe.get(0).getSession();
                 long effectif = groupe.size();
 
-                series_ = findDistinctSeriesByCentre_(centreEcrit);
+                series_ = findDistinctSeriesByCentreAndJury_(centreEcrit, jury);
 
                 Map<String, GroupeMatiere> compteurs = new HashMap<>();
                 regles.forEach(r -> {

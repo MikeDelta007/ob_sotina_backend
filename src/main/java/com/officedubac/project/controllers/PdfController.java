@@ -1,5 +1,9 @@
 package com.officedubac.project.controllers;
 
+import com.google.zxing.BarcodeFormat;
+import com.google.zxing.MultiFormatWriter;
+import com.google.zxing.client.j2se.MatrixToImageWriter;
+import com.google.zxing.common.BitMatrix;
 import com.lowagie.text.*;
 import com.lowagie.text.Font;
 import com.lowagie.text.Image;
@@ -20,8 +24,10 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.format.datetime.DateFormatter;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -30,6 +36,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.text.DecimalFormat;
+
 
 @CrossOrigin("*")
 @RestController
@@ -98,7 +105,7 @@ public class PdfController
         response.setContentType("application/pdf");
         response.setHeader("Content-Disposition", "inline; filename=etiquettes_bac.pdf");
 
-        Document document = new Document(PageSize.A4.rotate(), 36f, 36f, 36f, 36f);
+        Document document = new Document(PageSize.A4.rotate(), 36f, 36f, 10f, 10f);
         PdfWriter.getInstance(document, response.getOutputStream());
         document.open();
 
@@ -176,6 +183,9 @@ public class PdfController
 
             // log.info("ICI" + matiere + " - " + libelleNormalise);
 
+            String qrContent = buildQRCodeContent__(data);
+            Image qrCode = generateQRCode(qrContent, 120, 120);
+
             // ================= GENERATION =================
             generateEtiquettePage(
                     document,
@@ -188,7 +198,7 @@ public class PdfController
                     date,
                     horaire,
                     helv10, helv12Bold, helv14, helv22,
-                    helv24Bold, helv16Bold, helv26Bold, helv16
+                    helv24Bold, helv16Bold, helv26Bold, helv16, qrCode
             );
 
             document.newPage();
@@ -304,11 +314,11 @@ public class PdfController
 
     private void generateEtiquettePage(Document document, Image logo, FusionRepartitionTirage data,
                                        String libelleMatiere, String serie, long effectif, String grp, String date, String horaire,
-                                       Font f10, Font f12Bold, Font f14, Font f22, Font f22Bold, Font f16Bold, Font f26Bold, Font f16) throws DocumentException {
+                                       Font f10, Font f12Bold, Font f14, Font f22, Font f22Bold, Font f16Bold, Font f26Bold, Font f16, Image qrCode) throws DocumentException {
         // --- 1. EN-TÊTE ---
         PdfPTable header = new PdfPTable(3);
         header.setWidthPercentage(100);
-        header.setWidths(new float[]{0.55f, 4f, 1f});
+        header.setWidths(new float[]{0.55f, 4f, 1.5f});  // Augmenter la largeur de la dernière colonne
 
         PdfPCell imageCell = new PdfPCell(logo);
         imageCell.setBorder(Rectangle.NO_BORDER);
@@ -332,18 +342,53 @@ public class PdfController
         textCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
         header.addCell(textCell);
 
-        PdfPCell codeAcademie = new PdfPCell(new Phrase(data.getAcademia(), f12Bold));
-        codeAcademie.setBorder(Rectangle.NO_BORDER);
-        codeAcademie.setHorizontalAlignment(Element.ALIGN_CENTER);
-        codeAcademie.setVerticalAlignment(Element.ALIGN_MIDDLE);
-        header.addCell(codeAcademie);
+        // ===== CELLULE DROITE : CODE ACADEMIE + QR CODE =====
+        PdfPCell rightCell_ = new PdfPCell();
+        rightCell_.setBorder(Rectangle.NO_BORDER);
+        rightCell_.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        rightCell_.setHorizontalAlignment(Element.ALIGN_CENTER);
+
+        // Tableau interne pour aligner code Académie et QR Code
+        PdfPTable rightInnerTable = new PdfPTable(2);
+        rightInnerTable.setWidthPercentage(100);
+        rightInnerTable.setWidths(new float[]{1.5f, 1f});
+
+        // Cellule code Académie
+        PdfPCell codeAcademieCell = new PdfPCell(new Phrase(data.getAcademia(), f12Bold));
+        codeAcademieCell.setBorder(Rectangle.NO_BORDER);
+        codeAcademieCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        codeAcademieCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        rightInnerTable.addCell(codeAcademieCell);
+
+        // Cellule QR Code (si disponible)
+        PdfPCell qrCell = new PdfPCell();
+        qrCell.setBorder(Rectangle.NO_BORDER);
+        qrCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        qrCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+
+        if (qrCode != null)
+        {
+            // Redimensionner le QR Code (plus petit pour l'en-tête)
+            Image smallQr = Image.getInstance(qrCode);
+            smallQr.scaleAbsolute(100, 100);
+            smallQr.setAlignment(Element.ALIGN_CENTER);
+            qrCell.addElement(smallQr);
+        }
+        else
+        {
+            qrCell.addElement(new Phrase("", f10));
+        }
+        rightInnerTable.addCell(qrCell);
+
+        rightCell_.addElement(rightInnerTable);
+        header.addCell(rightCell_);
 
         document.add(header);
 
         // --- 2. TITRES CENTRAUX ---
         Paragraph office = new Paragraph("OFFICE DU BACCALAUREAT", f16Bold);
         office.setAlignment(Element.ALIGN_CENTER);
-        office.setSpacingBefore(10f);
+        office.setSpacingBefore(2.5f);
         document.add(office);
 
         Paragraph session = new Paragraph("BACCALAUREAT SESSION NORMALE " + data.getSession(), f22Bold);
@@ -369,7 +414,7 @@ public class PdfController
         PdfPTable footer = new PdfPTable(2);
         footer.setWidthPercentage(100);
         footer.setWidths(new float[]{2.55f, 1.5f});
-        footer.setSpacingBefore(10f);
+        footer.setSpacingBefore(5f);
 
         // Cellule gauche
         PdfPCell leftCell = new PdfPCell();
@@ -382,7 +427,7 @@ public class PdfController
 
         Paragraph epreuveLibelle = new Paragraph(libelleMatiere.toUpperCase(), f26Bold);
         epreuveLibelle.setAlignment(Element.ALIGN_CENTER);
-        epreuveLibelle.setSpacingBefore(5f);
+        epreuveLibelle.setSpacingBefore(1f);
         leftCell.addElement(epreuveLibelle);
 
         footer.addCell(leftCell);
@@ -400,27 +445,27 @@ public class PdfController
         calTitle.setColspan(2);
         calTitle.setBorder(Rectangle.BOX);
         calTitle.setHorizontalAlignment(Element.ALIGN_CENTER);
-        calTitle.setPadding(8f);
+        calTitle.setPadding(5f);
         calTable.addCell(calTitle);
 
         PdfPCell dateLabel = new PdfPCell(new Phrase("DATE :", f16));
         dateLabel.setBorder(Rectangle.BOX);
-        dateLabel.setPadding(8f);
+        dateLabel.setPadding(5f);
         calTable.addCell(dateLabel);
 
         PdfPCell dateValue = new PdfPCell(new Phrase(date != null ? date : "", f14));
         dateValue.setBorder(Rectangle.BOX);
-        dateValue.setPadding(8f);
+        dateValue.setPadding(5f);
         calTable.addCell(dateValue);
 
         PdfPCell horaireLabel = new PdfPCell(new Phrase("HORAIRE :", f16));
         horaireLabel.setBorder(Rectangle.BOX);
-        horaireLabel.setPadding(8f);
+        horaireLabel.setPadding(5f);
         calTable.addCell(horaireLabel);
 
         PdfPCell horaireValue = new PdfPCell(new Phrase(horaire != null ? horaire : "", f14));
         horaireValue.setBorder(Rectangle.BOX);
-        horaireValue.setPadding(8f);
+        horaireValue.setPadding(5f);
         calTable.addCell(horaireValue);
 
         rightCell.addElement(calTable);
@@ -643,10 +688,13 @@ public class PdfController
         response.setHeader("Content-Disposition", "inline; filename=BDR_LS_2025.pdf");
 
         Document document = new Document(PageSize.A4, 50f, 50f, 50f, 50f);
-        PdfWriter.getInstance(document, response.getOutputStream());
+        PdfWriter writer = PdfWriter.getInstance(document, response.getOutputStream());
+        FooterEvent event = new FooterEvent(initializeFonts().verySmallFont);
+        writer.setPageEvent(event);
         document.open();
 
-        try {
+        try
+        {
             // Ajout immédiat d'un élément pour éviter le document vide
             //document.add(new Paragraph("Génération du document en cours...", new Font(Font.HELVETICA, 12)));
 
@@ -679,7 +727,8 @@ public class PdfController
 
                     buildDocument(document, fonts, logo, data);
 
-                    if (i < allFRT.size() - 1) {
+                    if (i < allFRT.size() - 1)
+                    {
                         document.newPage();
                     }
                 }
@@ -774,26 +823,50 @@ public class PdfController
             // Récupération des données
             List<FusionRepartitionFeuille> allFRT = ffeuil.findAll();
 
-            if (allFRT.isEmpty()) {
+            if (allFRT.isEmpty())
+            {
                 document.add(new Paragraph("Aucune répartition trouvée pour cette session.", fonts.normalFont));
-            } else {
-                for (int i = 0; i < allFRT.size(); i++) {
-                    FusionRepartitionFeuille repartition = allFRT.get(i);
+            }
+            else
+            {
+                int cpCounter = 0;
+                int csCounter = 0;
+                int blCounter = 0;
 
-                    // Construction des données
+                for (int i = 0; i < allFRT.size(); i++)
+                {
+                    FusionRepartitionFeuille repartition = allFRT.get(i);
                     RepartitionCompleteFDTO data = decompteFeuilleJuryService.construire(repartition);
 
-                    if (data == null) {
+                    if (data == null)
+                    {
                         System.out.println("Données nulles pour cette répartition");
                         document.add(new Paragraph("Données incomplètes pour ce centre.", fonts.normalFont));
                         continue;
                     }
 
-                    // Construction du document pour ce centre
-                    buildBDRFDocument(document, fonts, logo, data, i+1);
-
+                    // Choisir le compteur en fonction du type
+                    int compteur;
+                    if (data.getCp() != null && data.getCp())
+                    {
+                        cpCounter++;
+                        compteur = cpCounter;
+                    }
+                    else if (data.getCs() != null && data.getCs())
+                    {
+                        csCounter++;
+                        compteur = csCounter;
+                    }
+                    else
+                    {
+                        blCounter++;
+                        compteur = blCounter;
+                    }
+                    // Construction du document avec le bon compteur
+                    buildBDRFDocument(document, fonts, logo, data, compteur);
                     // Nouvelle page sauf pour le dernier
-                    if (i < allFRT.size() - 1) {
+                    if (i < allFRT.size() - 1)
+                    {
                         document.newPage();
                     }
                 }
@@ -810,13 +883,16 @@ public class PdfController
         }
     }
 
-    private void buildBDRFDocument(Document document, FontConfiguration fonts, Image logo, RepartitionCompleteFDTO data, int a) throws DocumentException
-    {
+    private void buildBDRFDocument(Document document, FontConfiguration fonts, Image logo, RepartitionCompleteFDTO data, int a) throws DocumentException, UnsupportedEncodingException {
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
         String dateHeure = LocalDate.now().format(formatter);
 
-        // Header avec logo
-        document.add(createHeader(logo, fonts, a));
+        // Récupérer les booléens cp et cs depuis data
+        boolean cp = data.getCp() != null && data.getCp();
+        boolean cs = data.getCs() != null && data.getCs();
+
+        // Header avec logo et les booléens cp/cs
+        document.add(createHeader(logo, fonts, a, cp, cs));
         document.add(new Paragraph(" "));
 
         // Section Directeur et date
@@ -824,12 +900,11 @@ public class PdfController
         document.add(new Paragraph(" "));
 
         // Titre principal
-        document.add(createTitleSection(fonts));
+        document.add(createTitleSection(fonts, data));
         document.add(new Paragraph(" "));
 
         // Informations du centre
         document.add(createCentreInfoSection(fonts, data));
-        document.add(new Paragraph(" "));
 
         // Tableau des matériels
         document.add(createMaterialTable(fonts, data));
@@ -838,7 +913,7 @@ public class PdfController
         document.add(createSignaturesSection(fonts));
     }
 
-    private PdfPTable createHeader(Image logo, FontConfiguration fonts, int a) throws DocumentException {
+    private PdfPTable createHeader(Image logo, FontConfiguration fonts, int a, boolean cp, boolean cs) throws DocumentException {
         PdfPTable header = new PdfPTable(3);
         header.setWidthPercentage(100);
         header.setWidths(new float[]{0.90f, 2f, 2.65f});
@@ -866,10 +941,23 @@ public class PdfController
         textCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
         header.addCell(textCell);
 
-        // Cellule référence
+        // Cellule référence - Adaptation selon cp/cs
         DecimalFormat df = new DecimalFormat("0000");
-        String numeroFormate = df.format(a); // donne "001"
-        String texte = "N°_BL-CP " + numeroFormate + "/UCAD/OB/PFE/PF/aat";
+        String numeroFormate = df.format(a);
+
+        // Déterminer le type de bon
+        String typeBon = "";
+        if (cp)
+        {
+            typeBon = "BL-CP";
+        } 
+        else if (cs) 
+        {
+            typeBon = "BL-CS";
+        }
+
+        String texte = "N°_" + typeBon + " " + numeroFormate + "/UCAD/OB/PFE/PF/aat";
+
         PdfPCell refCell = new PdfPCell(new Phrase(texte, fonts.boldFont));
         refCell.setBorder(Rectangle.NO_BORDER);
         refCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
@@ -899,11 +987,12 @@ public class PdfController
         return headerTable;
     }
 
-    private PdfPTable createTitleSection(FontConfiguration fonts) {
+    private PdfPTable createTitleSection(FontConfiguration fonts, RepartitionCompleteFDTO data)
+    {
         PdfPTable titre = new PdfPTable(1);
         titre.setWidthPercentage(100);
 
-        PdfPCell titre1 = new PdfPCell(new Phrase("BACCALAUREAT DE L'ENSEIGNEMENT SECONDAIRE - SESSION " + getCurrentSession(), fonts.titleFont_));
+        PdfPCell titre1 = new PdfPCell(new Phrase("BACCALAUREAT DE L'ENSEIGNEMENT SECONDAIRE - SESSION " + data.getSession(), fonts.titleFont_));
         PdfPCell titre2 = new PdfPCell(new Phrase("BORDEREAU DE LIVRAISON DU MATERIEL DE COMPOSITION", fonts.titleFont_));
 
         titre1.setBorder(PdfPCell.NO_BORDER);
@@ -920,15 +1009,131 @@ public class PdfController
         return titre;
     }
 
-    private PdfPTable createCentreInfoSection(FontConfiguration fonts, RepartitionCompleteFDTO data) {
-        PdfPTable infoTable = new PdfPTable(1);
-        infoTable.setWidthPercentage(100);
+    private Image generateQRCode(String content, int width, int height) throws DocumentException
+    {
+        try {
+            // 1. Encoder le contenu en matrice de bits
+            BitMatrix bitMatrix = new MultiFormatWriter().encode(content, BarcodeFormat.QR_CODE, width, height);
 
-        addInfoRow(infoTable, "ACADEMIE : ", data.getAcademie(), fonts);
-        addInfoRow(infoTable, "LOCALITE DU CENTRE PRINCIPAL : ", data.getLocalite(), fonts);
-        addInfoRow(infoTable, "CENTRE : ", data.getCentre(), fonts);
-        addInfoRow(infoTable, "NOMBRE DE JURY : ", String.valueOf(data.getNbJury()), fonts);
-        addInfoRow(infoTable, "NOMBRE DE CANDIDATS : ", String.valueOf(data.getEffectif()), fonts);
+            // 2. Convertir la matrice en BufferedImage
+            java.awt.image.BufferedImage bufferedImage = MatrixToImageWriter.toBufferedImage(bitMatrix);
+
+            // 3. Convertir BufferedImage en iText Image
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            javax.imageio.ImageIO.write(bufferedImage, "png", baos);
+            Image qrCode = Image.getInstance(baos.toByteArray());
+
+            return qrCode;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    private String buildQRCodeContent(RepartitionCompleteFDTO data) throws UnsupportedEncodingException
+    {
+        String centreName = data.getCentre() != null ? data.getCentre() : "";
+        String localite = data.getLocalite() != null ? data.getLocalite() : "";
+        // Encoder le nom du centre pour l'URL
+        String encodedCentre = java.net.URLEncoder.encode(centreName, "UTF-8");
+        String encodedLocalite = java.net.URLEncoder.encode(localite, "UTF-8");
+
+        // Option 1 : Recherche par nom (recommandé)
+        String googleMapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodedCentre + "+" + encodedLocalite;
+
+        return googleMapsUrl;
+    }
+
+    private String buildQRCodeContent_(RepartitionCompleteDTO data) throws UnsupportedEncodingException
+    {
+        String centreName = data.getCentre() != null ? data.getCentre() : "";
+        String localite = data.getCentre() != null ? data.getCentre()  : "";
+        // Encoder le nom du centre pour l'URL
+        String encodedCentre = java.net.URLEncoder.encode(centreName, "UTF-8");
+        String encodedLocalite = java.net.URLEncoder.encode(localite, "UTF-8");
+
+        // Option 1 : Recherche par nom (recommandé)
+        String googleMapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodedCentre + "+" + encodedLocalite;
+
+        return googleMapsUrl;
+    }
+
+    private String buildQRCodeContent__(FusionRepartitionTirage data) throws UnsupportedEncodingException
+    {
+        String centreName = data.getCentreEcrit() != null ? data.getCentreEcrit() : "";
+        // Encoder le nom du centre pour l'URL
+        String encodedCentre = java.net.URLEncoder.encode(centreName, "UTF-8");
+        // Option 1 : Recherche par nom (recommandé)
+        String googleMapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodedCentre;
+
+        return googleMapsUrl;
+    }
+
+    private PdfPTable createCentreInfoSection(FontConfiguration fonts, RepartitionCompleteFDTO data) throws DocumentException, UnsupportedEncodingException {
+        PdfPTable infoTable = new PdfPTable(2);  // 2 colonnes (texte + QR)
+        infoTable.setWidthPercentage(100);
+        infoTable.setWidths(new float[]{2f, 1f});  // 2/3 texte, 1/3 QR
+
+        boolean cp = data.getCp() != null && data.getCp();
+        boolean cs = data.getCs() != null && data.getCs();
+
+        // ===== PARTIE GAUCHE : Informations texte =====
+        PdfPTable leftTable = new PdfPTable(1);
+        leftTable.setWidthPercentage(100);
+
+        // Ajouter les informations selon le type CP ou CS
+        addInfoRow(leftTable, "ACADEMIE : ", data.getAcademie(), fonts);
+
+        if (cp && !cs)
+        {
+            addInfoRow(leftTable, "LOCALITE : ", data.getLocalite(), fonts);
+            addInfoRow(leftTable, "CENTRE : ", data.getCentre(), fonts);
+            addInfoRow(leftTable, "NOMBRE DE JURY : ", String.valueOf(data.getNbJury()), fonts);
+            addInfoRow(leftTable, "NOMBRE DE CANDIDATS : ", String.valueOf(data.getEffectif()), fonts);
+        }
+        else if (cs && !cp)
+        {
+            addInfoRow(leftTable, "LOCALITE DU CENTRE PRINCIPAL : ", data.getLocalite(), fonts);
+            addInfoRow(leftTable, "CENTRE SECONDAIRE : ", data.getCentre(), fonts);
+            addInfoRow(leftTable, "NOMBRE DE CANDIDATS : ", String.valueOf(data.getEffectif()), fonts);
+        }
+
+        PdfPCell leftCell = new PdfPCell(leftTable);
+        leftCell.setBorder(Rectangle.NO_BORDER);
+        leftCell.setVerticalAlignment(Element.ALIGN_TOP);
+        infoTable.addCell(leftCell);
+
+        // ===== PARTIE DROITE : QR Code =====
+        // Construction du contenu du QR Code
+        String qrContent = buildQRCodeContent(data);
+
+        Image qrImage = generateQRCode(qrContent, 120, 120);
+
+        PdfPCell qrCell;
+        if (qrImage != null)
+        {
+            qrImage.setAlignment(Element.ALIGN_CENTER);
+            qrImage.scaleAbsolute(100, 100);
+
+            PdfPTable qrTable = new PdfPTable(1);
+            qrTable.setWidthPercentage(100);
+
+            PdfPCell imageCell = new PdfPCell(qrImage);
+            imageCell.setBorder(Rectangle.NO_BORDER);
+            imageCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+            qrTable.addCell(imageCell);
+
+            qrCell = new PdfPCell(qrTable);
+        }
+        else
+        {
+            qrCell = new PdfPCell(new Phrase("", fonts.normalFont));
+        }
+
+        qrCell.setBorder(Rectangle.NO_BORDER);
+        qrCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        qrCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        infoTable.addCell(qrCell);
 
         return infoTable;
     }
@@ -1029,7 +1234,8 @@ public class PdfController
         return logo;
     }
 
-    private int getCurrentSession() {
+    private int getCurrentSession()
+    {
         return 2025; // À rendre dynamique selon vos besoins
     }
 
@@ -1052,12 +1258,16 @@ public class PdfController
     /**
      * Construit l'intégralité du document
      */
-    private void buildDocument(Document document, FontConfiguration fonts, Image logo, RepartitionCompleteDTO data) throws DocumentException {
+    private void buildDocument(Document document, FontConfiguration fonts, Image logo, RepartitionCompleteDTO data) throws DocumentException, UnsupportedEncodingException {
         // En-tête avec logo
+
+        String qrContent = buildQRCodeContent_(data);
+        Image qrCode = generateQRCode(qrContent, 120, 120);
+
         addHeader(document, fonts, logo);
         // System.out.println("addHeader"); // LOG
         // Informations principales
-        addMainInfo(document, fonts, data);
+        addMainInfo(document, fonts, data, qrCode);
         // System.out.println("addMainInfo"); // LOG
         // Tableau des disciplines
         addDisciplinesTable(document, fonts, data);
@@ -1094,9 +1304,10 @@ public class PdfController
     private void addHeader(Document document, FontConfiguration fonts, Image logo) throws DocumentException {
         PdfPTable header = new PdfPTable(3);
         header.setWidthPercentage(100);
-        header.setWidths(new float[]{0.90f, 2.85f, 3.5f});
+        header.setWidths(new float[]{0.90f, 2.5f, 3.5f});
 
         // Cellule logo
+        logo.scalePercent(3.4F);
         PdfPCell imageCell = new PdfPCell(logo);
         imageCell.setBorder(Rectangle.NO_BORDER);
         imageCell.setHorizontalAlignment(Element.ALIGN_LEFT);
@@ -1132,7 +1343,7 @@ public class PdfController
     private void addHeader_(Document document, FontConfiguration fonts, Image logo) throws DocumentException {
         PdfPTable header = new PdfPTable(3);
         header.setWidthPercentage(100);
-        header.setWidths(new float[]{0.90f, 2.85f, 3.5f});
+        header.setWidths(new float[]{0.90f, 2.5f, 3.5f});
 
         // Cellule logo
         PdfPCell imageCell = new PdfPCell(logo);
@@ -1233,13 +1444,25 @@ public class PdfController
         document.add(header);
     }
 
-    private void addMainInfo(Document document, FontConfiguration fonts, RepartitionCompleteDTO data) throws DocumentException {
+
+
+    private void addMainInfo(Document document, FontConfiguration fonts, RepartitionCompleteDTO data, Image qrCode) throws DocumentException {
         // Titre
         Paragraph titre = new Paragraph("BACCALAUREAT GENERAL SESSION NORMALE " + data.getSession(), fonts.boldFont);
         titre.setAlignment(Element.ALIGN_CENTER);
         titre.setSpacingBefore(5f);
-        titre.setSpacingAfter(5f);
         document.add(titre);
+
+        // ===== QR CODE CENTRÉ =====
+        if (qrCode != null)
+        {
+            // Redimensionner le QR Code (optionnel)
+            qrCode.scaleToFit(80, 80);
+            qrCode.setAlignment(Element.ALIGN_CENTER);
+            qrCode.setSpacingAfter(5f);
+            qrCode.scaleAbsolute(100, 100);
+            document.add(qrCode);
+        }
 
         // Tableau principal
         PdfPTable mainInfoTable = new PdfPTable(1);
@@ -1266,27 +1489,22 @@ public class PdfController
         PdfPCell centreCell = new PdfPCell(new Phrase("Centre d'écrit : " + centre + result, fonts.boldFont));
         centreCell.setBorder(Rectangle.NO_BORDER);
         centreCell.setHorizontalAlignment(Element.ALIGN_LEFT);
-        academieCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        centreCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
         centreCell.setPaddingBottom(5f);
         centreCell.setPaddingTop(5f);
         firstLineTable.addCell(centreCell);
 
         mainInfoTable.addCell(new PdfPCell(firstLineTable));
 
-        // System.out.println("FI LAA" + maxValue);
-
         // Sort series alphabetically for consistent display
         List<String> distinctSeries = data.getSeries();
-        // System.out.println("SERIES" + distinctSeries.toString());
 
         int seriesCount = distinctSeries.size();
         String seriesList = "";
-        if (seriesCount > 1)
-        {
+        if (seriesCount > 1) {
             seriesList = String.join(", ", distinctSeries);
         }
-        if (seriesCount == 1)
-        {
+        if (seriesCount == 1) {
             seriesList = String.join("", distinctSeries);
         }
 
