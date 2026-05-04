@@ -13,6 +13,7 @@ import com.officedubac.project.dto.*;
 import com.officedubac.project.models.*;
 import com.officedubac.project.repository.*;
 import com.officedubac.project.services.DecompteFeuilleJuryService;
+import com.officedubac.project.services.PdfStatService;
 import com.officedubac.project.services.TirageJuryMatService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,6 +23,10 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.format.datetime.DateFormatter;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.ByteArrayOutputStream;
@@ -71,6 +76,28 @@ public class PdfController
     @Autowired
     private DecompteFeuilleJuryService decompteFeuilleJuryService;
 
+    @Autowired
+    private PdfStatService pdfStatService;
+
+
+
+    @GetMapping(value = "/releve-stat", produces = MediaType.APPLICATION_PDF_VALUE)
+    public ResponseEntity<byte[]> genererPdfStatistiques() {
+        try {
+            byte[] pdfBytes = pdfStatService.genererTableauStatistiques();
+
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.setContentDispositionFormData("inline", "statistiques_bac_2025.pdf");
+            headers.setContentLength(pdfBytes.length);
+
+            return new ResponseEntity<>(pdfBytes, headers, HttpStatus.OK);
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+        }
+    }
 
     @Operation(summary = "Génération de l'étiquette de table - Format A4 Paysage")
     @GetMapping("/generate-etiquette-paysage")
@@ -351,7 +378,7 @@ public class PdfController
         // Tableau interne pour aligner code Académie et QR Code
         PdfPTable rightInnerTable = new PdfPTable(2);
         rightInnerTable.setWidthPercentage(100);
-        rightInnerTable.setWidths(new float[]{1.5f, 1f});
+        rightInnerTable.setWidths(new float[]{1.45f, 1f});
 
         // Cellule code Académie
         PdfPCell codeAcademieCell = new PdfPCell(new Phrase(data.getAcademia(), f12Bold));
@@ -401,7 +428,7 @@ public class PdfController
         info.setWidthPercentage(100);
         info.setWidths(new float[]{1.2f, 4f});
 
-        addInfoRow(info, "ACADEMIE :", getAcademieFullName(data.getAcademia()) + "                               " + "[" + grp + "]", f14, f22);
+        addInfoRow(info, "ACADEMIE :", getAcademieFullName(data.getAcademia()), f14, f22);
         addInfoRow(info, "CENTRE :", data.getCentreEcrit(), f14, f22);
         addInfoRow(info, "JURY :", String.valueOf(data.getJury()), f14, f22);
         addInfoRow(info, "SERIE (S) :", serie, f14, f22); // à affiner si plusieurs séries possibles
@@ -421,7 +448,13 @@ public class PdfController
         leftCell.setBorder(Rectangle.BOX);
         leftCell.setPadding(15f);
 
-        Paragraph epreuveTitle = new Paragraph("EPREUVE", f16);
+        Font normal = new Font(Font.HELVETICA, 16, Font.NORMAL);
+        Font bold = new Font(Font.HELVETICA, 16, Font.BOLD);
+
+        Paragraph epreuveTitle = new Paragraph();
+        epreuveTitle.add(new Chunk("EPREUVE [", normal));
+        epreuveTitle.add(new Chunk(grp, bold));
+        epreuveTitle.add(new Chunk("]", normal));
         epreuveTitle.setAlignment(Element.ALIGN_CENTER);
         leftCell.addElement(epreuveTitle);
 

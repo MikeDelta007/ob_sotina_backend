@@ -2,8 +2,11 @@ package com.officedubac.project.services;
 
 import com.officedubac.project.dto.*;
 import com.officedubac.project.exception.GlobalHandlerControllerException;
+import com.officedubac.project.models.SourceCandidat;
+import com.officedubac.project.repository.SourceCandidatRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.aggregation.*;
@@ -13,6 +16,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.Map;
 
 @Service
 @Slf4j
@@ -20,6 +24,9 @@ import java.util.List;
 public class StatsService
 {
     private final MongoTemplate mongoTemplate;
+
+    @Autowired
+    private SourceCandidatRepository sourceCandidatRepository;
 
     public List<OperatorDailyCountDTO> countDailyByOperator(LocalDate startDate, LocalDate endDate, Integer session)
     {
@@ -216,6 +223,71 @@ public class StatsService
 
         // Retourner les résultats mappés
         return results.getMappedResults();
+    }
+
+
+    public StatistiquesBacDTO calculerStatistiques()
+    {
+        StatistiquesBacDTO stats = new StatistiquesBacDTO();
+
+        // Récupérer tous les candidats (vous pouvez optimiser avec des requêtes MongoDB)
+        List<SourceCandidat> tousLesCandidats = sourceCandidatRepository.findAll();
+        long totalGeneral = tousLesCandidats.size();
+        stats.setTotalGeneral(totalGeneral);
+
+        // Liste des séries
+        String[] seriesOrder = {"STEG", "F6", "T1", "T2", "STIDD", "L'1", "L1A", "L1B", "L2", "LA", "L-AR",
+                "S1", "S1A", "S2", "S2A", "S3", "S4", "S5"};
+
+        // Calculer les stats par série
+        for (String serie : seriesOrder) {
+            List<SourceCandidat> candidatsSerie = tousLesCandidats.stream()
+                    .filter(c -> serie.equals(c.getSerie()))
+                    .toList();
+
+            long effectif = candidatsSerie.size();
+            if (effectif > 0) {
+                long filles = candidatsSerie.stream()
+                        .filter(c -> "F".equals(c.getGender()))
+                        .count();
+
+                long publicCount = candidatsSerie.stream()
+                        .filter(c -> {
+                            String etab = c.getEtablissement();
+                            return etab != null && (etab.equalsIgnoreCase("public") ||
+                                    etab.equals("Public") || etab.equals("PUBLIC"));
+                        })
+                        .count();
+
+                long individuels = effectif - publicCount;
+
+                StatistiquesBacDTO.OptionStat optionStat = new StatistiquesBacDTO.OptionStat();
+                optionStat.setEffectif(effectif);
+                optionStat.setFilles(filles);
+                optionStat.setPourcentageFilles(filles * 100.0 / effectif);
+                optionStat.setPublicCount(publicCount);
+                optionStat.setPourcentagePublic(publicCount * 100.0 / effectif);
+                optionStat.setIndividuels(individuels);
+                optionStat.setPourcentageIndividuels(individuels * 100.0 / effectif);
+                optionStat.setPoidsRelatif(totalGeneral > 0 ? (effectif * 100.0 / totalGeneral) : 0);
+
+                stats.getStatsByOption().put(serie, optionStat);
+            } else {
+                // Si aucun candidat pour cette série, créer un objet vide
+                StatistiquesBacDTO.OptionStat optionStat = new StatistiquesBacDTO.OptionStat();
+                optionStat.setEffectif(0);
+                optionStat.setFilles(0);
+                optionStat.setPourcentageFilles(0);
+                optionStat.setPublicCount(0);
+                optionStat.setPourcentagePublic(0);
+                optionStat.setIndividuels(0);
+                optionStat.setPourcentageIndividuels(0);
+                optionStat.setPoidsRelatif(0);
+                stats.getStatsByOption().put(serie, optionStat);
+            }
+        }
+
+        return stats;
     }
 
 
