@@ -1,11 +1,14 @@
 package com.officedubac.project.config;
 
+import com.mongodb.WriteConcern;
 import com.officedubac.project.models.Candidat;
 import com.officedubac.project.models.Etablissement;
 import jakarta.annotation.PostConstruct;
+import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Role;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.mongodb.MongoDatabaseFactory;
 import org.springframework.data.mongodb.config.EnableMongoAuditing;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.index.Index;
@@ -15,9 +18,10 @@ import org.springframework.data.mongodb.core.query.Collation;
 @EnableMongoAuditing
 @Configuration
 public class MongoConfig {
-    private final MongoTemplate mongoTemplate;
+    private MongoTemplate mongoTemplate;
 
-    public MongoConfig(MongoTemplate mongoTemplate) {
+    public MongoConfig(MongoTemplate mongoTemplate)
+    {
         this.mongoTemplate = mongoTemplate;
     }
 
@@ -50,4 +54,6 @@ public class MongoConfig {
 
 
     }
+
+
 }

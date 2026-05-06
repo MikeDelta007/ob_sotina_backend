@@ -29,12 +29,16 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import javax.imageio.ImageIO;
+import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Year;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
@@ -114,8 +118,13 @@ public class PdfController
 
         //log.info("MATIERE DEMANDEE = {}", matiere);
 
-        List<FusionRepartitionTirage> list = repository.findAll();
-        if (list.isEmpty()) {
+        List<FusionRepartitionTirage> sortedList = repository.findAll()
+                .stream()
+                .sorted(Comparator.comparing(FusionRepartitionTirage::getAcademia))
+                .toList();
+
+        if (sortedList.isEmpty())
+        {
             response.setStatus(HttpServletResponse.SC_NO_CONTENT);
             return;
         }
@@ -152,7 +161,7 @@ public class PdfController
         logo.scaleToFit(70f, 70f);
 
         // ================= PARCOURS OPTIMISÉ =================
-        for (FusionRepartitionTirage data : list) {
+        for (FusionRepartitionTirage data : sortedList) {
 
             if (data.getMatieres() == null) {
                 continue;
@@ -166,14 +175,16 @@ public class PdfController
             }
 
             // ================= EFFECTIF =================
-            Double effectif = null;
+            Double effectif = 0.0;
+            Double effT2ndG = 0.0;
             String grp = null;
             String date = "";
             String horaire = "";
 
             // ================= REGLE =================
             RegleMatiere regle = regleParCode.get(matiere);
-            if (regle == null) {
+            if (regle == null)
+            {
                 log.warn("Aucune règle trouvée pour {}", matiere);
                 continue;
             }
@@ -182,23 +193,28 @@ public class PdfController
                     ? String.join(" - ", regle.getSeries())
                     : "";
 
+
+
+            effectif = gm.getPremierGroupe();
             if ("1ER".equalsIgnoreCase(groupe))
             {
-                effectif = gm.getPremierGroupe();
                 grp = "PREMIER GROUPE";
                 date = Optional.ofNullable(regle.getDate1()).orElse("");
                 horaire = Optional.ofNullable(regle.getHeure1()).orElse("");
             }
             else if ("2ND".equalsIgnoreCase(groupe))
             {
-                effectif = gm.getSecondGroupe();
+                effT2ndG = gm.getSecondGroupe();
                 grp = "SECOND GROUPE";
                 date = Optional.ofNullable(regle.getDate2()).orElse("");
                 horaire = Optional.ofNullable(regle.getHeure2()).orElse("");
             }
 
+            System.out.println(effectif + " " + effT2ndG);
 
-            if (effectif == null || effectif <= 0) {
+
+            if (effectif == null || effectif <= 0)
+            {
                 continue;
             }
 
@@ -215,12 +231,13 @@ public class PdfController
 
             // ================= GENERATION =================
             generateEtiquettePage(
+                    effT2ndG,
                     document,
                     logo,
                     data,
                     libelleNormalise,
                     series,
-                    effectif.longValue(),
+                    effectif,
                     grp,
                     date,
                     horaire,
@@ -339,13 +356,13 @@ public class PdfController
     }
 
 
-    private void generateEtiquettePage(Document document, Image logo, FusionRepartitionTirage data,
-                                       String libelleMatiere, String serie, long effectif, String grp, String date, String horaire,
+    private void generateEtiquettePage(double effT2ndG, Document document, Image logo, FusionRepartitionTirage data,
+                                       String libelleMatiere, String serie, double effectif, String grp, String date, String horaire,
                                        Font f10, Font f12Bold, Font f14, Font f22, Font f22Bold, Font f16Bold, Font f26Bold, Font f16, Image qrCode) throws DocumentException {
         // --- 1. EN-TÊTE ---
         PdfPTable header = new PdfPTable(3);
         header.setWidthPercentage(100);
-        header.setWidths(new float[]{0.55f, 4f, 1.5f});  // Augmenter la largeur de la dernière colonne
+        header.setWidths(new float[]{0.55f, 4f, 1.5f});
 
         PdfPCell imageCell = new PdfPCell(logo);
         imageCell.setBorder(Rectangle.NO_BORDER);
@@ -430,9 +447,23 @@ public class PdfController
 
         addInfoRow(info, "ACADEMIE :", getAcademieFullName(data.getAcademia()), f14, f22);
         addInfoRow(info, "CENTRE :", data.getCentreEcrit(), f14, f22);
-        addInfoRow(info, "JURY :", String.valueOf(data.getJury()), f14, f22);
+        addInfoRow(info, "JURY :", Boolean.TRUE.equals(data.getCs()) ? "CS" : String.valueOf(data.getJury()), f14, f22);
         addInfoRow(info, "SERIE (S) :", serie, f14, f22); // à affiner si plusieurs séries possibles
-        addInfoRow(info, "CANDIDATS :", effectif + "        NT : " + (Math.round(effectif * 1.05) + 1), f14, f22); // NT = effectif par défaut
+        System.out.println("OK" + grp);
+        String ntValue;
+        if ("PREMIER GROUPE".equals(grp))
+        {
+            long nt = Math.round(effectif * 1.05) + 1;
+            ntValue = String.valueOf(nt);
+        }
+        else if ("SECOND GROUPE".equals(grp)) {
+            long nt = Math.round(effT2ndG) + 1;
+            ntValue = String.valueOf(nt);
+        } else {
+            ntValue = "";
+        }
+
+        addInfoRow(info, "CANDIDATS : ", Math.round(effectif) + "        NT : " + ntValue, f14, f22);
 
         document.add(info);
         document.add(new Paragraph("\n"));
@@ -1049,11 +1080,11 @@ public class PdfController
             BitMatrix bitMatrix = new MultiFormatWriter().encode(content, BarcodeFormat.QR_CODE, width, height);
 
             // 2. Convertir la matrice en BufferedImage
-            java.awt.image.BufferedImage bufferedImage = MatrixToImageWriter.toBufferedImage(bitMatrix);
+            BufferedImage bufferedImage = MatrixToImageWriter.toBufferedImage(bitMatrix);
 
             // 3. Convertir BufferedImage en iText Image
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            javax.imageio.ImageIO.write(bufferedImage, "png", baos);
+            ImageIO.write(bufferedImage, "png", baos);
             Image qrCode = Image.getInstance(baos.toByteArray());
 
             return qrCode;
@@ -1068,8 +1099,8 @@ public class PdfController
         String centreName = data.getCentre() != null ? data.getCentre() : "";
         String localite = data.getLocalite() != null ? data.getLocalite() : "";
         // Encoder le nom du centre pour l'URL
-        String encodedCentre = java.net.URLEncoder.encode(centreName, "UTF-8");
-        String encodedLocalite = java.net.URLEncoder.encode(localite, "UTF-8");
+        String encodedCentre = URLEncoder.encode(centreName, "UTF-8");
+        String encodedLocalite = URLEncoder.encode(localite, "UTF-8");
 
         // Option 1 : Recherche par nom (recommandé)
         String googleMapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodedCentre + "+" + encodedLocalite;
@@ -1082,8 +1113,8 @@ public class PdfController
         String centreName = data.getCentre() != null ? data.getCentre() : "";
         String localite = data.getCentre() != null ? data.getCentre()  : "";
         // Encoder le nom du centre pour l'URL
-        String encodedCentre = java.net.URLEncoder.encode(centreName, "UTF-8");
-        String encodedLocalite = java.net.URLEncoder.encode(localite, "UTF-8");
+        String encodedCentre = URLEncoder.encode(centreName, "UTF-8");
+        String encodedLocalite = URLEncoder.encode(localite, "UTF-8");
 
         // Option 1 : Recherche par nom (recommandé)
         String googleMapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodedCentre + "+" + encodedLocalite;
@@ -1095,7 +1126,7 @@ public class PdfController
     {
         String centreName = data.getCentreEcrit() != null ? data.getCentreEcrit() : "";
         // Encoder le nom du centre pour l'URL
-        String encodedCentre = java.net.URLEncoder.encode(centreName, "UTF-8");
+        String encodedCentre = URLEncoder.encode(centreName, "UTF-8");
         // Option 1 : Recherche par nom (recommandé)
         String googleMapsUrl = "https://www.google.com/maps/search/?api=1&query=" + encodedCentre;
 
@@ -1417,7 +1448,7 @@ public class PdfController
         header.setWidthPercentage(100);
         header.setWidths(new float[]{5f, 5f});
 
-        int a = java.time.Year.now().getValue();
+        int a = Year.now().getValue();
 
         // Cellule texte
         Paragraph headerText = new Paragraph(

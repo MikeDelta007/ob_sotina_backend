@@ -33,6 +33,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Service
@@ -842,10 +843,14 @@ public class ParametrageService
     //SOTINA
     public boolean importCdtByFile(String filePath) {
 
-        sourceCandidatRepository.deleteAll();
+        // ✅ Suppression fiable
+        mongoTemplate.dropCollection(SourceCandidat.class);
+        mongoTemplate.createCollection(SourceCandidat.class);
 
-        final int BATCH_SIZE = 500;
+        final int BATCH_SIZE = 1000;
         DateTimeFormatter formatter = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+        List<SourceCandidat> batchList = new ArrayList<>(BATCH_SIZE);
+        AtomicInteger totalImported = new AtomicInteger(0);  // ✅ Compteur thread-safe
 
         try (OPCPackage opcPackage = OPCPackage.open(filePath)) {
 
@@ -853,91 +858,88 @@ public class ParametrageService
             SharedStringsTable sst = (SharedStringsTable) reader.getSharedStringsTable();
             XMLReader parser = XMLHelper.newXMLReader();
 
-            List<SourceCandidat> batchList = new ArrayList<>(BATCH_SIZE);
-
             DefaultHandler handler = new DefaultHandler() {
-
-                private String lastContents;
+                private StringBuilder lastContents = new StringBuilder();
                 private boolean isString;
                 private int currentColumn = -1;
                 private SourceCandidat currentCandidat;
                 private int currentRowNumber = 0;
+                private int importedCount = 0;
 
                 @Override
                 public void startElement(String uri, String localName, String qName, Attributes attributes) {
+                    lastContents.setLength(0);
 
                     if ("row".equals(qName)) {
-
                         String rowNum = attributes.getValue("r");
                         currentRowNumber = rowNum != null ? Integer.parseInt(rowNum) : 0;
 
-                        // 🔥 Ignorer la première ligne
                         if (currentRowNumber == 1) {
                             currentCandidat = null;
                             return;
                         }
-
                         currentCandidat = new SourceCandidat();
                     }
 
                     if ("c".equals(qName) && currentCandidat != null) {
-
                         String cellType = attributes.getValue("t");
                         isString = "s".equals(cellType);
-
                         String cellRef = attributes.getValue("r");
                         currentColumn = getColumnIndex(cellRef);
                     }
-
-                    lastContents = "";
                 }
 
                 @Override
                 public void characters(char[] ch, int start, int length) {
-                    lastContents += new String(ch, start, length);
+                    lastContents.append(ch, start, length);
                 }
 
                 @Override
                 public void endElement(String uri, String localName, String qName) {
-
-                    if (currentCandidat == null) return; // 🔥 ignore ligne 1
+                    if (currentCandidat == null) return;
 
                     if ("v".equals(qName)) {
-
-                        String value = lastContents;
-
+                        String value = lastContents.toString();
                         if (isString) {
                             int idx = Integer.parseInt(value);
                             value = sst.getItemAt(idx).getString();
                         }
-
                         mapValueToCandidat(currentCandidat, currentColumn, value, formatter);
                     }
 
                     if ("row".equals(qName)) {
-
                         batchList.add(currentCandidat);
+                        importedCount++;
 
                         if (batchList.size() >= BATCH_SIZE) {
                             mongoTemplate.insert(batchList, SourceCandidat.class);
+                            totalImported.addAndGet(batchList.size());
+                            System.out.println("Batch importé : " + batchList.size() + " (Total: " + totalImported.get() + ")");
                             batchList.clear();
                         }
                     }
                 }
             };
 
-
             parser.setContentHandler(handler);
-
             try (InputStream sheet = reader.getSheetsData().next()) {
                 parser.parse(new InputSource(sheet));
             }
 
+            // Dernier batch
             if (!batchList.isEmpty()) {
                 mongoTemplate.insert(batchList, SourceCandidat.class);
+                totalImported.addAndGet(batchList.size());
+                batchList.clear();
             }
 
-            return true;
+            // ✅ Vérification finale
+            long countInDb = mongoTemplate.count(new Query(), SourceCandidat.class);
+            System.out.println("=== RÉSUMÉ IMPORT ===");
+            System.out.println("Lignes importées dans ce fichier: " + totalImported.get());
+            System.out.println("Total en base après import: " + countInDb);
+
+            return countInDb == totalImported.get();
 
         } catch (Exception e) {
             e.printStackTrace();

@@ -220,11 +220,7 @@ public class TirageJuryMatService
 
         System.out.println(candidats_.size());
 
-        Map<String, List<SourceCandidat>> candidatsParJuryCentre_ =
-                candidats_.stream()
-                        .collect(Collectors.groupingBy(
-                                c -> c.getCentreEcritSecondaire() + "_" + c.getJury()
-                        ));
+        Map<String, List<SourceCandidat>> candidatsParJuryCentre_ = candidats_.stream().collect(Collectors.groupingBy(SourceCandidat::getCentreEcritSecondaire));
 
         // 🔹 supprimer l'ancienne répartition
         repartitionTirageCSRepository.deleteAll();
@@ -502,20 +498,26 @@ public class TirageJuryMatService
                 .orElseGet(HoraireRequest::new);
     }
 
-    public List<Map<String, Object>> getJurySummaryAllAcademies(String codeMatiere, String groupeChoisi) {
+    public List<Map<String, Object>> getJurySummaryAllAcademies(String codeMatiere, String groupeChoisi)
+    {
         // Récupérer toutes les tirages qui contiennent la matière
         List<FusionRepartitionTirage> tirages = fusionRepartitionTirageRepository.findAll().stream()
                 .filter(f -> f.getMatieres() != null && f.getMatieres().containsKey(codeMatiere))
-                .collect(Collectors.toList());
+                .toList();
 
-        // Grouper par académie
+        // Utiliser TreeMap au lieu de HashMap pour un tri automatique par clé
         Map<String, List<FusionRepartitionTirage>> groupedByAcademia = tirages.stream()
-                .collect(Collectors.groupingBy(FusionRepartitionTirage::getAcademia));
+                .collect(Collectors.groupingBy(
+                        FusionRepartitionTirage::getAcademia,
+                        TreeMap::new,
+                        Collectors.toList()
+                ));
 
         List<Map<String, Object>> result = new ArrayList<>();
 
         // Boucle sur chaque académie
-        for (Map.Entry<String, List<FusionRepartitionTirage>> entry : groupedByAcademia.entrySet()) {
+        for (Map.Entry<String, List<FusionRepartitionTirage>> entry : groupedByAcademia.entrySet())
+        {
             String academia = entry.getKey();
             List<FusionRepartitionTirage> tiragesAcademia = entry.getValue();
 
@@ -523,13 +525,15 @@ public class TirageJuryMatService
             List<Map<String, Object>> rows = tiragesAcademia.stream().map(f -> {
                         GroupeMatiere gm = f.getMatieres().get(codeMatiere);
                         double valeur = 0.0;
-                        if (gm != null) {
-                            if ("1ER".equalsIgnoreCase(groupeChoisi)) {
-                                valeur = gm.getPremierGroupe();
-                            } else if ("2ND".equalsIgnoreCase(groupeChoisi)) {
-                                valeur = gm.getSecondGroupe();
-                            }
-                        }
+                        valeur = gm.getPremierGroupe();
+
+//                        if (gm != null) {
+//                            if ("1ER".equalsIgnoreCase(groupeChoisi)) {
+//                                valeur = gm.getPremierGroupe();
+//                            } else if ("2ND".equalsIgnoreCase(groupeChoisi)) {
+//                                valeur = gm.getSecondGroupe();
+//                            }
+//                        }
 
                         // On ignore les valeurs nulles ou <= 0
                         if (valeur <= 0) return null;
@@ -537,7 +541,7 @@ public class TirageJuryMatService
                         Map<String, Object> map = new HashMap<>();
                         map.put("matiere", codeMatiere);
                         map.put("session", f.getSession());
-                        map.put("jury", f.getJury());
+                        map.put("jury", Boolean.TRUE.equals(f.getCs()) ? "CS" : String.valueOf(f.getJury()));
                         map.put("centreEcrit", f.getCentreEcrit());
                         map.put("academia", f.getAcademia());
                         map.put("effectif", valeur);
@@ -555,7 +559,7 @@ public class TirageJuryMatService
             if (!rows.isEmpty()) { // n'ajouter le total que si au moins une ligne valide
                 Map<String, Object> totalMap = new HashMap<>();
                 totalMap.put("matiere", codeMatiere);
-                totalMap.put("session", "TOTAL");
+                totalMap.put("session", "TOTAL GENERAL ACADEMIE");
                 totalMap.put("jury", "");
                 totalMap.put("centreEcrit", "");
                 totalMap.put("academia", academia);
