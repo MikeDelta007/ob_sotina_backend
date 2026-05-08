@@ -22,6 +22,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.domain.Sort;
 import org.springframework.format.datetime.DateFormatter;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -230,7 +231,9 @@ public class PdfController
             Image qrCode = generateQRCode(qrContent, 120, 120);
 
             // ================= GENERATION =================
+            assert regle_ != null;
             generateEtiquettePage(
+                    regle_.getChamp(),
                     effT2ndG,
                     document,
                     logo,
@@ -356,7 +359,7 @@ public class PdfController
     }
 
 
-    private void generateEtiquettePage(double effT2ndG, Document document, Image logo, FusionRepartitionTirage data,
+    private void generateEtiquettePage(String type_lv, double effT2ndG, Document document, Image logo, FusionRepartitionTirage data,
                                        String libelleMatiere, String serie, double effectif, String grp, String date, String horaire,
                                        Font f10, Font f12Bold, Font f14, Font f22, Font f22Bold, Font f16Bold, Font f26Bold, Font f16, Image qrCode) throws DocumentException {
         // --- 1. EN-TÊTE ---
@@ -489,9 +492,27 @@ public class PdfController
         epreuveTitle.setAlignment(Element.ALIGN_CENTER);
         leftCell.addElement(epreuveTitle);
 
-        Paragraph epreuveLibelle = new Paragraph(libelleMatiere.toUpperCase(), f26Bold);
+        // Modifiez cette partie
+        String suffixe = "";
+        if (
+                type_lv.equalsIgnoreCase("matiere1")
+                        && !libelleMatiere.equalsIgnoreCase("Gestion comptable et financière (Etude de cas)")
+                        && !libelleMatiere.equalsIgnoreCase("Sciences Economiques et Sociales")
+                        && !libelleMatiere.equalsIgnoreCase("Management des organisations")
+        ) {
+            suffixe = "(LV1)";
+        }
+        else if (
+                type_lv.equalsIgnoreCase("matiere2")
+                        && !libelleMatiere.equalsIgnoreCase("ECONOMIE")
+        ) {
+            suffixe = "(LV2)";
+        }
+
+        Paragraph epreuveLibelle = new Paragraph(libelleMatiere.toUpperCase() + "\n" + suffixe, f26Bold);
         epreuveLibelle.setAlignment(Element.ALIGN_CENTER);
-        epreuveLibelle.setSpacingBefore(1f);
+        epreuveLibelle.setSpacingBefore(2f);
+        epreuveLibelle.setLeading(0f, 1.20f);  // Réduit l'espacement entre les lignes
         leftCell.addElement(epreuveLibelle);
 
         footer.addCell(leftCell);
@@ -885,7 +906,12 @@ public class PdfController
             Image logo = loadAndScaleLogo();
 
             // Récupération des données
-            List<FusionRepartitionFeuille> allFRT = ffeuil.findAll();
+            List<FusionRepartitionFeuille> allFRT =
+                    ffeuil.findAll(
+                            Sort.by(Sort.Direction.DESC, "cp")
+                                    .and(Sort.by(Sort.Direction.DESC, "cs"))
+                                    .and(Sort.by("academia"))
+                    );
 
             if (allFRT.isEmpty())
             {
