@@ -498,6 +498,22 @@ public class TirageJuryMatService
                 .orElseGet(HoraireRequest::new);
     }
 
+    private double calculerNtValue(String groupe, double effectif)
+    {
+        if ("1ER".equals(groupe))
+        {
+            return Math.round(1.05 * effectif) + 1;
+        }
+        else if ("2ND".equals(groupe))
+        {
+            return Math.round(effectif / 2.0) + 1;
+        }
+        else
+        {
+            return Math.round(effectif);
+        }
+    }
+
     public List<Map<String, Object>> getJurySummaryAllAcademies(String codeMatiere, String groupeChoisi)
     {
         // Récupérer toutes les tirages qui contiennent la matière
@@ -538,6 +554,8 @@ public class TirageJuryMatService
                         // On ignore les valeurs nulles ou <= 0
                         if (valeur <= 0) return null;
 
+                        double ntValue = calculerNtValue(groupeChoisi, valeur);
+
                         Map<String, Object> map = new HashMap<>();
                         map.put("matiere", codeMatiere);
                         map.put("session", f.getSession());
@@ -545,6 +563,7 @@ public class TirageJuryMatService
                         map.put("centreEcrit", f.getCentreEcrit());
                         map.put("academia", f.getAcademia());
                         map.put("effectif", valeur);
+                        map.put("effectif_tirage", ntValue);
 
                         return map;
                     })
@@ -556,6 +575,10 @@ public class TirageJuryMatService
                     .mapToDouble(m -> (Double) m.get("effectif"))
                     .sum();
 
+            double totalValeur_ = rows.stream()
+                    .mapToDouble(m -> (Double) m.get("effectif_tirage"))
+                    .sum();
+
             if (!rows.isEmpty()) { // n'ajouter le total que si au moins une ligne valide
                 Map<String, Object> totalMap = new HashMap<>();
                 totalMap.put("matiere", codeMatiere);
@@ -564,6 +587,7 @@ public class TirageJuryMatService
                 totalMap.put("centreEcrit", "");
                 totalMap.put("academia", academia);
                 totalMap.put("effectif", totalValeur);
+                totalMap.put("effectif_tirage", totalValeur_);
 
                 // Tri des lignes de l’académie par effectif décroissant
                 rows.sort((m1, m2) -> Double.compare((Double) m2.get("effectif"), (Double) m1.get("effectif")));

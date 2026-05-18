@@ -195,7 +195,6 @@ public class PdfController
                     : "";
 
 
-
             effectif = gm.getPremierGroupe();
             if ("1ER".equalsIgnoreCase(groupe))
             {
@@ -211,7 +210,7 @@ public class PdfController
                 horaire = Optional.ofNullable(regle.getHeure2()).orElse("");
             }
 
-            System.out.println(effectif + " " + effT2ndG);
+            // System.out.println(effectif + " " + effT2ndG);
 
 
             if (effectif == null || effectif <= 0)
@@ -225,7 +224,7 @@ public class PdfController
                     .map(RegleMatiere::getValeur)
                     .orElse(matiere);
 
-            // log.info("ICI" + matiere + " - " + libelleNormalise);
+            log.info("ICI" + matiere + " - " + libelleNormalise);
 
             String qrContent = buildQRCodeContent__(data);
             Image qrCode = generateQRCode(qrContent, 120, 120);
@@ -496,9 +495,8 @@ public class PdfController
         String suffixe = "";
         if (
                 type_lv.equalsIgnoreCase("matiere1")
-                        && !libelleMatiere.equalsIgnoreCase("Gestion comptable et financière (Etude de cas)")
-                        && !libelleMatiere.equalsIgnoreCase("Sciences Economiques et Sociales")
-                        && !libelleMatiere.equalsIgnoreCase("Management des organisations")
+                        && !libelleMatiere.equalsIgnoreCase("Génie mécanique")
+                        && !libelleMatiere.equalsIgnoreCase("Génie Electrique")
         ) {
             suffixe = "(LV1)";
         }
