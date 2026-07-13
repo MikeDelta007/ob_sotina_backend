@@ -16,6 +16,11 @@ public class RepartitionCompleteDTO
     private Long effectif;
     private Boolean cp;
     private Boolean cs;
+
+    private String CC;
+    private String PJ;
+    private String groupe;
+
     private List<String> series;
     private List<MatiereComposeeDTO> matieres;
 }

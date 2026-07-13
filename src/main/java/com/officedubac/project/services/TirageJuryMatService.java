@@ -6,6 +6,7 @@ import com.officedubac.project.models.*;
 import com.officedubac.project.repository.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.usermodel.*;
 import org.bson.Document;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -15,6 +16,7 @@ import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
 import org.springframework.data.mongodb.core.query.Query;
 import org.springframework.stereotype.Service;
+import org.springframework.web.multipart.MultipartFile;
 
 import javax.xml.transform.Source;
 import java.util.*;
@@ -162,6 +164,10 @@ public class TirageJuryMatService
                                 gm.setPremierGroupe(gm.getPremierGroupe() + 1);
                                 gm.setSecondGroupe(Math.round((gm.getSecondGroupe() + 0.5) * 10) / 10.0);
                             }
+                            else if ("2NDGRP".equals(r.getGroupe()))
+                            {
+                                gm.setSecondGroupe(Math.round((gm.getSecondGroupe() + 0.5) * 10) / 10.0);
+                            }
                             else
                             {
                                 gm.setPremierGroupe(gm.getPremierGroupe() + 1);
@@ -305,6 +311,10 @@ public class TirageJuryMatService
                             else if ("1ER2NDGRP".equals(r.getGroupe()))
                             {
                                 gm.setPremierGroupe(gm.getPremierGroupe() + 1);
+                                gm.setSecondGroupe(Math.round((gm.getSecondGroupe() + 0.5) * 10) / 10.0);
+                            }
+                            else if ("2NDGRP".equals(r.getGroupe()))
+                            {
                                 gm.setSecondGroupe(Math.round((gm.getSecondGroupe() + 0.5) * 10) / 10.0);
                             }
                             else
@@ -605,14 +615,14 @@ public class TirageJuryMatService
 
     public RepartitionCompleteDTO construire(FusionRepartitionTirage rep)
     {
-        // 1️Récupération des matières (déjà typées 👍)
+        // Récupération des matières
         Map<String, GroupeMatiere> matieres = rep.getMatieres();
         // Extraction des codes
         List<String> codes = new ArrayList<>(matieres.keySet());
         // Chargement des règles en une seule requête
         Map<String, RegleMatiere> reglesMap = regleMatiereRepository
                 .findAllByCodeIn(codes)
-                .stream()                     // now you can stream
+                .stream()
                 .collect(Collectors.toMap(
                         RegleMatiere::getCode,
                         Function.identity(),
@@ -627,15 +637,15 @@ public class TirageJuryMatService
             GroupeMatiere valeur = entry.getValue();
 
             Double premier = valeur.getPremierGroupe();
+            Double second = valeur.getSecondGroupe();
 
-            // Ignorer les enregistrements où premierGroupe est null ou 0
-            if (premier == null || premier == 0.0) {
+            // Ignorer les enregistrements où premierGroupe et secondGroupe est null ou 0
+            if (premier == 0.0 && second == 0.0)
+            {
                 continue;
             }
 
-            Double second = valeur.getSecondGroupe();
             RegleMatiere regle = reglesMap.get(code);
-
             assert regle != null;
             MatiereComposeeDTO dto = MatiereComposeeDTO.builder()
                     .code(code)
@@ -649,7 +659,7 @@ public class TirageJuryMatService
             matieresFinales.add(dto);
         }
 
-        // 5️⃣ Construction finale
+        // Construction finale
         return RepartitionCompleteDTO.builder()
                 .centre(rep.getCentreEcrit())
                 .academie(rep.getAcademia())
@@ -710,6 +720,106 @@ public class TirageJuryMatService
         }
 
         return rep;
+    }
+
+    private final RepartitionTirageCEPRepository repository;
+
+    public void importCles(MultipartFile file) {
+
+        try (Workbook workbook = WorkbookFactory.create(file.getInputStream())) {
+
+            Sheet sheet = workbook.getSheetAt(0);
+
+            List<RepartitionTirageCEP> documentsToUpdate = new ArrayList<>();
+
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+
+                Row row = sheet.getRow(i);
+
+                if (row == null) {
+                    continue;
+                }
+
+                Integer jury = (int) row.getCell(0).getNumericCellValue();
+                String centrEcrit = row.getCell(1).getStringCellValue();
+
+                String clePJ = getCellValue_(row.getCell(3));
+                String cleCC = getCellValue_(row.getCell(4));
+                String groupe = getCellValue_(row.getCell(5));
+
+                repository.findByJuryAndCentreEcrit(jury, centrEcrit)
+                        .ifPresent(doc -> {
+                            doc.setPJ(clePJ);
+                            doc.setCC(cleCC);
+                            doc.setGroupe(groupe);
+
+                            documentsToUpdate.add(doc);
+                        });
+            }
+
+            repository.saveAll(documentsToUpdate);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Erreur lors de l'import du fichier Excel", e);
+        }
+    }
+
+    private final RepartitionTirageCSRepository repository2;
+
+    public void importClesCS(MultipartFile file)
+    {
+
+        try (Workbook workbook = WorkbookFactory.create(file.getInputStream()))
+        {
+
+            Sheet sheet = workbook.getSheetAt(0);
+
+            List<RepartitionTirageCES> documentsToUpdate = new ArrayList<>();
+
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+
+                Row row = sheet.getRow(i);
+
+                if (row == null)
+                {
+                    continue;
+                }
+
+                // Integer jury = (int) row.getCell(0).getNumericCellValue();
+                String centrEcrit = row.getCell(1).getStringCellValue();
+
+                String clePJ = getCellValue_(row.getCell(3));
+                String cleCC = getCellValue_(row.getCell(4));
+                String groupe = getCellValue_(row.getCell(5));
+
+                repository2.findByCentreEcrit(centrEcrit)
+                        .ifPresent(doc -> {
+                            doc.setPJ(clePJ);
+                            doc.setCC(cleCC);
+                            doc.setGroupe(groupe);
+                            documentsToUpdate.add(doc);
+                        });
+            }
+
+            repository2.saveAll(documentsToUpdate);
+
+        } catch (Exception e) {
+            throw new RuntimeException("Erreur lors de l'import du fichier Excel", e);
+        }
+    }
+
+    private String getCellValue_(Cell cell) {
+
+        if (cell == null) {
+            return "";
+        }
+
+        return switch (cell.getCellType()) {
+            case STRING -> cell.getStringCellValue().trim();
+            case NUMERIC -> String.valueOf((long) cell.getNumericCellValue());
+            case BOOLEAN -> String.valueOf(cell.getBooleanCellValue());
+            default -> "";
+        };
     }
 
 }

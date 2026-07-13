@@ -6,6 +6,7 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface RepartitionTirageCSRepository extends MongoRepository<RepartitionTirageCES, String> {
@@ -13,4 +14,6 @@ public interface RepartitionTirageCSRepository extends MongoRepository<Repartiti
     List<RepartitionTirageCES> findBySession(int session);
 
     void deleteBySession(int session);
+
+    Optional<RepartitionTirageCES> findByCentreEcrit(String centreEcrit);
 }

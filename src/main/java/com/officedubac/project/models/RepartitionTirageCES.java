@@ -30,5 +30,9 @@ public class RepartitionTirageCES
     private Boolean cs;
     private Boolean cp;
 
+    private String CC;
+    private String PJ;
+    private String groupe;
+
     private Map<String, GroupeMatiere> matieres;
 }

@@ -6,6 +6,7 @@ import com.officedubac.project.repository.*;
 import com.officedubac.project.services.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
@@ -50,6 +51,33 @@ public class DataImportController
 
     @Autowired
     private final DecompteFeuilleJuryService decompteFeuilleJuryService;
+
+    @Autowired
+    private final SerieReleveRepository serieReleveRepository;
+
+    @Autowired
+    private final GabaritService gabaritService;
+
+    //SOTINA
+    @GetMapping("/series-releve")
+    public List<SerieReleveDTO> lister() {
+        return serieReleveRepository.findAll().stream()
+                .map(s -> new SerieReleveDTO(s.getId(), s.getCode(), s.getLibelle()))
+                .toList();
+    }
+
+    //SOTINA
+    @GetMapping("/{id}/gabarit")
+    public GabaritDTO gabarit(@PathVariable String id) {
+        return gabaritService.getGabarit(id);
+    }
+
+    //SOTINA
+    @PostMapping("/create-releve")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ReleveNoteResponse creer(@Valid @RequestBody ReleveNoteRequest request) {
+        return gabaritService.creerReleve(request);
+    }
 
     //SOTINA
     @PostMapping(value="/fusion-repartition")
@@ -135,6 +163,26 @@ public class DataImportController
     }
 
     //SOTINA
+    @PostMapping("/import-cles")
+    public ResponseEntity<String> importCles(
+            @RequestParam("file") MultipartFile file) {
+
+        tirageJuryMatService.importCles(file);
+
+        return ResponseEntity.ok("Import terminé avec succès");
+    }
+
+    //SOTINA
+    @PostMapping("/import-cles-CS")
+    public ResponseEntity<String> importCles_(
+            @RequestParam("file") MultipartFile file) {
+
+        tirageJuryMatService.importClesCS(file);
+
+        return ResponseEntity.ok("Import terminé avec succès");
+    }
+
+    //SOTINA
     @Operation(summary="")
     @GetMapping(value="/repCP-by-aca")
     public ResponseEntity<Map<String, List<RepartitionTirageCEP>>> repCP() throws Exception
@@ -157,9 +205,6 @@ public class DataImportController
     {
         return ResponseEntity.ok(this.tirageJuryMatService.getRepCSByAcademie());
     }
-
-    //SOTINA
-
 
     //SOTINA
     @PostMapping("/repartition-cep")
@@ -214,8 +259,6 @@ public class DataImportController
     }
 
     //SOTINA
-
-
     @GetMapping("/horaires")
     public HoraireRequest getHoraires()
     {
@@ -327,11 +370,35 @@ public class DataImportController
         }
     }
 
+    //SOTINA
     @Operation(summary="")
     @GetMapping(value="/get-all-fusion-tirageCGS")
     public ResponseEntity<Map<String, List<RepartitionTirageCGS>>> fusionRep_() throws Exception
     {
         return ResponseEntity.ok(this.tirageJuryMatCGSService.getAllRepTirage());
+    }
+
+
+    @GetMapping("/series-releve/{id}")
+    public SerieDetailResponse detail(@PathVariable String id) {
+        return gabaritService.getDetail(id);
+    }
+
+    @PostMapping("/create-series-releve")
+    @ResponseStatus(HttpStatus.CREATED)
+    public SerieDetailResponse creer(@Valid @RequestBody SerieRequest request) {
+        return gabaritService.creer(request);
+    }
+
+    @PutMapping("/update-series-releve/{id}")
+    public SerieDetailResponse modifier(@PathVariable String id, @Valid @RequestBody SerieRequest request) {
+        return gabaritService.modifier(id, request);
+    }
+
+    @DeleteMapping("/delete-series-releve/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void supprimer(@PathVariable String id) {
+        gabaritService.supprimer(id);
     }
 
 
