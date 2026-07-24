@@ -86,13 +86,114 @@ public class PdfController
     private GabaritA1 gabaritA1;
 
     @Autowired
+    private GabaritA1DeuxiemePartie gabaritA1DP;
+
+    @Autowired
+    private GabaritA2DeuxiemePartie gabaritA2DP;
+
+    @Autowired
+    private GabaritA3DeuxiemePartie gabaritA3DP;
+
+    @Autowired
+    private GabaritA4 gabaritA4;
+
+    @Autowired
+    private GabaritC1erePartie gabaritC1erePartie;
+
+    @Autowired
+    private GabaritC2emePartie gabaritC2emePartie;
+
+    @Autowired
+    private GabaritD2emePartie gabaritD2emePartie;
+
+    @Autowired
+    private GabaritF1DeuxiemePartie gabaritF1DeuxiemePartie;
+
+    @Autowired
+    private GabaritF2DeuxiemePartie gabaritF2DeuxiemePartie;
+
+    @Autowired
+    private GabaritF3 gabaritF3;
+
+    @Autowired
+    private GabaritG2PremierePartie gabaritG2PremierePartie;
+
+    @Autowired
+    private GabaritL1 gabaritL1;
+
+    @Autowired
+    private GabaritL1Option1a gabaritL1Option1a;
+
+    @Autowired
+    private GabaritL1Option1b gabaritL1Option1b;
+
+    @Autowired
+    private GabaritL2 gabaritL2;
+
+    @Autowired
+    private GabaritOptionT1 gabaritOptionT1;
+
+    @Autowired
     private GabaritOptionT2 gabaritOptionT2;
 
+    @Autowired
+    private GabaritPVA2 gabaritPVA2;
+
+    @Autowired
+    private GabaritPVF2 gabaritPVF2;
+
+    @Autowired
+    private GabaritPVF6 gabaritPVF6;
+
+    @Autowired
+    private GabaritS1 gabaritS1;
+
+    @Autowired
+    private GabaritS2 gabaritS2;
+
+    @Autowired
+    private GabaritS3 gabaritS3;
+
+    @Autowired
+    private GabaritS4 gabaritS4;
+
+    @Autowired
+    private GabaritS5 gabaritS5;
+
+    @Autowired
+    private GabaritSerieA3 gabaritSerieA3;
+
+    @Autowired
+    private GabaritSerieA3Ancien gabaritSerieA3Ancien;
+
+    @Autowired
+    private GabaritSerieB gabaritSerieB;
+
+    @Autowired
+    private GabaritSerieD gabaritSerieD;
+
+    @Autowired
+    private GabaritSerieE gabaritSerieE;
+
+    @Autowired
+    private GabaritSerieF1 gabaritSerieF1;
+
+    @Autowired
+    private GabaritSerieF7 gabaritSerieF7;
+
+    @Autowired
+    private GabaritSerieG gabaritSerieG;
+
+    @Autowired
+    private GabaritSerieG1 gabaritSerieG1;
+
+    @Autowired
+    private GabaritSerieG2 gabaritSerieG2;
 
     @PostMapping("/pdf-A1")
     public ResponseEntity<byte[]> genererPdf()
     {
-        byte[] pdf = gabaritOptionT2.genererReleveT2();
+        byte[] pdf = gabaritSerieF7.genererReleveF7();
 
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);
@@ -121,10 +222,7 @@ public class PdfController
 
     @Operation(summary = "Génération de l'étiquette de table - Format A4 Paysage")
     @GetMapping("/generate-etiquette-paysage")
-    public void generateEtiquettes(
-            @RequestParam(value = "matiere") String matiere,
-            @RequestParam(value = "groupe", required = false) String groupe,
-            HttpServletResponse response) throws IOException, DocumentException {
+    public void generateEtiquettes(@RequestParam(value = "matiere") String matiere,@RequestParam(value = "groupe", required = false) String groupe,HttpServletResponse response) throws IOException, DocumentException {
 
         // ================= NORMALISATION MATIERE =================
         if (matiere == null || matiere.trim().isEmpty()) {
@@ -270,8 +368,7 @@ public class PdfController
 
     @Operation(summary = "Génération de l'étiquette de table - Format A4 Paysage")
     @GetMapping("/generate-etiquetteCantine-paysage")
-    public void generateEtiquettesCantine(HttpServletResponse response) throws IOException, DocumentException
-    {
+    public void generateEtiquettesCantine(HttpServletResponse response) throws IOException, DocumentException {
 
         List<FusionRepartitionTirage> sortedList = repository.findAll()
                 .stream()
