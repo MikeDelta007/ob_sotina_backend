@@ -113,7 +113,10 @@ public class DecaissementPdfService {
             // ══════════════════════
             // CORPS : autorisation
             // ══════════════════════
-            BigDecimal montant = mandatement.getMontantTotal();
+            // Le PDF documente le décaissement réel : le montant de l'avance en cas de
+            // paiement AVANCE (montantAvance == montantTotal en cas de paiement TOTALITE).
+            BigDecimal montant = mandatement.getMontantAvance() != null
+                    ? mandatement.getMontantAvance() : mandatement.getMontantTotal();
             String montantLettre = nombreEnLettres(montant.longValue());
             String montantChiffre = String.format("%,.0f", montant).replace(",", " ");
 

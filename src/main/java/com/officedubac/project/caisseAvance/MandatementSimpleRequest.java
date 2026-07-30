@@ -22,4 +22,6 @@ public class MandatementSimpleRequest {
 
     // Requis si typePaiement = AVANCE
     private BigDecimal montantAvance;
+
+    private String description;
 }

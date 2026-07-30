@@ -10,6 +10,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Objects;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Service
@@ -57,9 +58,11 @@ public class CaisseAvanceService {
         return approvisionnementRepo.save(approv);
     }
 
-    public List<Approvisionnement> getAllApprovisionnements() {
+    public List<Approvisionnement> getAllApprovisionnements(Integer annee, Integer mois, Integer semaine) {
         backfillSoldeInitialSiNecessaire(caisseRepo.findTopByOrderByDateCreationDesc().orElse(null));
-        return approvisionnementRepo.findAllByOrderByDateCreationDesc();
+        return approvisionnementRepo.findAllByOrderByDateCreationDesc().stream()
+                .filter(a -> PeriodeUtil.matchPeriode(a.getDate(), annee, mois, semaine))
+                .collect(Collectors.toList());
     }
 
     // ── S'assure qu'aucune part du solde actuel ne reste "non tracée" dans l'historique ──

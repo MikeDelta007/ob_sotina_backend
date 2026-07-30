@@ -34,13 +34,21 @@ public class CaisseAvanceResource {
     }
 
     @GetMapping("/approvisionnements")
-    public ResponseEntity<List<Approvisionnement>> getApprovisionnements() {
-        return ResponseEntity.ok(caisseService.getAllApprovisionnements());
+    public ResponseEntity<List<Approvisionnement>> getApprovisionnements(
+            @RequestParam(required = false) Integer annee,
+            @RequestParam(required = false) Integer mois,
+            @RequestParam(required = false) Integer semaine) {
+        return ResponseEntity.ok(caisseService.getAllApprovisionnements(annee, mois, semaine));
     }
 
     @GetMapping("/approvisionnements/export.xlsx")
-    public void exportApprovisionnements(HttpServletResponse response) throws IOException {
-        byte[] excel = approvisionnementExcelService.genererListe(caisseService.getAllApprovisionnements());
+    public void exportApprovisionnements(
+            @RequestParam(required = false) Integer annee,
+            @RequestParam(required = false) Integer mois,
+            @RequestParam(required = false) Integer semaine,
+            HttpServletResponse response) throws IOException {
+        byte[] excel = approvisionnementExcelService.genererListe(
+                caisseService.getAllApprovisionnements(annee, mois, semaine));
 
         String filename = "approvisionnements_caisse_avance.xlsx";
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");

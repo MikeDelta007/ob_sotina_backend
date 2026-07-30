@@ -20,6 +20,8 @@ public class MandatementCumulatifRequest {
     // Requis si typePaiement = AVANCE
     private BigDecimal montantAvanceGlobal;
 
+    private String description;
+
     @Data
     public static class Ligne {
         @NotNull @Positive

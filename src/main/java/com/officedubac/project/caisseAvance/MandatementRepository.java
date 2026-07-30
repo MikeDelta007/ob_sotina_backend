@@ -7,4 +7,5 @@ public interface MandatementRepository extends MongoRepository<Mandatement, Stri
     List<Mandatement> findAllByOrderByDateCreationDesc();
     List<Mandatement> findByCreePar(String username);
     long countByCreePar(String username);
+    boolean existsByFacturesNumero(String numero);
 }

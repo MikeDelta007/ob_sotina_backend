@@ -24,20 +24,31 @@ public class MandatementResource {
     private final MandatementExcelService excelService;
 
     @GetMapping
-    public ResponseEntity<List<Mandatement>> getAll() {
-        return ResponseEntity.ok(mandatementService.getAll());
+    public ResponseEntity<List<Mandatement>> getAll(
+            @RequestParam(required = false) Integer annee,
+            @RequestParam(required = false) Integer mois,
+            @RequestParam(required = false) Integer semaine) {
+        return ResponseEntity.ok(mandatementService.getAll(annee, mois, semaine));
     }
 
-    // ── Payer le reliquat d'un mandatement (mode AVANCE) ──
-    @PutMapping("/{id}/payer-reliquat")
-    public ResponseEntity<Mandatement> payerReliquat(@PathVariable String id) {
-        return ResponseEntity.ok(mandatementService.payerReliquat(id));
+    // ── Payer le reliquat d'un mandatement (mode AVANCE) — chèque + CNI requis si le
+    //    montant du reliquat impose un paiement par chèque ──
+    @PutMapping(value = "/{id}/payer-reliquat", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ResponseEntity<Mandatement> payerReliquat(
+            @PathVariable String id,
+            @RequestParam(value = "pdfCheque", required = false) MultipartFile pdfCheque,
+            @RequestParam(value = "pdfCni",    required = false) MultipartFile pdfCni) {
+        return ResponseEntity.ok(mandatementService.payerReliquat(id, pdfCheque, pdfCni));
     }
 
     // ── Exporter la liste des mandatements (Excel) ──
     @GetMapping("/export.xlsx")
-    public void exportMandatements(HttpServletResponse response) throws IOException {
-        byte[] excel = excelService.genererListe(mandatementService.getAll());
+    public void exportMandatements(
+            @RequestParam(required = false) Integer annee,
+            @RequestParam(required = false) Integer mois,
+            @RequestParam(required = false) Integer semaine,
+            HttpServletResponse response) throws IOException {
+        byte[] excel = excelService.genererListe(mandatementService.getAll(annee, mois, semaine));
 
         String filename = "mandatements_caisse_avance.xlsx";
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");

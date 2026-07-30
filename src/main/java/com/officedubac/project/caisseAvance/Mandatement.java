@@ -46,11 +46,17 @@ public class Mandatement {
     // ── Reliquat (si typePaiement = AVANCE) ──
     private boolean reliquatPaye;
     private LocalDateTime dateReliquatPaye;
+    private ModePaiement modePaiementReliquat;   // mode réel du paiement du reliquat
+    private String urlPdfChequeReliquat;         // si modePaiementReliquat = CHEQUE
+    private String urlPdfCniReliquat;            // si modePaiementReliquat = CHEQUE
 
     // ── Factures embedded ──
     // Simple  : 1 facture
     // Cumulatif : N factures
     private List<FactureEmbedded> factures;
+
+    // ── Observations libres sur le mandatement ──
+    private String description;
 
     // ── Auteur ──
     private String creePar;

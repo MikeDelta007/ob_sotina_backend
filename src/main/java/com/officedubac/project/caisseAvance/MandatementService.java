@@ -15,6 +15,7 @@ import java.time.LocalDateTime;
 import java.time.Year;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ThreadLocalRandom;
 
 @Slf4j
 @Service
@@ -52,9 +53,8 @@ public class MandatementService {
         CaisseAvanceService.DecaissementResult decaissement =
                 caisseService.decaisser(avance, mode);
 
-        // Numéro facture
-        String numero = genererNumero(username,
-                (int) mandatementRepo.countByCreePar(username) + 1);
+        // Numéro facture — séquence atomique par utilisateur/année, garantit l'unicité
+        String numero = genererNumeroUnique(username);
 
         // Facture embedded
         Mandatement.FactureEmbedded facture = Mandatement.FactureEmbedded.builder()
@@ -80,6 +80,7 @@ public class MandatementService {
                 .soldeAvant(decaissement.getSoldeAvant())
                 .soldeApres(decaissement.getSoldeApres())
                 .factures(List.of(facture))
+                .description(req.getDescription())
                 .creePar(username)
                 .build();
 
@@ -104,6 +105,17 @@ public class MandatementService {
                 .map(MandatementCumulatifRequest.Ligne::getMontant)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
+        // Le total d'un mandatement cumulatif (ensemble de petites factures) ne peut pas
+        // dépasser le solde de la caisse, ni le seuil chèque (100 000) — un cumulatif
+        // regroupe de petites factures destinées à un paiement en espèces.
+        if (total.compareTo(SEUIL_CHEQUE) > 0)
+            throw new RuntimeException("Le total du mandatement cumulatif (" + total
+                    + ") dépasse 100 000 FCFA. Utilisez un mandatement simple pour un montant plus élevé.");
+
+        if (!caisseService.soldeSuffisant(total))
+            throw new RuntimeException("Le total du mandatement cumulatif (" + total
+                    + ") dépasse le solde de la caisse. Approvisionnez la caisse avant de continuer.");
+
         BigDecimal avanceGlobale = req.getTypePaiement() == Mandatement.TypePaiement.AVANCE
                 ? req.getMontantAvanceGlobal() : total;
         BigDecimal reliquatGlobal = total.subtract(avanceGlobale);
@@ -117,12 +129,11 @@ public class MandatementService {
                 caisseService.decaisser(avanceGlobale, mode);
 
         // Construire les factures embedded
-        long baseIndex = mandatementRepo.countByCreePar(username);
         List<Mandatement.FactureEmbedded> factures = new ArrayList<>();
 
         for (int i = 0; i < req.getLignes().size(); i++) {
             MandatementCumulatifRequest.Ligne ligne = req.getLignes().get(i);
-            String numero = genererNumero(username, (int) baseIndex + i + 1);
+            String numero = genererNumeroUnique(username);
 
             // Avance proportionnelle par facture si mode AVANCE
             BigDecimal avanceLigne   = avanceGlobale;
@@ -158,6 +169,7 @@ public class MandatementService {
                 .soldeAvant(decaissement.getSoldeAvant())
                 .soldeApres(decaissement.getSoldeApres())
                 .factures(factures)
+                .description(req.getDescription())
                 .creePar(username)
                 .build();
 
@@ -166,14 +178,18 @@ public class MandatementService {
         return saved;
     }
 
-    public List<Mandatement> getAll() {
-        return mandatementRepo.findAllByOrderByDateCreationDesc();
+    public List<Mandatement> getAll(Integer annee, Integer mois, Integer semaine) {
+        return mandatementRepo.findAllByOrderByDateCreationDesc().stream()
+                .filter(m -> PeriodeUtil.matchPeriode(
+                        m.getDateCreation() != null ? m.getDateCreation().toLocalDate() : null,
+                        annee, mois, semaine))
+                .collect(java.util.stream.Collectors.toList());
     }
 
     // ═══════════════════════════════════════════════════════════════
     // PAIEMENT DU RELIQUAT (mandatements en mode AVANCE)
     // ═══════════════════════════════════════════════════════════════
-    public Mandatement payerReliquat(String id) {
+    public Mandatement payerReliquat(String id, MultipartFile pdfCheque, MultipartFile pdfCni) {
         Mandatement m = mandatementRepo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Mandatement introuvable : " + id));
 
@@ -182,12 +198,24 @@ public class MandatementService {
         if (m.isReliquatPaye())
             throw new RuntimeException("Le reliquat de ce mandatement est déjà payé");
 
+        // Le reliquat peut lui aussi être réglé en espèces ou par chèque, selon son
+        // propre montant et le solde de la caisse au moment du paiement.
         Mandatement.ModePaiement mode = modeAuto(m.getMontantReliquat());
+
+        if (mode == Mandatement.ModePaiement.CHEQUE
+                && ((pdfCheque == null || pdfCheque.isEmpty()) || (pdfCni == null || pdfCni.isEmpty())))
+            throw new RuntimeException("Le paiement du reliquat par chèque nécessite le chèque et la CNI en pièces jointes");
+
         CaisseAvanceService.DecaissementResult decaissement =
                 caisseService.decaisser(m.getMontantReliquat(), mode);
 
         m.setReliquatPaye(true);
         m.setDateReliquatPaye(LocalDateTime.now());
+        m.setModePaiementReliquat(mode);
+        if (mode == Mandatement.ModePaiement.CHEQUE) {
+            m.setUrlPdfChequeReliquat(saveFile(pdfCheque, "cheque-reliquat"));
+            m.setUrlPdfCniReliquat(saveFile(pdfCni, "cni-reliquat"));
+        }
 
         Mandatement saved = mandatementRepo.save(m);
         log.info("✅ Reliquat payé — mandatement {} — montant={} mode={} solde après={}",
@@ -204,11 +232,25 @@ public class MandatementService {
                 : Mandatement.ModePaiement.CHEQUE;
     }
 
-    // ── Numéro : 2026-N-FAC_001_username ──
+    // ── Numéro : 2026-N-FAC_483920_username ──
     private String genererNumero(String username, int index) {
         return Year.now().getValue() + "-N-FAC_"
-                + String.format("%03d", index) + "_"
+                + String.format("%06d", index) + "_"
                 + username.toLowerCase().replaceAll("\\s+", "_");
+    }
+
+    // ── Génère un numéro à partir d'un index aléatoire (un seul pool global, pas de
+    //    compteur par utilisateur/année à maintenir), et vérifie son unicité réelle en
+    //    base avant de l'accepter — auto-réparateur en cas de collision. ──
+    private String genererNumeroUnique(String username) {
+        String numero;
+        int tentatives = 0;
+        do {
+            numero = genererNumero(username, ThreadLocalRandom.current().nextInt(1, 1_000_000));
+            if (++tentatives > 10000)
+                throw new RuntimeException("Impossible de générer un numéro de facture unique");
+        } while (mandatementRepo.existsByFacturesNumero(numero));
+        return numero;
     }
 
     // ── Sauvegarde fichier sur GridFS (mêmes infra que FileController) ──

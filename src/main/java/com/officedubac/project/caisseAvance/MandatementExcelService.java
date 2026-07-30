@@ -23,7 +23,7 @@ public class MandatementExcelService {
             DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm", Locale.FRENCH);
 
     // Colonnes contenant des montants (nécessitent une largeur suffisante pour éviter les ####)
-    private static final int[] COLONNES_MONTANT = {5, 6, 7, 11, 12, 13, 14};
+    private static final int[] COLONNES_MONTANT = {5, 6, 7, 12, 13, 14, 15};
 
     public byte[] genererListe(List<Mandatement> mandatements) {
         try (XSSFWorkbook workbook = new XSSFWorkbook();
@@ -49,8 +49,9 @@ public class MandatementExcelService {
 
             String[] headers = {
                 "Date", "N° Facture(s)", "Motif(s)", "Type", "Mode de règlement",
-                "Montant total", "Avance", "Reliquat", "Reliquat payé", "Date paiement reliquat",
-                "Mode de paiement", "Décaissé", "Montant décaissé", "Solde avant", "Solde après", "Créé par"
+                "Montant total", "Avance", "Reliquat", "Reliquat payé", "Mode reliquat", "Date paiement reliquat",
+                "Mode de paiement", "Décaissé", "Montant décaissé", "Solde avant", "Solde après", "Créé par",
+                "Observations"
             };
             Row headerRow = sheet.createRow(0);
             for (int i = 0; i < headers.length; i++) {
@@ -104,6 +105,9 @@ public class MandatementExcelService {
                         && m.getMontantReliquat().compareTo(BigDecimal.ZERO) > 0;
                 row.createCell(col++).setCellValue(!aReliquat ? "—" : (m.isReliquatPaye() ? "Payé" : "En attente"));
                 row.createCell(col++).setCellValue(
+                    m.getModePaiementReliquat() == null ? "—"
+                        : (m.getModePaiementReliquat() == Mandatement.ModePaiement.ESPECES ? "Espèces" : "Chèque"));
+                row.createCell(col++).setCellValue(
                     m.getDateReliquatPaye() != null ? m.getDateReliquatPaye().format(DATETIME_FR) : "—");
 
                 row.createCell(col++).setCellValue(
@@ -123,7 +127,8 @@ public class MandatementExcelService {
                 soldeApresCell.setCellValue(m.getSoldeApres() != null ? m.getSoldeApres().doubleValue() : 0d);
                 soldeApresCell.setCellStyle(montantStyle);
 
-                row.createCell(col).setCellValue(m.getCreePar() != null ? m.getCreePar() : "—");
+                row.createCell(col++).setCellValue(m.getCreePar() != null ? m.getCreePar() : "—");
+                row.createCell(col).setCellValue(m.getDescription() != null ? m.getDescription() : "—");
 
                 if (m.getMontantTotal() != null) totalGeneral = totalGeneral.add(m.getMontantTotal());
                 if (m.getMontantDecaisse() != null) totalDecaisseGeneral = totalDecaisseGeneral.add(m.getMontantDecaisse());
@@ -143,7 +148,7 @@ public class MandatementExcelService {
             totalReliquatCell.setCellValue(totalReliquatEnAttente.doubleValue());
             totalReliquatCell.setCellStyle(totalStyle);
 
-            Cell totalDecaisseCell = totalRow.createCell(12);
+            Cell totalDecaisseCell = totalRow.createCell(13);
             totalDecaisseCell.setCellValue(totalDecaisseGeneral.doubleValue());
             totalDecaisseCell.setCellStyle(totalStyle);
 
