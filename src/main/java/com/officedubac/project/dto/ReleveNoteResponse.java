@@ -9,5 +9,6 @@ public record ReleveNoteResponse(
         String serieCode,
         Double moyenneGenerale,
         String mention,
-        List<LigneNoteResponse> lignes
+        List<LigneNoteResponse> lignesGroupe1,
+        List<LigneNoteResponse> lignesGroupe2
 ) {}

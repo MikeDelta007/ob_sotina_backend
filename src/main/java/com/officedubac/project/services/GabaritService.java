@@ -64,53 +64,70 @@ public class GabaritService {
 
         double totalPoints = 0;
         double totalCoeff = 0;
-        List<LigneNote> lignes = new ArrayList<>();
+        List<LigneNote> lignesGroupe1 = new ArrayList<>();
+        List<LigneNote> lignesGroupe2 = new ArrayList<>();
 
-        for (LigneNoteRequest ligneReq : request.lignes()) {
+        // Traitement des matières du groupe 1
+        for (LigneNoteRequest ligneReq : request.lignesGroupe1()) {
+
             validerNote(ligneReq.note());
 
-            int groupe = validerGroupe(ligneReq.groupe());
             LigneNote ligne = new LigneNote();
-            ligne.setGroupe(groupe);
+            ligne.setGroupe(1);
 
-            String libelle;
-            double coefficient;
-
-            if (groupe == 1) {
-                // Groupe 1 : matière fixe du référentiel. On NE FAIT JAMAIS confiance au
-                // libellé/coefficient envoyés par le front, on les relit depuis la série.
-                if (ligneReq.matiereRefId() == null) {
-                    throw new IllegalArgumentException("matiereRefId requis pour une ligne du groupe 1");
-                }
-                MatiereReferentiel ref = trouverMatiere(serie, ligneReq.matiereRefId());
-                ligne.setMatiereRefId(ref.getId());
-                libelle = ref.getLibelle();
-                coefficient = ref.getCoefficient();
-            } else {
-                // Groupe 2 : matière choisie librement par le candidat/le jury
-                if (ligneReq.libelleMatiere() == null || ligneReq.libelleMatiere().isBlank()) {
-                    throw new IllegalArgumentException("Le libellé de la matière est obligatoire pour le groupe 2");
-                }
-                if (ligneReq.coefficient() == null || ligneReq.coefficient() <= 0) {
-                    throw new IllegalArgumentException("Le coefficient doit être positif pour le groupe 2");
-                }
-                libelle = ligneReq.libelleMatiere();
-                coefficient = ligneReq.coefficient();
+            if (ligneReq.matiereRefId() == null) {
+                throw new IllegalArgumentException("matiereRefId requis pour une ligne du groupe 1");
             }
 
+            MatiereReferentiel ref = trouverMatiere(serie, ligneReq.matiereRefId());
+
+            double coefficient = ref.getCoefficient();
             double points = ligneReq.note() * coefficient;
 
-            ligne.setLibelleMatiere(libelle);
+            ligne.setMatiereRefId(ref.getId());
+            ligne.setLibelleMatiere(ref.getLibelle());
             ligne.setCoefficient(coefficient);
             ligne.setNote(ligneReq.note());
             ligne.setPoints(points);
-            lignes.add(ligne);
+
+            lignesGroupe1.add(ligne);
 
             totalPoints += points;
             totalCoeff += coefficient;
         }
 
-        releve.setLignes(lignes);
+// Traitement des matières du groupe 2
+        for (LigneNoteRequest ligneReq : request.lignesGroupe2()) {
+
+            validerNote(ligneReq.note());
+
+            LigneNote ligne = new LigneNote();
+            ligne.setGroupe(2);
+
+            if (ligneReq.libelleMatiere() == null || ligneReq.libelleMatiere().isBlank()) {
+                throw new IllegalArgumentException("Le libellé de la matière est obligatoire pour le groupe 2");
+            }
+
+            if (ligneReq.coefficient() == null || ligneReq.coefficient() <= 0) {
+                throw new IllegalArgumentException("Le coefficient doit être positif pour le groupe 2");
+            }
+
+            double coefficient = ligneReq.coefficient();
+            double points = ligneReq.note() * coefficient;
+
+            ligne.setLibelleMatiere(ligneReq.libelleMatiere());
+            ligne.setCoefficient(coefficient);
+            ligne.setNote(ligneReq.note());
+            ligne.setPoints(points);
+
+            lignesGroupe2.add(ligne);
+
+            totalPoints += points;
+            totalCoeff += coefficient;
+        }
+
+        releve.setLignesGroupe1(lignesGroupe1);
+        releve.setLignesGroupe2(lignesGroupe2);
 
         double moyenne = totalCoeff > 0 ? totalPoints / totalCoeff : 0;
         releve.setMoyenneGenerale(round2(moyenne));
@@ -153,8 +170,23 @@ public class GabaritService {
     }
 
     private ReleveNoteResponse toResponse(ReleveNotes releve) {
-        List<LigneNoteResponse> lignes = releve.getLignes().stream()
-                .map(l -> new LigneNoteResponse(l.getGroupe(), l.getLibelleMatiere(), l.getCoefficient(), l.getNote(), l.getPoints()))
+
+        List<LigneNoteResponse> lignesGroupe1 = releve.getLignesGroupe1().stream()
+                .map(l -> new LigneNoteResponse(
+                        l.getGroupe(),
+                        l.getLibelleMatiere(),
+                        l.getCoefficient(),
+                        l.getNote(),
+                        l.getPoints()))
+                .toList();
+
+        List<LigneNoteResponse> lignesGroupe2 = releve.getLignesGroupe2().stream()
+                .map(l -> new LigneNoteResponse(
+                        l.getGroupe(),
+                        l.getLibelleMatiere(),
+                        l.getCoefficient(),
+                        l.getNote(),
+                        l.getPoints()))
                 .toList();
 
         return new ReleveNoteResponse(
@@ -164,7 +196,8 @@ public class GabaritService {
                 releve.getSerieCode(),
                 releve.getMoyenneGenerale(),
                 releve.getMention(),
-                lignes
+                lignesGroupe1,
+                lignesGroupe2
         );
     }
 

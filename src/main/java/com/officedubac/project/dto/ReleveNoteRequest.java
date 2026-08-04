@@ -14,5 +14,6 @@ public record ReleveNoteRequest(
         String numeroTable,
         String session,
         String annee,
-        List<LigneNoteRequest> lignes
+        List<LigneNoteRequest> lignesGroupe1,
+        List<LigneNoteRequest> lignesGroupe2
 ) {}

@@ -40,7 +40,8 @@ public class ReleveNotes
     private String annee;
     private Double moyenneGenerale;
     private String mention;
-    private List<LigneNote> lignes = new ArrayList<>();
+    private List<LigneNote> lignesGroupe1 = new ArrayList<>();
+    private List<LigneNote> lignesGroupe2 = new ArrayList<>();
     @CreatedDate
     private Instant createdAt;
 }
