@@ -30,7 +30,7 @@ public class RelevNoteA1Service {
 
     public RelevNoteA1 creer(RelevNoteA1SaisieRequest request) {
         RelevNoteA1 releve = new RelevNoteA1();
-        releve.setCreatedAt(Instant.now()); // NOUVEAU : horodatage à la création uniquement
+        releve.setCreatedAt(Instant.now());
         appliquer(releve, request);
         return repository.save(releve);
     }
@@ -38,7 +38,7 @@ public class RelevNoteA1Service {
     public RelevNoteA1 mettreAJour(String id, RelevNoteA1SaisieRequest request) {
         RelevNoteA1 releve = repository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("Relevé introuvable : " + id));
-        appliquer(releve, request); // createdAt existant préservé (non réinitialisé ici)
+        appliquer(releve, request);
         return repository.save(releve);
     }
 
@@ -47,12 +47,21 @@ public class RelevNoteA1Service {
                 .orElseThrow(() -> new IllegalArgumentException("Relevé introuvable : " + id));
     }
 
-    /**
-     * NOUVEAU : liste paginée des relevés, sous forme allégée (RelevNoteA1Resume)
-     * pour l'affichage en tableau côté frontend.
-     */
-    public Page<RelevNoteA1Resume> lister(Pageable pageable) {
-        return repository.findAll(pageable).map(this::versResume);
+    public Page<RelevNoteA1Resume> lister(String numeroTable, Integer annee, Pageable pageable) {
+        boolean hasNumeroTable = numeroTable != null && !numeroTable.isBlank();
+        boolean hasAnnee = annee != null;
+
+        Page<RelevNoteA1> page;
+        if (hasNumeroTable && hasAnnee) {
+            page = repository.findByCandidat_NumeroTableContainingIgnoreCaseAndAnnee(numeroTable, annee, pageable);
+        } else if (hasNumeroTable) {
+            page = repository.findByCandidat_NumeroTableContainingIgnoreCase(numeroTable, pageable);
+        } else if (hasAnnee) {
+            page = repository.findByAnnee(annee, pageable);
+        } else {
+            page = repository.findAll(pageable);
+        }
+        return page.map(this::versResume);
     }
 
     private RelevNoteA1Resume versResume(RelevNoteA1 r) {
@@ -64,6 +73,7 @@ public class RelevNoteA1Service {
                 : r.getMentionPremierGroupe();
         return new RelevNoteA1Resume(
                 r.getId(),
+                r.getCandidat() != null ? r.getCandidat().getNumeroTable() : null,
                 r.getCandidat() != null ? r.getCandidat().getNomPrenom() : null,
                 r.getJuryNumero(),
                 r.getAnnee(),
@@ -75,7 +85,7 @@ public class RelevNoteA1Service {
     }
 
     // ---------------------------------------------------------------
-    // Logique de calcul (inchangée)
+    // Logique de calcul
     // ---------------------------------------------------------------
 
     private void appliquer(RelevNoteA1 releve, RelevNoteA1SaisieRequest request) {
@@ -90,6 +100,10 @@ public class RelevNoteA1Service {
         candidat.setEtablissement(request.getEtablissement());
         candidat.setIndicatif(request.getIndicatif());
         candidat.setOptions(request.getOptions());
+        // NOUVEAU : N° de table, nationalité (N), nombre de fois (F)
+        candidat.setNumeroTable(request.getNumeroTable());
+        candidat.setNationalite(request.getNationalite());
+        candidat.setNombreDeFois(request.getNombreDeFois());
         releve.setCandidat(candidat);
 
         // ---- 1er groupe ----
@@ -126,10 +140,12 @@ public class RelevNoteA1Service {
             for (RelevNoteA1SaisieRequest.EpreuveOraleControleSaisie s : request.getEpreuvesOralesControle()) {
                 EpreuveOraleControle c = new EpreuveOraleControle();
                 c.setMatiereChoisie(s.getMatiereChoisie());
+                c.setCoefficient(s.getCoefficient());
                 c.setRappelPointsObtenus1erGroupe(s.getRappelPointsObtenus1erGroupe());
                 c.setNouvelleNoteSur20(s.getNouvelleNoteSur20());
                 int rappel = defaut(s.getRappelPointsObtenus1erGroupe());
-                int nouveauxPoints = defaut(s.getNouvelleNoteSur20());
+                int coefficient = defaut(s.getCoefficient());
+                int nouveauxPoints = defaut(s.getNouvelleNoteSur20()) * coefficient;
                 c.setPointsObtenusEpreuveControle(nouveauxPoints);
                 c.setDifferenceEnPlus(Math.max(0, nouveauxPoints - rappel));
                 controles.add(c);
@@ -144,7 +160,7 @@ public class RelevNoteA1Service {
         int totalProvisoire = totalPremierGroupe + totalDeuxiemeGroupe + totalDifferencesControle;
         releve.setTotalProvisoire(totalProvisoire);
 
-        // ---- Education Physique ----
+        // ---- Education Physique : bonus si note > 10, malus si note < 10 ----
         EducationPhysique ep = new EducationPhysique();
         if (request.getEducationPhysique() != null) {
             ep.setNote(request.getEducationPhysique().getNote());

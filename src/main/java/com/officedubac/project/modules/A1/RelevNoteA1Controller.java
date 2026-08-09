@@ -1,10 +1,10 @@
 package com.officedubac.project.modules.A1;
 
 import com.officedubac.project.modules.A1.dto.RelevNoteA1Resume;
-import com.officedubac.project.modules.A1.pdf.RelevNoteA1PdfService;
-import com.officedubac.project.modules.A1.service.RelevNoteA1Service;
 import com.officedubac.project.modules.A1.dto.RelevNoteA1SaisieRequest;
+import com.officedubac.project.modules.A1.pdf.RelevNoteA1PdfService;
 import com.officedubac.project.modules.A1.model.RelevNoteA1;
+import com.officedubac.project.modules.A1.service.RelevNoteA1Service;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -45,10 +45,12 @@ public class RelevNoteA1Controller {
     public Page<RelevNoteA1Resume> lister(
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size,
-            @RequestParam(defaultValue = "desc") String sort
+            @RequestParam(defaultValue = "desc") String sort,
+            @RequestParam(required = false) String numeroTable,
+            @RequestParam(required = false) Integer annee
     ) {
         Sort.Direction direction = "asc".equalsIgnoreCase(sort) ? Sort.Direction.ASC : Sort.Direction.DESC;
-        return service.lister(PageRequest.of(page, size, Sort.by(direction, "createdAt")));
+        return service.lister(numeroTable, annee, PageRequest.of(page, size, Sort.by(direction, "createdAt")));
     }
 
     @GetMapping(value = "/{id}/pdf", produces = MediaType.APPLICATION_PDF_VALUE)

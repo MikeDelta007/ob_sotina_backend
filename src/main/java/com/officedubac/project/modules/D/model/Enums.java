@@ -2,9 +2,9 @@ package com.officedubac.project.modules.D.model;
 
 public class Enums {
 
-    public enum TypeEpreuve {
-        ECRIT,
-        ORAL
+    public enum TypeSession {
+        NORMALE,
+        REMPLACEMENT
     }
 
     public enum DecisionJury {
@@ -19,17 +19,5 @@ public class Enums {
         ASSEZ_BIEN,
         BIEN,
         TRES_BIEN
-    }
-
-    public enum TypeSession {
-        NORMALE,
-        REMPLACEMENT
-    }
-
-    public enum TypeFacultative {
-        LANGUE,
-        DESSIN,
-        COUTURE,
-        MUSIQUE
     }
 }

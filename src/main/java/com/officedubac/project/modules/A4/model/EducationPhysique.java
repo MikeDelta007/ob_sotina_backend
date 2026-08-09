@@ -2,7 +2,7 @@ package com.officedubac.project.modules.A4.model;
 
 public class EducationPhysique {
 
-    private Integer note; // sur 20
+    private Integer note;
     private Integer pointsPositifs;
     private Integer pointsNegatifs;
 

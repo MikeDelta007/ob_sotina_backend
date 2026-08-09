@@ -1,16 +1,15 @@
 package com.officedubac.project.modules.A3.model;
 
-import com.officedubac.project.modules.A3.model.Enums.TypeFacultative;
-
 /**
- * Bloc "EPR. FACULTATIVE(S)" du formulaire : Langue / Dessin, Couture ou
- * Musique. Seuls les points au-dessus de la moyenne (10/20) comptent.
+ * Bloc "EPR. FACULTATIVES" : Langue / Dessin, Musique ou Couture.
+ * Seuls les points AU-DESSUS de la moyenne (10/20) comptent, et uniquement
+ * en cas de mention BIEN ou TRES BIEN (règle imprimée sur le formulaire).
  */
 public class EpreuveFacultative {
 
     private TypeFacultative type;
-    private Integer note; // sur 20
-    private Integer pointsAuDessusMoyenne; // = max(0, note - 10)
+    private Integer note;
+    private Integer pointsAuDessusMoyenne;
 
     public TypeFacultative getType() { return type; }
     public void setType(TypeFacultative type) { this.type = type; }

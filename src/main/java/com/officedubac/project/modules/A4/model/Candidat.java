@@ -1,38 +1,49 @@
 package com.officedubac.project.modules.A4.model;
 
-/**
- * Le bloc d'identité du candidat sur le formulaire A4 est un encadré libre
- * (pas de lignes à blancs individuelles comme sur A1/A3) : une légende à
- * gauche ("1e ligne : Mr/Mme/Mlle Prénom NOM, Etabl. d'orig., Nationalité"
- * / "2e ligne : date et lieu de naissance" / "3e ligne : Série, Options et
- * Langues choisies, Epr. fac., Educ. phys." / "4e ligne : EAF") explique ce
- * qui doit être écrit à la main dans l'encadré à droite. On modélise donc
- * ce bloc comme 4 lignes de texte libre correspondant chacune à une ligne
- * du formulaire, plutôt que des champs unitaires.
- */
+import java.time.LocalDate;
+
 public class Candidat {
 
-    /** Mr/Mme/Mlle + Prénom + NOM + Etabl. d'orig. ou Ind. + Nationalité */
-    private String ligne1IdentiteEtablissement;
+    private String nomPrenom;
+    private LocalDate dateNaissance;
+    private String lieuNaissance;
+    private String etablissement;
+    private String indicatif;
+    private String options;
 
-    /** Date et lieu de naissance */
-    private String ligne2Naissance;
+    /** N° de table (imprimé en haut du formulaire) */
+    private String numeroTable;
 
-    /** Série, Options et Langues choisies, Epr. facultative, Educ. physique (Apte/Inapte) */
-    private String ligne3SerieOptions;
+    /** (N) — nationalité du candidat */
+    private String nationalite;
 
-    /** EAF : matières subies en session, centre, notes/20, établissement d'origine */
-    private String ligne4Eaf;
+    /** (F) — nombre de fois que le candidat se présente à l'examen */
+    private String nombreDeFois;
 
-    public String getLigne1IdentiteEtablissement() { return ligne1IdentiteEtablissement; }
-    public void setLigne1IdentiteEtablissement(String v) { this.ligne1IdentiteEtablissement = v; }
+    public String getNomPrenom() { return nomPrenom; }
+    public void setNomPrenom(String nomPrenom) { this.nomPrenom = nomPrenom; }
 
-    public String getLigne2Naissance() { return ligne2Naissance; }
-    public void setLigne2Naissance(String ligne2Naissance) { this.ligne2Naissance = ligne2Naissance; }
+    public LocalDate getDateNaissance() { return dateNaissance; }
+    public void setDateNaissance(LocalDate dateNaissance) { this.dateNaissance = dateNaissance; }
 
-    public String getLigne3SerieOptions() { return ligne3SerieOptions; }
-    public void setLigne3SerieOptions(String ligne3SerieOptions) { this.ligne3SerieOptions = ligne3SerieOptions; }
+    public String getLieuNaissance() { return lieuNaissance; }
+    public void setLieuNaissance(String lieuNaissance) { this.lieuNaissance = lieuNaissance; }
 
-    public String getLigne4Eaf() { return ligne4Eaf; }
-    public void setLigne4Eaf(String ligne4Eaf) { this.ligne4Eaf = ligne4Eaf; }
+    public String getEtablissement() { return etablissement; }
+    public void setEtablissement(String etablissement) { this.etablissement = etablissement; }
+
+    public String getIndicatif() { return indicatif; }
+    public void setIndicatif(String indicatif) { this.indicatif = indicatif; }
+
+    public String getOptions() { return options; }
+    public void setOptions(String options) { this.options = options; }
+
+    public String getNumeroTable() { return numeroTable; }
+    public void setNumeroTable(String numeroTable) { this.numeroTable = numeroTable; }
+
+    public String getNationalite() { return nationalite; }
+    public void setNationalite(String nationalite) { this.nationalite = nationalite; }
+
+    public String getNombreDeFois() { return nombreDeFois; }
+    public void setNombreDeFois(String nombreDeFois) { this.nombreDeFois = nombreDeFois; }
 }

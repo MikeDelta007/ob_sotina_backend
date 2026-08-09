@@ -2,44 +2,47 @@ package com.officedubac.project.modules.F1.model;
 
 import java.util.List;
 
-import static com.officedubac.project.modules.F1.model.Enums.TypeEpreuve.ECRIT;
-import static com.officedubac.project.modules.F1.model.Enums.TypeEpreuve.ORAL;
+import static com.officedubac.project.modules.F1.model.GroupeEpreuves.DEUXIEME;
+import static com.officedubac.project.modules.F1.model.GroupeEpreuves.PREMIER;
+import static com.officedubac.project.modules.F1.model.TypeEpreuve.ECRIT;
+import static com.officedubac.project.modules.F1.model.TypeEpreuve.ORAL;
 
 /**
- * Référentiel FIXE des matières et coefficients de la Série F1, tel
- * qu'imprimé sur le formulaire officiel "RELEVE DE NOTES" de l'Office du
- * Baccalauréat - UCAD Dakar.
- *
- * Comme A3, B, D et E, le barème complet (580 points) est atteint dès le
- * 1er groupe d'épreuves : le 2eme groupe ne comporte aucune matière écrite
- * propre, il ne fait que reporter ce total et l'ajuster.
+ * Référentiel figé des matières, coefficients et barèmes de la série F1
+ * (Sciences et Techniques Industrielles (Mécanique)), tel qu'imprimé sur le gabarit officiel de
+ * l'Office du Baccalauréat.
  */
 public final class MatieresF1 {
 
     private MatieresF1() { }
 
-    public static final Matiere FRANCAIS_ECRIT   = new Matiere("FR_ECRIT",      "Français (écrit)",              2, ECRIT);
-    public static final Matiere FRANCAIS_ORAL    = new Matiere("FR_ORAL",       "Français (oral)",               1, ORAL);
-    public static final Matiere MATHEMATIQUES    = new Matiere("MATH",          "Mathématiques",                 4, ECRIT);
-    public static final Matiere MECANIQUE        = new Matiere("MECANIQUE",     "Mécanique",                     4, ECRIT);
-    public static final Matiere CONSTRUCTION_MECANIQUE = new Matiere("CONSTR_MECA", "Construction Mécanique",    4, ECRIT);
-    public static final Matiere ANALYSE_FABRICATION = new Matiere("ANALYSE_FABR", "Analyse de Fabrication",     4, ECRIT);
-    public static final Matiere ELECTRICITE_METAL = new Matiere("ELEC_METAL",   "Electricité - Métal",          2, ECRIT);
-    public static final Matiere TECHNOLOGIE_AUTOMATISMES = new Matiere("TECHNO_AUTOM", "Technologie - Automatismes", 2, ECRIT);
-    public static final Matiere ANGLAIS          = new Matiere("ANGLAIS",       "Anglais",                       2, ORAL);
-    public static final Matiere EPREUVE_PRATIQUE = new Matiere("EPREUVE_PRATIQUE", "Epreuve Pratique",           4, ECRIT);
+    // ---- 1er groupe d'épreuves ----
+    public static final Matiere FR_ECRIT = new Matiere("FR_ECRIT", "Français (écrit)", 2, 40, ECRIT, PREMIER);
+    public static final Matiere FR_ORAL = new Matiere("FR_ORAL", "Français (oral)", 1, 20, ORAL, PREMIER);
+    public static final Matiere MATH = new Matiere("MATH", "Mathématiques", 4, 80, ECRIT, PREMIER);
+    public static final Matiere MECANIQUE = new Matiere("MECANIQUE", "Mécanique", 4, 80, ECRIT, PREMIER);
+    public static final Matiere CONST_MECA = new Matiere("CONST_MECA", "Construction Mécanique", 4, 80, ECRIT, PREMIER);
+    public static final Matiere ANALYSE_FAB = new Matiere("ANALYSE_FAB", "Analyse de Fabrication", 4, 80, ECRIT, PREMIER);
+    public static final Matiere ELEC_METAL = new Matiere("ELEC_METAL", "Electricité - Métallurgie", 2, 40, ECRIT, PREMIER);
+    public static final Matiere TECHNO_AUTOM = new Matiere("TECHNO_AUTOM", "Technologie Automatisée", 2, 40, ECRIT, PREMIER);
+    public static final Matiere ANGLAIS = new Matiere("ANGLAIS", "Anglais", 2, 40, ORAL, PREMIER);
+    public static final Matiere EPR_PRATIQUE = new Matiere("EPR_PRATIQUE", "Epreuve Pratique", 4, 80, ECRIT, PREMIER);
 
-    public static final List<Matiere> PREMIER_GROUPE = List.of(
-            FRANCAIS_ECRIT, FRANCAIS_ORAL, MATHEMATIQUES, MECANIQUE, CONSTRUCTION_MECANIQUE,
-            ANALYSE_FABRICATION, ELECTRICITE_METAL, TECHNOLOGIE_AUTOMATISMES, ANGLAIS, EPREUVE_PRATIQUE
-    );
+    public static final List<Matiere> PREMIER_GROUPE = List.of(FR_ECRIT, FR_ORAL, MATH, MECANIQUE, CONST_MECA, ANALYSE_FAB, ELEC_METAL, TECHNO_AUTOM, ANGLAIS, EPR_PRATIQUE);
 
-    // barème : (2+1+4+4+4+4+2+2+2+4) * 20 = 580
     public static final int BAREME_PREMIER_GROUPE = 580;
-    public static final int BAREME_TOTAL_DEFINITIF = BAREME_PREMIER_GROUPE; // même barème, pas de 2e groupe écrit
+
+    // ---- 2eme groupe d'épreuves (report du 1er groupe + épreuve de contrôle) ----
+    // (aucune matière propre : le 2eme groupe ne comprend que le report et l'épreuve de contrôle)
+
+    public static final List<Matiere> DEUXIEME_GROUPE = List.of();
+
+    public static final int BAREME_DEUXIEME_GROUPE = 0;
+
+    public static final int BAREME_TOTAL_DEFINITIF = BAREME_PREMIER_GROUPE + BAREME_DEUXIEME_GROUPE;
 
     public static Matiere findByCode(String code) {
-        return PREMIER_GROUPE.stream()
+        return java.util.stream.Stream.concat(PREMIER_GROUPE.stream(), DEUXIEME_GROUPE.stream())
                 .filter(m -> m.getCode().equals(code))
                 .findFirst()
                 .orElseThrow(() -> new IllegalArgumentException("Matière inconnue pour la série F1 : " + code));

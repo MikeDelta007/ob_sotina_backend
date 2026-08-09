@@ -3,8 +3,8 @@ package com.officedubac.project.modules.A3.model;
 public class NoteEpreuve {
 
     private String matiereCode;
-    private Integer note;           // sur 20
-    private Integer pointsObtenus;  // note * coefficient
+    private Integer note;
+    private Integer pointsObtenus;
 
     public NoteEpreuve() { }
 

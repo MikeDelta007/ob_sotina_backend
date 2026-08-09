@@ -26,6 +26,15 @@ public class RelevNoteA1SaisieRequest {
     private String indicatif;
     private String options;
 
+    /** N° de table (nouveau champ, imprimé en haut du formulaire) */
+    private String numeroTable;
+
+    /** (N) — nationalité du candidat */
+    private String nationalite;
+
+    /** (F) — nombre de fois que le candidat se présente à l'examen */
+    private String nombreDeFois;
+
     /** Notes du 1er groupe : clé = code matière (cf. MatieresA1), valeur = note sur 20 */
     private Map<String, Integer> notesPremierGroupe;
 
@@ -42,11 +51,14 @@ public class RelevNoteA1SaisieRequest {
 
     public static class EpreuveOraleControleSaisie {
         private String matiereChoisie;
+        private Integer coefficient;
         private Integer rappelPointsObtenus1erGroupe;
         private Integer nouvelleNoteSur20;
 
         public String getMatiereChoisie() { return matiereChoisie; }
         public void setMatiereChoisie(String matiereChoisie) { this.matiereChoisie = matiereChoisie; }
+        public Integer getCoefficient() { return coefficient; }
+        public void setCoefficient(Integer coefficient) { this.coefficient = coefficient; }
         public Integer getRappelPointsObtenus1erGroupe() { return rappelPointsObtenus1erGroupe; }
         public void setRappelPointsObtenus1erGroupe(Integer v) { this.rappelPointsObtenus1erGroupe = v; }
         public Integer getNouvelleNoteSur20() { return nouvelleNoteSur20; }
@@ -98,6 +110,15 @@ public class RelevNoteA1SaisieRequest {
 
     public String getOptions() { return options; }
     public void setOptions(String options) { this.options = options; }
+
+    public String getNumeroTable() { return numeroTable; }
+    public void setNumeroTable(String numeroTable) { this.numeroTable = numeroTable; }
+
+    public String getNationalite() { return nationalite; }
+    public void setNationalite(String nationalite) { this.nationalite = nationalite; }
+
+    public String getNombreDeFois() { return nombreDeFois; }
+    public void setNombreDeFois(String nombreDeFois) { this.nombreDeFois = nombreDeFois; }
 
     public Map<String, Integer> getNotesPremierGroupe() { return notesPremierGroupe; }
     public void setNotesPremierGroupe(Map<String, Integer> notesPremierGroupe) { this.notesPremierGroupe = notesPremierGroupe; }

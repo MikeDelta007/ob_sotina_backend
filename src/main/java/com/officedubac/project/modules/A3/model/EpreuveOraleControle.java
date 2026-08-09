@@ -1,13 +1,15 @@
 package com.officedubac.project.modules.A3.model;
 
 /**
- * Bloc "EPR. DE CONTROLE" du formulaire : matière choisie, rappel des
- * points obtenus au 1er groupe, nouvelle note sur 20, points obtenus au
- * contrôle, différence en plus.
+ * Bloc "EPREUVE DE CONTROLE" du formulaire : (a) matière choisie par le
+ * candidat, (b) rappel des points obtenus au 1er groupe, (c) nouvelle note
+ * sur 20, (d) points obtenus à l'épreuve de contrôle = (c) x coefficient,
+ * (e) différence en plus = max(0, (d) - (b)).
  */
 public class EpreuveOraleControle {
 
     private String matiereChoisie;
+    private Integer coefficient;
     private Integer rappelPointsObtenus1erGroupe;
     private Integer nouvelleNoteSur20;
     private Integer pointsObtenusEpreuveControle;
@@ -15,6 +17,9 @@ public class EpreuveOraleControle {
 
     public String getMatiereChoisie() { return matiereChoisie; }
     public void setMatiereChoisie(String matiereChoisie) { this.matiereChoisie = matiereChoisie; }
+
+    public Integer getCoefficient() { return coefficient; }
+    public void setCoefficient(Integer coefficient) { this.coefficient = coefficient; }
 
     public Integer getRappelPointsObtenus1erGroupe() { return rappelPointsObtenus1erGroupe; }
     public void setRappelPointsObtenus1erGroupe(Integer v) { this.rappelPointsObtenus1erGroupe = v; }

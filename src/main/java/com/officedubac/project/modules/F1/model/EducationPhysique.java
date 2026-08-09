@@ -2,16 +2,12 @@ package com.officedubac.project.modules.F1.model;
 
 public class EducationPhysique {
 
-    private Integer note; // sur 20
-    private Boolean inapteOuControleAssidu;
+    private Integer note;
     private Integer pointsPositifs;
     private Integer pointsNegatifs;
 
     public Integer getNote() { return note; }
     public void setNote(Integer note) { this.note = note; }
-
-    public Boolean getInapteOuControleAssidu() { return inapteOuControleAssidu; }
-    public void setInapteOuControleAssidu(Boolean inapteOuControleAssidu) { this.inapteOuControleAssidu = inapteOuControleAssidu; }
 
     public Integer getPointsPositifs() { return pointsPositifs; }
     public void setPointsPositifs(Integer pointsPositifs) { this.pointsPositifs = pointsPositifs; }

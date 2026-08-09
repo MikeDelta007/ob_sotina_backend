@@ -1,7 +1,10 @@
 package com.officedubac.project.modules.E.model;
 
-import com.officedubac.project.modules.E.model.Enums.TypeFacultative;
-
+/**
+ * Bloc "EPR. FACULTATIVES" : Langue / Dessin, Musique ou Couture.
+ * Seuls les points AU-DESSUS de la moyenne (10/20) comptent, et uniquement
+ * en cas de mention BIEN ou TRES BIEN (règle imprimée sur le formulaire).
+ */
 public class EpreuveFacultative {
 
     private TypeFacultative type;

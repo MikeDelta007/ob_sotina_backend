@@ -10,8 +10,15 @@ public class Candidat {
     private String etablissement;
     private String indicatif;
     private String options;
-    private String n;
-    private String f;
+
+    /** N° de table (imprimé en haut du formulaire) */
+    private String numeroTable;
+
+    /** (N) — nationalité du candidat */
+    private String nationalite;
+
+    /** (F) — nombre de fois que le candidat se présente à l'examen */
+    private String nombreDeFois;
 
     public String getNomPrenom() { return nomPrenom; }
     public void setNomPrenom(String nomPrenom) { this.nomPrenom = nomPrenom; }
@@ -31,9 +38,12 @@ public class Candidat {
     public String getOptions() { return options; }
     public void setOptions(String options) { this.options = options; }
 
-    public String getN() { return n; }
-    public void setN(String n) { this.n = n; }
+    public String getNumeroTable() { return numeroTable; }
+    public void setNumeroTable(String numeroTable) { this.numeroTable = numeroTable; }
 
-    public String getF() { return f; }
-    public void setF(String f) { this.f = f; }
+    public String getNationalite() { return nationalite; }
+    public void setNationalite(String nationalite) { this.nationalite = nationalite; }
+
+    public String getNombreDeFois() { return nombreDeFois; }
+    public void setNombreDeFois(String nombreDeFois) { this.nombreDeFois = nombreDeFois; }
 }

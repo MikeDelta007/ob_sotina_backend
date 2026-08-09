@@ -9,15 +9,16 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 
 /**
- * Projection légère d'un RelevNoteA1, pour l'affichage en liste/tableau
- * côté frontend (on évite de renvoyer notesPremierGroupe, epreuvesDeControle,
- * etc. qui ne servent pas à cet écran).
+ * Vue résumée d'un relevé A1 pour les listes paginées (évite de renvoyer
+ * toute la grille de notes quand seul un aperçu est nécessaire).
  */
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
+@AllArgsConstructor
 public class RelevNoteA1Resume {
+
     private String id;
+    private String numeroTable;
     private String nomPrenom;
     private String juryNumero;
     private Integer annee;
