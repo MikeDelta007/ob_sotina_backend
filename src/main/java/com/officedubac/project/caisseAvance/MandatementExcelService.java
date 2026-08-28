@@ -51,7 +51,7 @@ public class MandatementExcelService {
                 "Date", "N° Facture(s)", "Motif(s)", "Type", "Mode de règlement",
                 "Montant total", "Avance", "Reliquat", "Reliquat payé", "Mode reliquat", "Date paiement reliquat",
                 "Mode de paiement", "Décaissé", "Montant décaissé", "Solde avant", "Solde après", "Créé par",
-                "Observations"
+                "Observations", "Bénéficiaire", "N° CNI", "N° Chèque"
             };
             Row headerRow = sheet.createRow(0);
             for (int i = 0; i < headers.length; i++) {
@@ -128,7 +128,10 @@ public class MandatementExcelService {
                 soldeApresCell.setCellStyle(montantStyle);
 
                 row.createCell(col++).setCellValue(m.getCreePar() != null ? m.getCreePar() : "—");
-                row.createCell(col).setCellValue(m.getDescription() != null ? m.getDescription() : "—");
+                row.createCell(col++).setCellValue(m.getDescription() != null ? m.getDescription() : "—");
+                row.createCell(col++).setCellValue(m.getBeneficiaire() != null ? m.getBeneficiaire() : "—");
+                row.createCell(col++).setCellValue(m.getNumeroCni() != null ? m.getNumeroCni() : "—");
+                row.createCell(col).setCellValue(m.getNumeroCheque() != null ? m.getNumeroCheque() : "—");
 
                 if (m.getMontantTotal() != null) totalGeneral = totalGeneral.add(m.getMontantTotal());
                 if (m.getMontantDecaisse() != null) totalDecaisseGeneral = totalDecaisseGeneral.add(m.getMontantDecaisse());

@@ -24,4 +24,11 @@ public class MandatementSimpleRequest {
     private BigDecimal montantAvance;
 
     private String description;
+
+    private String beneficiaire;
+    private String numeroCni;
+    private String numeroCheque;
+
+    // Optionnel : expression de besoin traitée dont ce mandatement est issu
+    private String expressionBesoinId;
 }

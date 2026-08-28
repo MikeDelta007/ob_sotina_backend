@@ -1,5 +1,6 @@
 package com.officedubac.project.caisseAvance;
 
+import com.officedubac.project.expressionBesoin.ExpressionBesoinService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
@@ -22,9 +23,10 @@ import java.util.concurrent.ThreadLocalRandom;
 @RequiredArgsConstructor
 public class MandatementService {
 
-    private final MandatementRepository mandatementRepo;
-    private final CaisseAvanceService   caisseService;
-    private final GridFsTemplate        gridFsTemplate;
+    private final MandatementRepository    mandatementRepo;
+    private final CaisseAvanceService      caisseService;
+    private final GridFsTemplate           gridFsTemplate;
+    private final ExpressionBesoinService  expressionBesoinService;
 
     private static final BigDecimal SEUIL_CHEQUE = BigDecimal.valueOf(100_000);
 
@@ -81,10 +83,20 @@ public class MandatementService {
                 .soldeApres(decaissement.getSoldeApres())
                 .factures(List.of(facture))
                 .description(req.getDescription())
+                .beneficiaire(req.getBeneficiaire())
+                .numeroCni(req.getNumeroCni())
+                .numeroCheque(req.getNumeroCheque())
+                .expressionBesoinId(req.getExpressionBesoinId())
                 .creePar(username)
                 .build();
 
         Mandatement saved = mandatementRepo.save(mandatement);
+
+        // Si ce mandatement provient d'une expression de besoin traitée, la marquer
+        // comme consommée pour qu'elle sorte de la liste déroulante de création.
+        if (req.getExpressionBesoinId() != null && !req.getExpressionBesoinId().isBlank())
+            expressionBesoinService.marquerUtilisee(req.getExpressionBesoinId(), saved.getId());
+
         logResultat(saved, decaissement);
         return saved;
     }
@@ -170,6 +182,9 @@ public class MandatementService {
                 .soldeApres(decaissement.getSoldeApres())
                 .factures(factures)
                 .description(req.getDescription())
+                .beneficiaire(req.getBeneficiaire())
+                .numeroCni(req.getNumeroCni())
+                .numeroCheque(req.getNumeroCheque())
                 .creePar(username)
                 .build();
 

@@ -58,6 +58,14 @@ public class Mandatement {
     // ── Observations libres sur le mandatement ──
     private String description;
 
+    // ── Bénéficiaire du décaissement ──
+    private String beneficiaire;
+    private String numeroCni;       // optionnel, pas de pièce jointe
+    private String numeroCheque;    // si modePaiement = CHEQUE, pas de pièce jointe
+
+    // ── Expression de besoin d'origine (si créé depuis une EB traitée) ──
+    private String expressionBesoinId;
+
     // ── Auteur ──
     private String creePar;
 

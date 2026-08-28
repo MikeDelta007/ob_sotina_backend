@@ -22,6 +22,10 @@ public class MandatementCumulatifRequest {
 
     private String description;
 
+    private String beneficiaire;
+    private String numeroCni;
+    private String numeroCheque;
+
     @Data
     public static class Ligne {
         @NotNull @Positive
