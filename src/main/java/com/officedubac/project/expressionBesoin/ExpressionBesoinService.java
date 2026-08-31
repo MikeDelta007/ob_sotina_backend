@@ -104,9 +104,8 @@ public class ExpressionBesoinService {
                     + ") dépasse le solde de la caisse. Validation impossible tant que la caisse n'est pas approvisionnée.");
 
         String username = getUsername();
-        boolean estAdmin = hasAuthority("ADMIN");
-        boolean estCsa = hasAuthority("CSA") || estAdmin;
-        boolean estDirecteur = hasAuthority("DIRECTEUR") || estAdmin;
+        boolean estCsa = hasAuthority("CSA");
+        boolean estDirecteur = hasAuthority("DIRECTEUR");
         if (!estCsa && !estDirecteur)
             throw new RuntimeException("Rôle non autorisé à valider une expression de besoin");
 
@@ -179,12 +178,39 @@ public class ExpressionBesoinService {
         return expressionBesoinRepo.findByCreeParOrderByDateCreationDesc(getUsername());
     }
 
+    // Ne montre que ce qu'il reste réellement à valider pour le rôle connecté :
+    // un CSA qui a déjà validé un dossier (encore EN_ATTENTE du Directeur) ne doit plus le voir ici.
     public List<ExpressionBesoin> getAValider() {
-        return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.EN_ATTENTE);
+        boolean estCsa = hasAuthority("CSA");
+        boolean estDirecteur = hasAuthority("DIRECTEUR");
+        return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.EN_ATTENTE).stream()
+                .filter(eb -> {
+                    boolean directeurRequis = eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) > 0;
+                    if (estCsa && !eb.isValidationCsa()) return true;
+                    if (estDirecteur && directeurRequis && !eb.isValidationDirecteur()) return true;
+                    return false;
+                })
+                .toList();
+    }
+
+    // Dossiers déjà validés par le rôle connecté (qu'ils attendent encore l'autre validateur,
+    // soient définitivement validés, ou déjà traités par la comptabilité).
+    public List<ExpressionBesoin> getValidees() {
+        boolean estCsa = hasAuthority("CSA");
+        boolean estDirecteur = hasAuthority("DIRECTEUR");
+        return expressionBesoinRepo.findAll().stream()
+                .filter(eb -> eb.getStatut() != ExpressionBesoin.Statut.REJETEE)
+                .filter(eb -> (estCsa && eb.isValidationCsa()) || (estDirecteur && eb.isValidationDirecteur()))
+                .sorted(java.util.Comparator.comparing(ExpressionBesoin::getDateCreation).reversed())
+                .toList();
     }
 
     public List<ExpressionBesoin> getATraiter() {
         return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.VALIDEE);
+    }
+
+    public List<ExpressionBesoin> getTraitees() {
+        return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.TRAITEE);
     }
 
     public List<ExpressionBesoin> getDisponiblesPourMandatement() {
