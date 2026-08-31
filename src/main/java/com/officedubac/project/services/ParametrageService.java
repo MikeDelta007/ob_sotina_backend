@@ -1230,7 +1230,9 @@ public class ParametrageService
     {
         List<User> allUsers = userRepository.findAll();
         return allUsers.stream()
-                .filter(p -> p.getProfil() != null)
+                // getName() peut être null pour un compte dont le rôle a été retiré de
+                // l'enum Role depuis (legacy) — on l'exclut plutôt que de planter.
+                .filter(p -> p.getProfil() != null && p.getProfil().getName() != null)
                 .collect(Collectors.groupingBy(s -> s.getProfil().getName().name()));
     }
 
