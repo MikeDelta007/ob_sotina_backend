@@ -29,6 +29,8 @@ public class MandatementSimpleRequest {
     private String numeroCni;
     private String numeroCheque;
 
-    // Optionnel : expression de besoin traitée dont ce mandatement est issu
+    // Expression de besoin traitée dont ce mandatement est issu : obligatoire,
+    // un mandatement ne peut plus être créé en saisie libre.
+    @NotBlank
     private String expressionBesoinId;
 }

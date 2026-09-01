@@ -163,6 +163,8 @@ public class MandatementService {
                     .montant(ligne.getMontant())
                     .motifId(ligne.getMotifId())
                     .motifLibelle(ligne.getMotifLibelle())
+                    .beneficiaire(ligne.getBeneficiaire())
+                    .expressionBesoinId(ligne.getExpressionBesoinId())
                     .urlPdfFacture(saveFile(pdfs    != null && i < pdfs.size()    ? pdfs.get(i)    : null, "facture"))
                     .urlPdfCheque(saveFile(cheques  != null && i < cheques.size() ? cheques.get(i) : null, "cheque"))
                     .urlPdfCni(saveFile(cnis        != null && i < cnis.size()    ? cnis.get(i)    : null, "cni"))
@@ -182,19 +184,19 @@ public class MandatementService {
                 .soldeApres(decaissement.getSoldeApres())
                 .factures(factures)
                 .description(req.getDescription())
-                .beneficiaire(req.getBeneficiaire())
                 .numeroCni(req.getNumeroCni())
                 .numeroCheque(req.getNumeroCheque())
-                .expressionBesoinId(req.getExpressionBesoinId())
                 .creePar(username)
                 .build();
 
         Mandatement saved = mandatementRepo.save(mandatement);
 
-        // Si ce mandatement provient d'une expression de besoin traitée, la marquer
-        // comme consommée pour qu'elle sorte de la liste déroulante de création.
-        if (req.getExpressionBesoinId() != null && !req.getExpressionBesoinId().isBlank())
-            expressionBesoinService.marquerUtilisee(req.getExpressionBesoinId(), saved.getId());
+        // Chaque facture peut provenir d'une expression de besoin traitée différente ;
+        // marquer chacune d'elles comme consommée pour qu'elle sorte de la liste déroulante.
+        for (MandatementCumulatifRequest.Ligne ligne : req.getLignes()) {
+            if (ligne.getExpressionBesoinId() != null && !ligne.getExpressionBesoinId().isBlank())
+                expressionBesoinService.marquerUtilisee(ligne.getExpressionBesoinId(), saved.getId());
+        }
 
         logResultat(saved, decaissement);
         return saved;

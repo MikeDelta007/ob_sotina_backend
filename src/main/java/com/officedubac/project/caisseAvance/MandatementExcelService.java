@@ -129,7 +129,13 @@ public class MandatementExcelService {
 
                 row.createCell(col++).setCellValue(m.getCreePar() != null ? m.getCreePar() : "—");
                 row.createCell(col++).setCellValue(m.getDescription() != null ? m.getDescription() : "—");
-                row.createCell(col++).setCellValue(m.getBeneficiaire() != null ? m.getBeneficiaire() : "—");
+
+                String beneficiaires = m.getType() == Mandatement.TypeMandatement.SIMPLE
+                        ? (m.getBeneficiaire() != null ? m.getBeneficiaire() : "—")
+                        : (m.getFactures() == null ? "—" : m.getFactures().stream()
+                                .map(f -> f.getBeneficiaire() != null ? f.getBeneficiaire() : "—")
+                                .collect(Collectors.joining("; ")));
+                row.createCell(col++).setCellValue(beneficiaires);
                 row.createCell(col++).setCellValue(m.getNumeroCni() != null ? m.getNumeroCni() : "—");
                 row.createCell(col).setCellValue(m.getNumeroCheque() != null ? m.getNumeroCheque() : "—");
 

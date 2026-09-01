@@ -87,6 +87,11 @@ public class Mandatement {
         private BigDecimal montant;
         private String motifId;
         private String motifLibelle;
+        // Bénéficiaire propre à cette facture (un cumulatif regroupe des factures
+        // de bénéficiaires potentiellement différents, comme autant de mandatements simples)
+        private String beneficiaire;
+        // Expression de besoin traitée dont cette facture est issue (optionnel)
+        private String expressionBesoinId;
         // Pièces jointes
         private String urlPdfFacture;
         private String urlPdfCheque;    // si CHEQUE

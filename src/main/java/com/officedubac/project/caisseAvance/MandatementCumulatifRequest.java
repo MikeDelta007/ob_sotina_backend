@@ -1,6 +1,7 @@
 package com.officedubac.project.caisseAvance;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -22,12 +23,9 @@ public class MandatementCumulatifRequest {
 
     private String description;
 
-    private String beneficiaire;
+    // Numéro de chèque/CNI : un seul décaissement pour tout le cumulatif
     private String numeroCni;
     private String numeroCheque;
-
-    // Optionnel : expression de besoin traitée dont ce mandatement est issu
-    private String expressionBesoinId;
 
     @Data
     public static class Ligne {
@@ -36,5 +34,12 @@ public class MandatementCumulatifRequest {
         @NotNull
         private String motifId;
         private String motifLibelle;
+
+        // Chaque facture a son propre bénéficiaire (comme autant de mandatements simples)
+        private String beneficiaire;
+        // Expression de besoin traitée dont cette facture est issue : obligatoire,
+        // chaque facture d'un cumulatif est comme un mandatement simple.
+        @NotBlank
+        private String expressionBesoinId;
     }
 }
