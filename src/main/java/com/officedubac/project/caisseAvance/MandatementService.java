@@ -185,10 +185,17 @@ public class MandatementService {
                 .beneficiaire(req.getBeneficiaire())
                 .numeroCni(req.getNumeroCni())
                 .numeroCheque(req.getNumeroCheque())
+                .expressionBesoinId(req.getExpressionBesoinId())
                 .creePar(username)
                 .build();
 
         Mandatement saved = mandatementRepo.save(mandatement);
+
+        // Si ce mandatement provient d'une expression de besoin traitée, la marquer
+        // comme consommée pour qu'elle sorte de la liste déroulante de création.
+        if (req.getExpressionBesoinId() != null && !req.getExpressionBesoinId().isBlank())
+            expressionBesoinService.marquerUtilisee(req.getExpressionBesoinId(), saved.getId());
+
         logResultat(saved, decaissement);
         return saved;
     }
