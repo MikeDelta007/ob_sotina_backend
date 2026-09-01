@@ -1,5 +1,6 @@
 package com.officedubac.project.expressionBesoin;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -16,6 +17,10 @@ public class ExpressionBesoinRequest {
     @NotNull @Positive
     private BigDecimal montantInitial;
 
+    // @JsonProperty explicite : Jackson dérive sinon la clé JSON "AFacturePreformat"
+    // (les deux premières lettres après "get" sont majuscules), incompatible avec
+    // le frontend qui envoie "aFacturePreformat".
+    @JsonProperty("aFacturePreformat")
     @NotNull
     private Boolean aFacturePreformat;
 }

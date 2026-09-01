@@ -1,5 +1,6 @@
 package com.officedubac.project.expressionBesoin;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.*;
 import org.springframework.data.annotation.CreatedDate;
 import org.springframework.data.annotation.Id;
@@ -26,6 +27,10 @@ public class ExpressionBesoin {
     private BigDecimal montantInitial;
 
     // ── Justificatif : soit une facture proforma, soit une déclaration sur l'honneur ──
+    // @JsonProperty explicite : Jackson dérive sinon la clé JSON "AFacturePreformat"
+    // (les deux premières lettres après "is"/"get" sont majuscules), incompatible avec
+    // le frontend qui envoie/attend "aFacturePreformat".
+    @JsonProperty("aFacturePreformat")
     private boolean aFacturePreformat;
     private String urlPdfFactureProforma;
     private String urlPdfDeclarationHonneur;
