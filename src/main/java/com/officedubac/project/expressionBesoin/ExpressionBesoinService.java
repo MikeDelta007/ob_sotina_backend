@@ -29,17 +29,19 @@ public class ExpressionBesoinService {
     // ═══════════════════════════════════════════════════════════════
     // CRÉATION / MODIFICATION (chef de service)
     // ═══════════════════════════════════════════════════════════════
-    public ExpressionBesoin creer(ExpressionBesoinRequest req, MultipartFile pdfFactureProforma, MultipartFile pdfDeclarationHonneur) {
-        boolean aProforma = Boolean.TRUE.equals(req.getAFacturePreformat());
-        validerPieceJointe(aProforma, pdfFactureProforma, pdfDeclarationHonneur);
+    // La déclaration sur l'honneur n'est plus proposée : la facture proforma est
+    // désormais systématiquement requise. aFacturePreformat reste à true pour toute
+    // nouvelle expression (le champ et urlPdfDeclarationHonneur ne subsistent sur
+    // l'entité que pour l'affichage des expressions créées avant ce changement).
+    public ExpressionBesoin creer(ExpressionBesoinRequest req, MultipartFile pdfFactureProforma) {
+        validerPieceJointe(pdfFactureProforma);
 
         ExpressionBesoin eb = ExpressionBesoin.builder()
                 .motifId(req.getMotifId())
                 .motifLibelle(req.getMotifLibelle())
                 .montantInitial(req.getMontantInitial())
-                .aFacturePreformat(aProforma)
-                .urlPdfFactureProforma(aProforma ? saveFile(pdfFactureProforma, "facture-proforma") : null)
-                .urlPdfDeclarationHonneur(!aProforma ? saveFile(pdfDeclarationHonneur, "declaration-honneur") : null)
+                .aFacturePreformat(true)
+                .urlPdfFactureProforma(saveFile(pdfFactureProforma, "facture-proforma"))
                 .statut(ExpressionBesoin.Statut.EN_ATTENTE)
                 .creePar(getUsername())
                 .build();
@@ -47,7 +49,7 @@ public class ExpressionBesoinService {
         return expressionBesoinRepo.save(eb);
     }
 
-    public ExpressionBesoin modifier(String id, ExpressionBesoinRequest req, MultipartFile pdfFactureProforma, MultipartFile pdfDeclarationHonneur) {
+    public ExpressionBesoin modifier(String id, ExpressionBesoinRequest req, MultipartFile pdfFactureProforma) {
         ExpressionBesoin eb = getById(id);
 
         if (!eb.getCreePar().equals(getUsername()))
@@ -55,38 +57,23 @@ public class ExpressionBesoinService {
         if (eb.getStatut() != ExpressionBesoin.Statut.EN_ATTENTE)
             throw new RuntimeException("Cette expression de besoin ne peut plus être modifiée");
 
-        boolean aProforma = Boolean.TRUE.equals(req.getAFacturePreformat());
-        boolean nouveauFichier = aProforma
-                ? (pdfFactureProforma != null && !pdfFactureProforma.isEmpty())
-                : (pdfDeclarationHonneur != null && !pdfDeclarationHonneur.isEmpty());
-        boolean choixInchange = aProforma == eb.isAFacturePreformat();
-        boolean fichierExistant = aProforma ? eb.getUrlPdfFactureProforma() != null : eb.getUrlPdfDeclarationHonneur() != null;
-        // Un fichier valide doit couvrir le choix courant : soit un nouvel upload,
-        // soit un fichier déjà présent pour ce même choix (checkbox inchangée).
-        if (!nouveauFichier && !(choixInchange && fichierExistant))
-            validerPieceJointe(aProforma, pdfFactureProforma, pdfDeclarationHonneur);
+        boolean nouveauFichier = pdfFactureProforma != null && !pdfFactureProforma.isEmpty();
+        if (!nouveauFichier && eb.getUrlPdfFactureProforma() == null)
+            validerPieceJointe(pdfFactureProforma);
 
         eb.setMotifId(req.getMotifId());
         eb.setMotifLibelle(req.getMotifLibelle());
         eb.setMontantInitial(req.getMontantInitial());
-        eb.setAFacturePreformat(aProforma);
-
-        if (aProforma) {
-            if (nouveauFichier) eb.setUrlPdfFactureProforma(saveFile(pdfFactureProforma, "facture-proforma"));
-            eb.setUrlPdfDeclarationHonneur(null);
-        } else {
-            if (nouveauFichier) eb.setUrlPdfDeclarationHonneur(saveFile(pdfDeclarationHonneur, "declaration-honneur"));
-            eb.setUrlPdfFactureProforma(null);
-        }
+        eb.setAFacturePreformat(true);
+        if (nouveauFichier) eb.setUrlPdfFactureProforma(saveFile(pdfFactureProforma, "facture-proforma"));
+        eb.setUrlPdfDeclarationHonneur(null);
 
         return expressionBesoinRepo.save(eb);
     }
 
-    private void validerPieceJointe(boolean aProforma, MultipartFile pdfFactureProforma, MultipartFile pdfDeclarationHonneur) {
-        if (aProforma && (pdfFactureProforma == null || pdfFactureProforma.isEmpty()))
+    private void validerPieceJointe(MultipartFile pdfFactureProforma) {
+        if (pdfFactureProforma == null || pdfFactureProforma.isEmpty())
             throw new RuntimeException("La facture proforma (PDF) est requise");
-        if (!aProforma && (pdfDeclarationHonneur == null || pdfDeclarationHonneur.isEmpty()))
-            throw new RuntimeException("La déclaration sur l'honneur (PDF) est requise");
     }
 
     // ═══════════════════════════════════════════════════════════════

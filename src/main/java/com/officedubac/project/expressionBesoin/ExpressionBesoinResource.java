@@ -17,27 +17,25 @@ public class ExpressionBesoinResource {
 
     private final ExpressionBesoinService expressionBesoinService;
 
-    // ── Chef de service ──
-    @PreAuthorize("hasAuthority('CHEF_SERVICE')")
+    // ── Chef de service / CSA / Directeur / Chef comptable / Agent comptable ──
+    @PreAuthorize("hasAnyAuthority('CHEF_SERVICE','CSA','DIRECTEUR','CHEF_COMPTABLE','AGENT_COMPTABLE')")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ExpressionBesoin> creer(
             @Valid @RequestPart("data") ExpressionBesoinRequest req,
-            @RequestPart(value = "pdfFactureProforma", required = false) MultipartFile pdfFactureProforma,
-            @RequestPart(value = "pdfDeclarationHonneur", required = false) MultipartFile pdfDeclarationHonneur) {
-        return ResponseEntity.ok(expressionBesoinService.creer(req, pdfFactureProforma, pdfDeclarationHonneur));
+            @RequestPart(value = "pdfFactureProforma", required = false) MultipartFile pdfFactureProforma) {
+        return ResponseEntity.ok(expressionBesoinService.creer(req, pdfFactureProforma));
     }
 
-    @PreAuthorize("hasAuthority('CHEF_SERVICE')")
+    @PreAuthorize("hasAnyAuthority('CHEF_SERVICE','CSA','DIRECTEUR','CHEF_COMPTABLE','AGENT_COMPTABLE')")
     @PutMapping(value = "/{id}", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ExpressionBesoin> modifier(
             @PathVariable String id,
             @Valid @RequestPart("data") ExpressionBesoinRequest req,
-            @RequestPart(value = "pdfFactureProforma", required = false) MultipartFile pdfFactureProforma,
-            @RequestPart(value = "pdfDeclarationHonneur", required = false) MultipartFile pdfDeclarationHonneur) {
-        return ResponseEntity.ok(expressionBesoinService.modifier(id, req, pdfFactureProforma, pdfDeclarationHonneur));
+            @RequestPart(value = "pdfFactureProforma", required = false) MultipartFile pdfFactureProforma) {
+        return ResponseEntity.ok(expressionBesoinService.modifier(id, req, pdfFactureProforma));
     }
 
-    @PreAuthorize("hasAuthority('CHEF_SERVICE')")
+    @PreAuthorize("hasAnyAuthority('CHEF_SERVICE','CSA','DIRECTEUR','CHEF_COMPTABLE','AGENT_COMPTABLE')")
     @GetMapping("/mine")
     public ResponseEntity<List<ExpressionBesoin>> getMesExpressions() {
         return ResponseEntity.ok(expressionBesoinService.getMesExpressions());

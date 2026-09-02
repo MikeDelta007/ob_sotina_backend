@@ -36,9 +36,8 @@ public class MandatementResource {
     @PutMapping(value = "/{id}/payer-reliquat", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Mandatement> payerReliquat(
             @PathVariable String id,
-            @RequestParam(value = "pdfCheque", required = false) MultipartFile pdfCheque,
-            @RequestParam(value = "pdfCni",    required = false) MultipartFile pdfCni) {
-        return ResponseEntity.ok(mandatementService.payerReliquat(id, pdfCheque, pdfCni));
+            @RequestParam(value = "piecesJustificatives", required = false) MultipartFile piecesJustificatives) {
+        return ResponseEntity.ok(mandatementService.payerReliquat(id, piecesJustificatives));
     }
 
     // ── Exporter la liste des mandatements (Excel) ──
@@ -81,21 +80,17 @@ public class MandatementResource {
 
     @PostMapping(value = "/simple", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Mandatement> simple(
-            @Valid @RequestPart("data")                           MandatementSimpleRequest req,
-            @RequestPart(value = "pdfFacture", required = false) MultipartFile pdfFacture,
-            @RequestPart(value = "pdfCheque",  required = false) MultipartFile pdfCheque,
-            @RequestPart(value = "pdfCni",     required = false) MultipartFile pdfCni) {
+            @Valid @RequestPart("data") MandatementSimpleRequest req,
+            @RequestPart(value = "piecesJustificatives", required = false) MultipartFile piecesJustificatives) {
         return ResponseEntity.ok(
-            mandatementService.mandatementSimple(req, pdfFacture, pdfCheque, pdfCni));
+            mandatementService.mandatementSimple(req, piecesJustificatives));
     }
 
     @PostMapping(value = "/cumulatif", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Mandatement> cumulatif(
-            @Valid @RequestPart("data")                          MandatementCumulatifRequest req,
-            @RequestPart(value = "pdfs",    required = false)   List<MultipartFile> pdfs,
-            @RequestPart(value = "cheques", required = false)   List<MultipartFile> cheques,
-            @RequestPart(value = "cnis",    required = false)   List<MultipartFile> cnis) {
+            @Valid @RequestPart("data") MandatementCumulatifRequest req,
+            @RequestPart(value = "pieces", required = false) List<MultipartFile> pieces) {
         return ResponseEntity.ok(
-            mandatementService.mandatementCumulatif(req, pdfs, cheques, cnis));
+            mandatementService.mandatementCumulatif(req, pieces));
     }
 }

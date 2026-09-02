@@ -27,7 +27,6 @@ public class MandatementSimpleRequest {
 
     private String beneficiaire;
     private String numeroCni;
-    private String numeroCheque;
 
     // Expression de besoin traitée dont ce mandatement est issu : obligatoire,
     // un mandatement ne peut plus être créé en saisie libre.

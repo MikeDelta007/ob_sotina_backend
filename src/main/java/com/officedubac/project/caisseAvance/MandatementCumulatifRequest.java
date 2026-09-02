@@ -23,9 +23,8 @@ public class MandatementCumulatifRequest {
 
     private String description;
 
-    // Numéro de chèque/CNI : un seul décaissement pour tout le cumulatif
+    // N° CNI : un seul décaissement pour tout le cumulatif
     private String numeroCni;
-    private String numeroCheque;
 
     @Data
     public static class Ligne {
