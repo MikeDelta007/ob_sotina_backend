@@ -136,7 +136,14 @@ public class ExpressionBesoinService {
             throw new RuntimeException("Le montant initial (" + eb.getMontantInitial()
                     + ") dépasse le solde de la caisse. Validation impossible tant que la caisse n'est pas approvisionnée.");
 
-        // Toute ligne avec une quantité demandée doit recevoir une quantité accordée
+        String username = getUsername();
+        boolean estCsa = hasAuthority("CSA");
+        boolean estDirecteur = hasAuthority("DIRECTEUR");
+        if (!estCsa && !estDirecteur)
+            throw new RuntimeException("Rôle non autorisé à valider une expression de besoin");
+
+        // Toute ligne avec une quantité demandée doit recevoir une quantité accordée de la
+        // part de CE validateur (CSA et Directeur renseignent chacun la leur séparément).
         List<Integer> quantitesAccordees = req.getQuantitesAccordees();
         for (int i = 0; i < eb.getLignes().size(); i++) {
             ExpressionBesoin.Ligne ligne = eb.getLignes().get(i);
@@ -146,14 +153,10 @@ public class ExpressionBesoinService {
             if (accordee == null)
                 throw new RuntimeException("La quantité accordée est requise pour la ligne \""
                         + ligne.getMotifLibelle() + "\"");
-            ligne.setQuantiteAccordee(accordee);
+            if (estCsa) ligne.setQuantiteAccordeeCsa(accordee);
+            if (estDirecteur) ligne.setQuantiteAccordeeDirecteur(accordee);
         }
-
-        String username = getUsername();
-        boolean estCsa = hasAuthority("CSA");
-        boolean estDirecteur = hasAuthority("DIRECTEUR");
-        if (!estCsa && !estDirecteur)
-            throw new RuntimeException("Rôle non autorisé à valider une expression de besoin");
+        recalculerMontants(eb);
 
         if (estCsa) {
             eb.setValidationCsa(true);
@@ -172,6 +175,23 @@ public class ExpressionBesoinService {
         }
 
         return expressionBesoinRepo.save(eb);
+    }
+
+    // Recalcule le montant de chaque ligne selon la quantité effective (celle du Directeur
+    // si renseignée, sinon celle du CSA, sinon la quantité initiale demandée), puis le
+    // montant initial global — tout changement de prix ou de quantité doit s'y répercuter.
+    private void recalculerMontants(ExpressionBesoin eb) {
+        for (ExpressionBesoin.Ligne ligne : eb.getLignes()) {
+            if (ligne.getQuantite() == null) {
+                ligne.setMontant(ligne.getPrixUnitaire());
+                continue;
+            }
+            Integer quantiteEffective = ligne.getQuantiteAccordeeDirecteur() != null
+                    ? ligne.getQuantiteAccordeeDirecteur()
+                    : ligne.getQuantiteAccordeeCsa() != null ? ligne.getQuantiteAccordeeCsa() : ligne.getQuantite();
+            ligne.setMontant(ligne.getPrixUnitaire().multiply(BigDecimal.valueOf(quantiteEffective)));
+        }
+        eb.setMontantInitial(totalLignes(eb.getLignes()));
     }
 
     public ExpressionBesoin rejeter(String id, String motif) {

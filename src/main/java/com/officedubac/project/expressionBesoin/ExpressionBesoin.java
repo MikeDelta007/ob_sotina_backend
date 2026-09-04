@@ -83,9 +83,14 @@ public class ExpressionBesoin {
         // Optionnelle : certaines désignations ne sont pas quantitatives (ex. un forfait)
         private Integer quantite;
         private BigDecimal prixUnitaire;
-        // quantite × prixUnitaire si quantite renseignée, sinon prixUnitaire seul
+        // Montant courant = prixUnitaire × quantité effective (accordée par le Directeur si
+        // renseignée, sinon par le CSA, sinon la quantité initiale demandée), recalculé à
+        // chaque changement de prix/quantité/quantité accordée.
         private BigDecimal montant;
-        // Renseignée par le CSA/Directeur lors de la validation, uniquement si quantite != null
-        private Integer quantiteAccordee;
+        // Quantités accordées, renseignées indépendamment par chaque validateur lors de la
+        // validation (uniquement si quantite != null) — la comptabilité traite celle du
+        // Directeur quand les deux sont requises, celle du CSA sinon.
+        private Integer quantiteAccordeeCsa;
+        private Integer quantiteAccordeeDirecteur;
     }
 }
