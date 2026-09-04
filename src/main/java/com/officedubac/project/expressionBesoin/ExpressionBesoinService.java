@@ -1,6 +1,10 @@
 package com.officedubac.project.expressionBesoin;
 
 import com.officedubac.project.caisseAvance.CaisseAvanceService;
+import com.officedubac.project.models.Role;
+import com.officedubac.project.models.User;
+import com.officedubac.project.notification.WhatsAppService;
+import com.officedubac.project.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
@@ -22,6 +26,8 @@ public class ExpressionBesoinService {
     private final ExpressionBesoinRepository expressionBesoinRepo;
     private final CaisseAvanceService        caisseService;
     private final GridFsTemplate             gridFsTemplate;
+    private final UserRepository             userRepository;
+    private final WhatsAppService            whatsAppService;
 
     // Au-delà de ce montant, la validation du Directeur est requise en plus de celle du CSA
     private static final BigDecimal SEUIL_VALIDATION_DIRECTEUR = BigDecimal.valueOf(20_000);
@@ -29,24 +35,27 @@ public class ExpressionBesoinService {
     // ═══════════════════════════════════════════════════════════════
     // CRÉATION / MODIFICATION (chef de service)
     // ═══════════════════════════════════════════════════════════════
-    // La déclaration sur l'honneur n'est plus proposée : la facture proforma est
-    // désormais systématiquement requise. aFacturePreformat reste à true pour toute
-    // nouvelle expression (le champ et urlPdfDeclarationHonneur ne subsistent sur
-    // l'entité que pour l'affichage des expressions créées avant ce changement).
+    // La déclaration sur l'honneur n'est plus proposée. La facture proforma reste
+    // optionnelle (case à cocher) : si le demandeur ne l'a pas, aucun fichier n'est
+    // requis — il n'y a plus d'alternative à charger.
     public ExpressionBesoin creer(ExpressionBesoinRequest req, MultipartFile pdfFactureProforma) {
-        validerPieceJointe(pdfFactureProforma);
+        boolean aProforma = Boolean.TRUE.equals(req.getAFacturePreformat());
+        if (aProforma) validerPieceJointe(pdfFactureProforma);
+
+        List<ExpressionBesoin.Ligne> lignes = construireLignes(req.getLignes());
 
         ExpressionBesoin eb = ExpressionBesoin.builder()
-                .motifId(req.getMotifId())
-                .motifLibelle(req.getMotifLibelle())
-                .montantInitial(req.getMontantInitial())
-                .aFacturePreformat(true)
-                .urlPdfFactureProforma(saveFile(pdfFactureProforma, "facture-proforma"))
+                .lignes(lignes)
+                .montantInitial(totalLignes(lignes))
+                .aFacturePreformat(aProforma)
+                .urlPdfFactureProforma(aProforma ? saveFile(pdfFactureProforma, "facture-proforma") : null)
                 .statut(ExpressionBesoin.Statut.EN_ATTENTE)
                 .creePar(getUsername())
                 .build();
 
-        return expressionBesoinRepo.save(eb);
+        ExpressionBesoin saved = expressionBesoinRepo.save(eb);
+        notifierValidateurs(saved);
+        return saved;
     }
 
     public ExpressionBesoin modifier(String id, ExpressionBesoinRequest req, MultipartFile pdfFactureProforma) {
@@ -57,18 +66,43 @@ public class ExpressionBesoinService {
         if (eb.getStatut() != ExpressionBesoin.Statut.EN_ATTENTE)
             throw new RuntimeException("Cette expression de besoin ne peut plus être modifiée");
 
+        boolean aProforma = Boolean.TRUE.equals(req.getAFacturePreformat());
         boolean nouveauFichier = pdfFactureProforma != null && !pdfFactureProforma.isEmpty();
-        if (!nouveauFichier && eb.getUrlPdfFactureProforma() == null)
+        if (aProforma && !nouveauFichier && eb.getUrlPdfFactureProforma() == null)
             validerPieceJointe(pdfFactureProforma);
 
-        eb.setMotifId(req.getMotifId());
-        eb.setMotifLibelle(req.getMotifLibelle());
-        eb.setMontantInitial(req.getMontantInitial());
-        eb.setAFacturePreformat(true);
-        if (nouveauFichier) eb.setUrlPdfFactureProforma(saveFile(pdfFactureProforma, "facture-proforma"));
+        List<ExpressionBesoin.Ligne> lignes = construireLignes(req.getLignes());
+        eb.setLignes(lignes);
+        eb.setMontantInitial(totalLignes(lignes));
+        eb.setAFacturePreformat(aProforma);
+        if (aProforma) {
+            if (nouveauFichier) eb.setUrlPdfFactureProforma(saveFile(pdfFactureProforma, "facture-proforma"));
+        } else {
+            eb.setUrlPdfFactureProforma(null);
+        }
         eb.setUrlPdfDeclarationHonneur(null);
 
         return expressionBesoinRepo.save(eb);
+    }
+
+    private List<ExpressionBesoin.Ligne> construireLignes(List<ExpressionBesoinRequest.LigneRequest> req) {
+        return req.stream().map(l -> {
+            BigDecimal montant = l.getQuantite() != null
+                    ? l.getPrixUnitaire().multiply(BigDecimal.valueOf(l.getQuantite()))
+                    : l.getPrixUnitaire();
+            return ExpressionBesoin.Ligne.builder()
+                    .motifId(l.getMotifId())
+                    .motifLibelle(l.getMotifLibelle())
+                    .quantite(l.getQuantite())
+                    .prixUnitaire(l.getPrixUnitaire())
+                    .montant(montant)
+                    .build();
+        }).toList();
+    }
+
+    private BigDecimal totalLignes(List<ExpressionBesoin.Ligne> lignes) {
+        return lignes.stream().map(ExpressionBesoin.Ligne::getMontant)
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     private void validerPieceJointe(MultipartFile pdfFactureProforma) {
@@ -76,10 +110,22 @@ public class ExpressionBesoinService {
             throw new RuntimeException("La facture proforma (PDF) est requise");
     }
 
+    // Notifie systématiquement le(s) CSA, et en plus le(s) Directeur si le montant
+    // initial dépasse le seuil imposant sa validation.
+    private void notifierValidateurs(ExpressionBesoin eb) {
+        userRepository.findByProfilName(Role.CSA)
+                .forEach(u -> whatsAppService.envoyerNotificationValidation(u.getPhone()));
+
+        if (eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) > 0) {
+            userRepository.findByProfilName(Role.DIRECTEUR)
+                    .forEach(u -> whatsAppService.envoyerNotificationValidation(u.getPhone()));
+        }
+    }
+
     // ═══════════════════════════════════════════════════════════════
     // VALIDATION (CSA / Directeur / Admin)
     // ═══════════════════════════════════════════════════════════════
-    public ExpressionBesoin valider(String id) {
+    public ExpressionBesoin valider(String id, ValiderRequest req) {
         ExpressionBesoin eb = getById(id);
 
         if (eb.getStatut() != ExpressionBesoin.Statut.EN_ATTENTE)
@@ -89,6 +135,19 @@ public class ExpressionBesoinService {
         if (!caisseService.soldeSuffisant(eb.getMontantInitial()))
             throw new RuntimeException("Le montant initial (" + eb.getMontantInitial()
                     + ") dépasse le solde de la caisse. Validation impossible tant que la caisse n'est pas approvisionnée.");
+
+        // Toute ligne avec une quantité demandée doit recevoir une quantité accordée
+        List<Integer> quantitesAccordees = req.getQuantitesAccordees();
+        for (int i = 0; i < eb.getLignes().size(); i++) {
+            ExpressionBesoin.Ligne ligne = eb.getLignes().get(i);
+            if (ligne.getQuantite() == null) continue;
+            Integer accordee = quantitesAccordees != null && i < quantitesAccordees.size()
+                    ? quantitesAccordees.get(i) : null;
+            if (accordee == null)
+                throw new RuntimeException("La quantité accordée est requise pour la ligne \""
+                        + ligne.getMotifLibelle() + "\"");
+            ligne.setQuantiteAccordee(accordee);
+        }
 
         String username = getUsername();
         boolean estCsa = hasAuthority("CSA");

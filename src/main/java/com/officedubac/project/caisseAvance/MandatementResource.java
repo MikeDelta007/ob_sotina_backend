@@ -5,6 +5,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -33,6 +34,7 @@ public class MandatementResource {
 
     // ── Payer le reliquat d'un mandatement (mode AVANCE) — chèque + CNI requis si le
     //    montant du reliquat impose un paiement par chèque ──
+    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','ADMIN')")
     @PutMapping(value = "/{id}/payer-reliquat", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Mandatement> payerReliquat(
             @PathVariable String id,
@@ -78,6 +80,7 @@ public class MandatementResource {
         response.getOutputStream().write(pdf);
     }
 
+    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','ADMIN')")
     @PostMapping(value = "/simple", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Mandatement> simple(
             @Valid @RequestPart("data") MandatementSimpleRequest req,
@@ -86,6 +89,7 @@ public class MandatementResource {
             mandatementService.mandatementSimple(req, piecesJustificatives));
     }
 
+    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','ADMIN')")
     @PostMapping(value = "/cumulatif", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<Mandatement> cumulatif(
             @Valid @RequestPart("data") MandatementCumulatifRequest req,

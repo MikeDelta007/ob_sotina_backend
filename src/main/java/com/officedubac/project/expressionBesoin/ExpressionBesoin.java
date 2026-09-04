@@ -9,6 +9,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -20,10 +21,10 @@ public class ExpressionBesoin {
     @Id
     private String id;
 
-    // ── Désignation (réutilise les mêmes motifs que la caisse d'avance) ──
-    private String motifId;
-    private String motifLibelle;
+    // ── Lignes (désignation/quantité/prix), comme la fiche papier officielle ──
+    private List<Ligne> lignes;
 
+    // Somme des lignes (quantité × prix unitaire), recalculée à chaque création/modification
     private BigDecimal montantInitial;
 
     // ── Justificatif : soit une facture proforma, soit une déclaration sur l'honneur ──
@@ -70,4 +71,21 @@ public class ExpressionBesoin {
     private LocalDateTime dateModification;
 
     public enum Statut { EN_ATTENTE, VALIDEE, REJETEE, TRAITEE }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Ligne {
+        // Réutilise les mêmes motifs que la caisse d'avance
+        private String motifId;
+        private String motifLibelle;
+        // Optionnelle : certaines désignations ne sont pas quantitatives (ex. un forfait)
+        private Integer quantite;
+        private BigDecimal prixUnitaire;
+        // quantite × prixUnitaire si quantite renseignée, sinon prixUnitaire seul
+        private BigDecimal montant;
+        // Renseignée par le CSA/Directeur lors de la validation, uniquement si quantite != null
+        private Integer quantiteAccordee;
+    }
 }

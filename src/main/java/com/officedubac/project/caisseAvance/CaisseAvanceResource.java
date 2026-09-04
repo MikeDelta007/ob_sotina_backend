@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.io.IOException;
@@ -27,6 +28,9 @@ public class CaisseAvanceResource {
     }
 
     // ── Approvisionnement : ajoute un montant à la caisse (historisé) ──
+    // Réservé au Chef comptable ; le Directeur peut suppléer en cas d'absence.
+    // Ni l'Agent comptable ni l'Admin n'y ont accès.
+    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','DIRECTEUR')")
     @PostMapping("/approvisionner")
     public ResponseEntity<Approvisionnement> approvisionner(@Valid @RequestBody ApprovisionnementRequest req) {
         return ResponseEntity.ok(
@@ -71,12 +75,16 @@ public class CaisseAvanceResource {
         return ResponseEntity.ok(motifRepo.findAll());
     }
 
+    // Motifs : CRUD ouvert aux comptables ainsi qu'au CSA et au Directeur
+    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','ADMIN','CSA','DIRECTEUR')")
     @PostMapping("/motifs")
     public ResponseEntity<Motif> creerMotif(@RequestBody Motif motif) {
         motif.setActif(true);
         return ResponseEntity.ok(motifRepo.save(motif));
     }
 
+    // Motifs : CRUD ouvert aux comptables ainsi qu'au CSA et au Directeur
+    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','ADMIN','CSA','DIRECTEUR')")
     @PutMapping("/motifs/{id}")
     public ResponseEntity<Motif> modifierMotif(@PathVariable String id, @RequestBody Motif req) {
         Motif motif = motifRepo.findById(id)
@@ -86,6 +94,8 @@ public class CaisseAvanceResource {
         return ResponseEntity.ok(motifRepo.save(motif));
     }
 
+    // Motifs : CRUD ouvert aux comptables ainsi qu'au CSA et au Directeur
+    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','ADMIN','CSA','DIRECTEUR')")
     @DeleteMapping("/motifs/{id}")
     public ResponseEntity<Void> supprimerMotif(@PathVariable String id) {
         motifRepo.findById(id).ifPresent(m -> { m.setActif(false); motifRepo.save(m); });

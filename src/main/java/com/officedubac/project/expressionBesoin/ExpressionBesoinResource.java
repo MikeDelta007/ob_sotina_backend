@@ -56,8 +56,8 @@ public class ExpressionBesoinResource {
 
     @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR')")
     @PutMapping("/{id}/valider")
-    public ResponseEntity<ExpressionBesoin> valider(@PathVariable String id) {
-        return ResponseEntity.ok(expressionBesoinService.valider(id));
+    public ResponseEntity<ExpressionBesoin> valider(@PathVariable String id, @RequestBody(required = false) ValiderRequest req) {
+        return ResponseEntity.ok(expressionBesoinService.valider(id, req != null ? req : new ValiderRequest()));
     }
 
     @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR')")
@@ -66,14 +66,14 @@ public class ExpressionBesoinResource {
         return ResponseEntity.ok(expressionBesoinService.rejeter(id, req.getMotif()));
     }
 
-    // ── Chef comptable / Agent comptable ──
-    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE')")
+    // ── Chef comptable / Agent comptable (lecture-écriture) + CSA / Directeur (lecture seule) ──
+    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','CSA','DIRECTEUR')")
     @GetMapping("/a-traiter")
     public ResponseEntity<List<ExpressionBesoin>> getATraiter() {
         return ResponseEntity.ok(expressionBesoinService.getATraiter());
     }
 
-    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE')")
+    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','CSA','DIRECTEUR')")
     @GetMapping("/traitees")
     public ResponseEntity<List<ExpressionBesoin>> getTraitees() {
         return ResponseEntity.ok(expressionBesoinService.getTraitees());
