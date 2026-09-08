@@ -22,8 +22,9 @@ public class ExpressionBesoinResource {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ExpressionBesoin> creer(
             @Valid @RequestPart("data") ExpressionBesoinRequest req,
-            @RequestPart(value = "pdfFactureProforma", required = false) MultipartFile pdfFactureProforma) {
-        return ResponseEntity.ok(expressionBesoinService.creer(req, pdfFactureProforma));
+            @RequestPart(value = "pdfFactureProforma", required = false) MultipartFile pdfFactureProforma,
+            @RequestPart(value = "pdfDeclarationHonneur", required = false) MultipartFile pdfDeclarationHonneur) {
+        return ResponseEntity.ok(expressionBesoinService.creer(req, pdfFactureProforma, pdfDeclarationHonneur));
     }
 
     @PreAuthorize("hasAnyAuthority('CHEF_SERVICE','CSA','DIRECTEUR','CHEF_COMPTABLE','AGENT_COMPTABLE')")
@@ -31,14 +32,22 @@ public class ExpressionBesoinResource {
     public ResponseEntity<ExpressionBesoin> modifier(
             @PathVariable String id,
             @Valid @RequestPart("data") ExpressionBesoinRequest req,
-            @RequestPart(value = "pdfFactureProforma", required = false) MultipartFile pdfFactureProforma) {
-        return ResponseEntity.ok(expressionBesoinService.modifier(id, req, pdfFactureProforma));
+            @RequestPart(value = "pdfFactureProforma", required = false) MultipartFile pdfFactureProforma,
+            @RequestPart(value = "pdfDeclarationHonneur", required = false) MultipartFile pdfDeclarationHonneur) {
+        return ResponseEntity.ok(expressionBesoinService.modifier(id, req, pdfFactureProforma, pdfDeclarationHonneur));
     }
 
     @PreAuthorize("hasAnyAuthority('CHEF_SERVICE','CSA','DIRECTEUR','CHEF_COMPTABLE','AGENT_COMPTABLE')")
     @GetMapping("/mine")
     public ResponseEntity<List<ExpressionBesoin>> getMesExpressions() {
         return ResponseEntity.ok(expressionBesoinService.getMesExpressions());
+    }
+
+    // Confirmation de satisfaction par le demandeur d'origine, avant tout décaissement
+    @PreAuthorize("hasAnyAuthority('CHEF_SERVICE','CSA','DIRECTEUR','CHEF_COMPTABLE','AGENT_COMPTABLE')")
+    @PutMapping("/{id}/confirmer-satisfaction")
+    public ResponseEntity<ExpressionBesoin> confirmerSatisfaction(@PathVariable String id) {
+        return ResponseEntity.ok(expressionBesoinService.confirmerSatisfaction(id));
     }
 
     // ── CSA / Directeur ──

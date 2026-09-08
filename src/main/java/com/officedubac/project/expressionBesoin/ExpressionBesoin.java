@@ -63,6 +63,11 @@ public class ExpressionBesoin {
     private boolean utiliseePourMandatement;
     private String mandatementId;
 
+    // ── Satisfaction du demandeur (si au moins une ligne utilise un motif qui l'exige) ──
+    // Doit être confirmée avant tout décaissement du mandatement issu de cette EB.
+    private boolean satisfactionConfirmee;
+    private LocalDateTime dateSatisfaction;
+
     private String creePar;
 
     @CreatedDate
@@ -92,5 +97,7 @@ public class ExpressionBesoin {
         // Directeur quand les deux sont requises, celle du CSA sinon.
         private Integer quantiteAccordeeCsa;
         private Integer quantiteAccordeeDirecteur;
+        // Copié depuis le motif au moment de la création (snapshot, comme motifLibelle)
+        private boolean requiertSatisfaction;
     }
 }

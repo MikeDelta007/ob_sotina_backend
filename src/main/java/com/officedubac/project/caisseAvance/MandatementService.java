@@ -40,6 +40,11 @@ public class MandatementService {
         String username = getUsername();
         BigDecimal montant = req.getMontant();
 
+        // Si le motif de cette EB exige une confirmation de satisfaction du demandeur,
+        // elle doit être donnée avant tout décaissement — vérifié avant de décaisser.
+        if (req.getExpressionBesoinId() != null && !req.getExpressionBesoinId().isBlank())
+            expressionBesoinService.verifierSatisfactionPourDecaissement(req.getExpressionBesoinId());
+
         BigDecimal avance   = req.getTypePaiement() == Mandatement.TypePaiement.AVANCE
                               ? req.getMontantAvance() : montant;
         BigDecimal reliquat = montant.subtract(avance);
@@ -120,6 +125,13 @@ public class MandatementService {
         if (!caisseService.soldeSuffisant(total))
             throw new RuntimeException("Le total du mandatement cumulatif (" + total
                     + ") dépasse le solde de la caisse. Approvisionnez la caisse avant de continuer.");
+
+        // Chaque facture peut provenir d'une EB différente exigeant sa propre confirmation
+        // de satisfaction — vérifiées toutes avant le décaissement global unique.
+        for (MandatementCumulatifRequest.Ligne ligne : req.getLignes()) {
+            if (ligne.getExpressionBesoinId() != null && !ligne.getExpressionBesoinId().isBlank())
+                expressionBesoinService.verifierSatisfactionPourDecaissement(ligne.getExpressionBesoinId());
+        }
 
         BigDecimal avanceGlobale = req.getTypePaiement() == Mandatement.TypePaiement.AVANCE
                 ? req.getMontantAvanceGlobal() : total;

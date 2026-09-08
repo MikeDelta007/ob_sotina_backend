@@ -1,6 +1,7 @@
 package com.officedubac.project.expressionBesoin;
 
 import com.officedubac.project.caisseAvance.CaisseAvanceService;
+import com.officedubac.project.caisseAvance.MotifRepository;
 import com.officedubac.project.models.Role;
 import com.officedubac.project.models.User;
 import com.officedubac.project.notification.WhatsAppService;
@@ -28,6 +29,7 @@ public class ExpressionBesoinService {
     private final GridFsTemplate             gridFsTemplate;
     private final UserRepository             userRepository;
     private final WhatsAppService            whatsAppService;
+    private final MotifRepository            motifRepository;
 
     // Au-delà de ce montant, la validation du Directeur est requise en plus de celle du CSA
     private static final BigDecimal SEUIL_VALIDATION_DIRECTEUR = BigDecimal.valueOf(20_000);
@@ -35,12 +37,11 @@ public class ExpressionBesoinService {
     // ═══════════════════════════════════════════════════════════════
     // CRÉATION / MODIFICATION (chef de service)
     // ═══════════════════════════════════════════════════════════════
-    // La déclaration sur l'honneur n'est plus proposée. La facture proforma reste
-    // optionnelle (case à cocher) : si le demandeur ne l'a pas, aucun fichier n'est
-    // requis — il n'y a plus d'alternative à charger.
-    public ExpressionBesoin creer(ExpressionBesoinRequest req, MultipartFile pdfFactureProforma) {
+    // Facture proforma optionnelle (case à cocher) : si cochée, la facture proforma est
+    // requise ; sinon, une déclaration sur l'honneur est requise à la place.
+    public ExpressionBesoin creer(ExpressionBesoinRequest req, MultipartFile pdfFactureProforma, MultipartFile pdfDeclarationHonneur) {
         boolean aProforma = Boolean.TRUE.equals(req.getAFacturePreformat());
-        if (aProforma) validerPieceJointe(pdfFactureProforma);
+        validerPieceJointe(aProforma, pdfFactureProforma, pdfDeclarationHonneur);
 
         List<ExpressionBesoin.Ligne> lignes = construireLignes(req.getLignes());
 
@@ -49,6 +50,7 @@ public class ExpressionBesoinService {
                 .montantInitial(totalLignes(lignes))
                 .aFacturePreformat(aProforma)
                 .urlPdfFactureProforma(aProforma ? saveFile(pdfFactureProforma, "facture-proforma") : null)
+                .urlPdfDeclarationHonneur(!aProforma ? saveFile(pdfDeclarationHonneur, "declaration-honneur") : null)
                 .statut(ExpressionBesoin.Statut.EN_ATTENTE)
                 .creePar(getUsername())
                 .build();
@@ -58,7 +60,7 @@ public class ExpressionBesoinService {
         return saved;
     }
 
-    public ExpressionBesoin modifier(String id, ExpressionBesoinRequest req, MultipartFile pdfFactureProforma) {
+    public ExpressionBesoin modifier(String id, ExpressionBesoinRequest req, MultipartFile pdfFactureProforma, MultipartFile pdfDeclarationHonneur) {
         ExpressionBesoin eb = getById(id);
 
         if (!eb.getCreePar().equals(getUsername()))
@@ -67,9 +69,13 @@ public class ExpressionBesoinService {
             throw new RuntimeException("Cette expression de besoin ne peut plus être modifiée");
 
         boolean aProforma = Boolean.TRUE.equals(req.getAFacturePreformat());
-        boolean nouveauFichier = pdfFactureProforma != null && !pdfFactureProforma.isEmpty();
-        if (aProforma && !nouveauFichier && eb.getUrlPdfFactureProforma() == null)
-            validerPieceJointe(pdfFactureProforma);
+        boolean nouveauFichier = aProforma
+                ? (pdfFactureProforma != null && !pdfFactureProforma.isEmpty())
+                : (pdfDeclarationHonneur != null && !pdfDeclarationHonneur.isEmpty());
+        boolean choixInchange = aProforma == eb.isAFacturePreformat();
+        boolean fichierExistant = aProforma ? eb.getUrlPdfFactureProforma() != null : eb.getUrlPdfDeclarationHonneur() != null;
+        if (!nouveauFichier && !(choixInchange && fichierExistant))
+            validerPieceJointe(aProforma, pdfFactureProforma, pdfDeclarationHonneur);
 
         List<ExpressionBesoin.Ligne> lignes = construireLignes(req.getLignes());
         eb.setLignes(lignes);
@@ -77,10 +83,11 @@ public class ExpressionBesoinService {
         eb.setAFacturePreformat(aProforma);
         if (aProforma) {
             if (nouveauFichier) eb.setUrlPdfFactureProforma(saveFile(pdfFactureProforma, "facture-proforma"));
+            eb.setUrlPdfDeclarationHonneur(null);
         } else {
+            if (nouveauFichier) eb.setUrlPdfDeclarationHonneur(saveFile(pdfDeclarationHonneur, "declaration-honneur"));
             eb.setUrlPdfFactureProforma(null);
         }
-        eb.setUrlPdfDeclarationHonneur(null);
 
         return expressionBesoinRepo.save(eb);
     }
@@ -90,12 +97,18 @@ public class ExpressionBesoinService {
             BigDecimal montant = l.getQuantite() != null
                     ? l.getPrixUnitaire().multiply(BigDecimal.valueOf(l.getQuantite()))
                     : l.getPrixUnitaire();
+            // Snapshot au moment de la création : un motif ultérieurement modifié ne doit
+            // pas changer rétroactivement l'exigence de satisfaction d'une EB déjà créée.
+            boolean requiertSatisfaction = motifRepository.findById(l.getMotifId())
+                    .map(com.officedubac.project.caisseAvance.Motif::isRequiertSatisfaction)
+                    .orElse(false);
             return ExpressionBesoin.Ligne.builder()
                     .motifId(l.getMotifId())
                     .motifLibelle(l.getMotifLibelle())
                     .quantite(l.getQuantite())
                     .prixUnitaire(l.getPrixUnitaire())
                     .montant(montant)
+                    .requiertSatisfaction(requiertSatisfaction)
                     .build();
         }).toList();
     }
@@ -105,9 +118,11 @@ public class ExpressionBesoinService {
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
-    private void validerPieceJointe(MultipartFile pdfFactureProforma) {
-        if (pdfFactureProforma == null || pdfFactureProforma.isEmpty())
+    private void validerPieceJointe(boolean aProforma, MultipartFile pdfFactureProforma, MultipartFile pdfDeclarationHonneur) {
+        if (aProforma && (pdfFactureProforma == null || pdfFactureProforma.isEmpty()))
             throw new RuntimeException("La facture proforma (PDF) est requise");
+        if (!aProforma && (pdfDeclarationHonneur == null || pdfDeclarationHonneur.isEmpty()))
+            throw new RuntimeException("La déclaration sur l'honneur (PDF) est requise");
     }
 
     // Notifie systématiquement le(s) CSA, et en plus le(s) Directeur si le montant
@@ -233,6 +248,35 @@ public class ExpressionBesoinService {
     }
 
     // ═══════════════════════════════════════════════════════════════
+    // SATISFACTION DU DEMANDEUR
+    // ═══════════════════════════════════════════════════════════════
+    private boolean requiertSatisfaction(ExpressionBesoin eb) {
+        return eb.getLignes() != null && eb.getLignes().stream().anyMatch(ExpressionBesoin.Ligne::isRequiertSatisfaction);
+    }
+
+    public ExpressionBesoin confirmerSatisfaction(String id) {
+        ExpressionBesoin eb = getById(id);
+        if (!eb.getCreePar().equals(getUsername()))
+            throw new RuntimeException("Seul le demandeur d'origine peut confirmer sa satisfaction");
+        if (eb.getStatut() != ExpressionBesoin.Statut.TRAITEE)
+            throw new RuntimeException("La satisfaction ne peut être confirmée qu'une fois l'expression de besoin traitée");
+        if (!requiertSatisfaction(eb))
+            throw new RuntimeException("Aucune confirmation de satisfaction n'est requise pour cette expression de besoin");
+
+        eb.setSatisfactionConfirmee(true);
+        eb.setDateSatisfaction(LocalDateTime.now());
+        return expressionBesoinRepo.save(eb);
+    }
+
+    // Appelée par MandatementService avant tout décaissement lié à cette EB.
+    public void verifierSatisfactionPourDecaissement(String id) {
+        ExpressionBesoin eb = getById(id);
+        if (requiertSatisfaction(eb) && !eb.isSatisfactionConfirmee())
+            throw new RuntimeException("Le demandeur doit confirmer sa satisfaction avant tout décaissement pour l'expression de besoin \""
+                    + id + "\"");
+    }
+
+    // ═══════════════════════════════════════════════════════════════
     // LECTURE
     // ═══════════════════════════════════════════════════════════════
     public ExpressionBesoin getById(String id) {
@@ -279,8 +323,13 @@ public class ExpressionBesoinService {
         return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.TRAITEE);
     }
 
+    // Exclut les EB qui exigent une confirmation de satisfaction non encore donnée —
+    // évite au comptable de sélectionner une EB dont le décaissement échouera.
     public List<ExpressionBesoin> getDisponiblesPourMandatement() {
-        return expressionBesoinRepo.findByStatutAndUtiliseePourMandatementFalseOrderByDateCreationDesc(ExpressionBesoin.Statut.TRAITEE);
+        return expressionBesoinRepo.findByStatutAndUtiliseePourMandatementFalseOrderByDateCreationDesc(ExpressionBesoin.Statut.TRAITEE)
+                .stream()
+                .filter(eb -> !requiertSatisfaction(eb) || eb.isSatisfactionConfirmee())
+                .toList();
     }
 
     // ── Utilitaires ──

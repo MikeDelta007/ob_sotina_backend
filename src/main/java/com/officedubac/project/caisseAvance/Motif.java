@@ -20,6 +20,9 @@ public class Motif {
 
     private String libelle;   // ex: "Payage autoroute", "Repas", ...
     private boolean actif = true;
+    // Si vrai, toute expression de besoin utilisant ce motif exige la confirmation de
+    // satisfaction du demandeur avant tout décaissement du mandatement correspondant.
+    private boolean requiertSatisfaction = false;
 
     @CreatedDate
     private LocalDateTime dateCreation;
