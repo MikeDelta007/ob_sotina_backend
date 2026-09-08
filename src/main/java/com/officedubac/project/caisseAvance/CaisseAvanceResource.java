@@ -91,6 +91,7 @@ public class CaisseAvanceResource {
                 .orElseThrow(() -> new RuntimeException("Motif introuvable"));
         motif.setLibelle(req.getLibelle());
         motif.setActif(req.isActif());
+        motif.setRequiertSatisfaction(req.isRequiertSatisfaction());
         return ResponseEntity.ok(motifRepo.save(motif));
     }
 
