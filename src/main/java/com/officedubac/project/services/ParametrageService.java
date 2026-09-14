@@ -659,6 +659,19 @@ public class ParametrageService
                 .acteur(userDTO.getActeur())
                 .profil(prf)
                 .state_account(userDTO.isState_account())
+                .bank(userDTO.getBank())
+                .matricule(userDTO.getMatricule())
+                .civilite(userDTO.getCivilite())
+                .division(userDTO.getDivision())
+                .fonction(userDTO.getFonction())
+                .code_bank(userDTO.getCode_bank())
+                .matricule_voiture(userDTO.getMatricule_voiture())
+                .code_agc(userDTO.getCode_agc())
+                .num_compte(userDTO.getNum_compte())
+                .key_rib(userDTO.getKey_rib())
+                .typePersonnel(userDTO.getTypePersonnel())
+                // Solde initial toujours calculé à partir du type de personnel (compte neuf)
+                .soldeConges(userDTO.getTypePersonnel() != null ? userDTO.getTypePersonnel().joursConges() : null)
                 .build();
 
         Query query = new Query();
@@ -1212,6 +1225,19 @@ public class ParametrageService
             update_usr.setActeur(userDTO.getActeur());
             update_usr.setProfil(prf);
             update_usr.setState_account(userDTO.isState_account());
+            update_usr.setBank(userDTO.getBank());
+            update_usr.setMatricule(userDTO.getMatricule());
+            update_usr.setCivilite(userDTO.getCivilite());
+            update_usr.setDivision(userDTO.getDivision());
+            update_usr.setFonction(userDTO.getFonction());
+            update_usr.setCode_bank(userDTO.getCode_bank());
+            update_usr.setMatricule_voiture(userDTO.getMatricule_voiture());
+            update_usr.setCode_agc(userDTO.getCode_agc());
+            update_usr.setNum_compte(userDTO.getNum_compte());
+            update_usr.setKey_rib(userDTO.getKey_rib());
+            update_usr.setTypePersonnel(userDTO.getTypePersonnel());
+            // Le solde peut être corrigé manuellement par l'ADMIN à l'édition (report, régularisation...)
+            update_usr.setSoldeConges(userDTO.getSoldeConges());
             return userRepository.save(update_usr);
         }
         else
