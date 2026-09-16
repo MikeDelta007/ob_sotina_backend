@@ -10,24 +10,28 @@ public final class RelevNoteA4Coordinates {
 
     private RelevNoteA4Coordinates() { }
 
-    // ---- Session : NORMALE / DE REMPLACEMENT (l'option non choisie est barrée) ----
-    public static final float SESSION_NORMALE_X0 = 287.1f, SESSION_NORMALE_X1 = 327.1f, SESSION_NORMALE_Y = 799.6f;
-    public static final float SESSION_REMPLACEMENT_X0 = 287.1f, SESSION_REMPLACEMENT_X1 = 369.1f, SESSION_REMPLACEMENT_Y = 787.4f;
+    // ---- Session : ligne à compléter ("...à la session de………") — pas de case à barrer sur ce gabarit ----
+    public static final float SESSION_TEXT_X = 320f, SESSION_TEXT_Y = 650f;
 
     // ---- En-tête ----
-    public static final float JURY_NUMERO_X = 405.1f, JURY_NUMERO_Y = 736.5f;
-    public static final float ANNEE_X = 97.5f, ANNEE_Y = 665.7f;
-    public static final float NUMERO_TABLE_X = 80f, NUMERO_TABLE_Y = 0f;
+    // NB : ce gabarit n'a ni case "Jury n°" ni case "Année" imprimée à part —
+    // faute de case dédiée, on les écrit en 4ème ligne de l'encadré identité
+    // (même choix que pour A2/JURY_NUMERO_X-ANNEE_X).
+    public static final float JURY_NUMERO_X = 250.0f, JURY_NUMERO_Y = 555f;
+    public static final float ANNEE_X = 420.0f, ANNEE_Y = 555f;
+    // NB : pas de case "N° de table" imprimée sur ce gabarit (encadré identité en
+    // 4 lignes libres uniquement, comme A2) : rien à afficher à une position dédiée.
+    public static final float NUMERO_TABLE_X = 0f, NUMERO_TABLE_Y = 0f;
 
-    // ---- Identité du candidat ----
-    public static final float NOM_PRENOM_X = 110.0f, NOM_PRENOM_Y = 649.4f;
-    public static final float DATE_NAISSANCE_X = 140.0f, DATE_NAISSANCE_Y = 636.5f;
-    public static final float LIEU_NAISSANCE_X = 290.0f, LIEU_NAISSANCE_Y = 636.5f;
-    public static final float ETABLISSEMENT_X = 260.4f, ETABLISSEMENT_Y = 651.8f;
-    public static final float INDICATIF_X = 390.4f, INDICATIF_Y = 651.8f;
-    public static final float OPTIONS_X = 128.5f, OPTIONS_Y = 613.8f;
-    public static final float NATIONALITE_X = 228.4f, NATIONALITE_Y = 632.0f;
-    public static final float NOMBRE_DE_FOIS_X = 205.0f, NOMBRE_DE_FOIS_Y = 632.0f;
+    // ---- Identité du candidat : encadré vierge en 4 lignes libres (comme A2) ----
+    public static final float NOM_PRENOM_X       = 250.0f, NOM_PRENOM_Y       = 600f;
+    public static final float ETABLISSEMENT_X    = 420.0f, ETABLISSEMENT_Y    = 600f;
+    public static final float DATE_NAISSANCE_X   = 110.0f, DATE_NAISSANCE_Y   = 585f;
+    public static final float LIEU_NAISSANCE_X   = 250.0f, LIEU_NAISSANCE_Y   = 585f;
+    public static final float NATIONALITE_X      = 420.0f, NATIONALITE_Y      = 585f;
+    public static final float OPTIONS_X          = 250.0f, OPTIONS_Y         = 570f;
+    public static final float INDICATIF_X        = 420.0f, INDICATIF_Y      = 570f;
+    public static final float NOMBRE_DE_FOIS_X   = 505.0f, NOMBRE_DE_FOIS_Y = 570f;
 
     // ---- 1er groupe : colonnes centrées "Note sur 20" et "Points obtenus" ----
     public static final float G1_NOTE_CENTER_X = 136.3f;
@@ -71,12 +75,17 @@ public final class RelevNoteA4Coordinates {
     public static final float TOTAL_DEFINITIF_Y = 281.2f;
 
     // ---- Décisions du jury : texte libre sur la ligne "Le candidat a été déclaré ..." ----
-    public static final float DEC1_TEXTE_X = 175.7f, DEC1_TEXTE_Y = 256.6f;
-    public static final float DEC2_TEXTE_X = 419.5f, DEC2_TEXTE_Y = 256.6f;
+    public static final float DEC1_TEXTE_X = 175.7f, DEC1_TEXTE_Y = 237f;
+    public static final float DEC2_TEXTE_X = 419.5f, DEC2_TEXTE_Y = 237f;
 
-    // ---- Pied de page 1er groupe : "Fait à ... le ... 19..." (format court) ----
-    public static final float DEC1_LIEU_X = 60.7f, DEC1_JOUR_MOIS_X = 125.7f, DEC1_ANNEE2_X = 225.7f, DEC1_PIED_Y = 215.7f;
+    // ---- Pied de page 1er groupe : "Dakar, le ... 19..." ----
+    public static final float DEC1_LIEU_X = 60.7f, DEC1_JOUR_MOIS_X = 125.7f, DEC1_ANNEE2_X = 225.7f, DEC1_PIED_Y = 200f;
 
-    // ---- Pied de page 2eme groupe (format long) ----
-    public static final float DEC2_LIEU_X = 304.5f, DEC2_JOUR_MOIS_X = 429.5f, DEC2_ANNEE2_X = 549.5f, DEC2_PIED_Y = 215.7f;
+    // ---- Pied de page 2eme groupe ----
+    public static final float DEC2_LIEU_X = 304.5f, DEC2_JOUR_MOIS_X = 429.5f, DEC2_ANNEE2_X = 549.5f, DEC2_PIED_Y = 200f;
+
+    // ---- Tampon "DAKAR, le [date du jour]" — sous "Cachet obligatoire ...
+    // Président du Jury" (estimations à vérifier par rendu) ----
+    public static final float DEC1_GENERE_X = 60.7f, DEC1_GENERE_Y = 150f;
+    public static final float DEC2_GENERE_X = 304.5f, DEC2_GENERE_Y = 150f;
 }

@@ -28,8 +28,8 @@ public class ReleveA2DeuxiemePartie {
 
     private DecisionJury decision;
 
-    private String lieuDelivrance;
-    private LocalDate dateDelivrance;
+    private String lieuDeliberation;
+    private LocalDate dateDeliberation;
     private String presidentJury;
 
     private Instant createdAt;
@@ -61,11 +61,11 @@ public class ReleveA2DeuxiemePartie {
     public DecisionJury getDecision() { return decision; }
     public void setDecision(DecisionJury decision) { this.decision = decision; }
 
-    public String getLieuDelivrance() { return lieuDelivrance; }
-    public void setLieuDelivrance(String lieuDelivrance) { this.lieuDelivrance = lieuDelivrance; }
+    public String getLieuDeliberation() { return lieuDeliberation; }
+    public void setLieuDeliberation(String lieuDeliberation) { this.lieuDeliberation = lieuDeliberation; }
 
-    public LocalDate getDateDelivrance() { return dateDelivrance; }
-    public void setDateDelivrance(LocalDate dateDelivrance) { this.dateDelivrance = dateDelivrance; }
+    public LocalDate getDateDeliberation() { return dateDeliberation; }
+    public void setDateDeliberation(LocalDate dateDeliberation) { this.dateDeliberation = dateDeliberation; }
 
     public String getPresidentJury() { return presidentJury; }
     public void setPresidentJury(String presidentJury) { this.presidentJury = presidentJury; }

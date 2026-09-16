@@ -82,25 +82,6 @@ public class PdfController
     @Autowired
     private PdfStatService pdfStatService;
 
-    @Autowired
-    private GabaritA1 gabaritA1;
-
-    @Autowired
-    private GabaritOptionT2 gabaritOptionT2;
-
-
-    @PostMapping("/pdf-A1")
-    public ResponseEntity<byte[]> genererPdf()
-    {
-        byte[] pdf = gabaritOptionT2.genererReleveT2();
-
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_PDF);
-        headers.setContentDispositionFormData("inline", "releve-notes.pdf");
-
-        return ResponseEntity.ok().headers(headers).body(pdf);
-    }
-
     @GetMapping(value = "/releve-stat", produces = MediaType.APPLICATION_PDF_VALUE)
     public ResponseEntity<byte[]> genererPdfStatistiques() {
         try {

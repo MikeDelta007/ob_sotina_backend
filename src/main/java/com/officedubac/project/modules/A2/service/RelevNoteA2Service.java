@@ -204,8 +204,9 @@ public class RelevNoteA2Service {
         releve.setMentionDeuxiemeGroupe(mention(totalDefinitifAvecFacultatifs, MatieresA2.BAREME_TOTAL_DEFINITIF));
         releve.setDecisionDeuxiemeGroupe(decision(totalDefinitifAvecFacultatifs, MatieresA2.BAREME_TOTAL_DEFINITIF));
 
-        releve.setLieuDelivrance(request.getLieuDelivrance());
-        releve.setDateDelivrance(request.getDateDelivrance());
+        releve.setLieuDeliberation(request.getLieuDeliberation());
+        releve.setDateDeliberationPremierGroupe(request.getDateDeliberationPremierGroupe());
+        releve.setDateDeliberationDeuxiemeGroupe(request.getDateDeliberationDeuxiemeGroupe());
         releve.setPresidentJury(request.getPresidentJury());
     }
 

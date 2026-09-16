@@ -45,8 +45,9 @@ public class RelevNoteF7 {
     private DecisionJury decisionDeuxiemeGroupe;
     private Mention mentionDeuxiemeGroupe;
 
-    private String lieuDelivrance;
-    private LocalDate dateDelivrance;
+    private String lieuDeliberation;
+    private LocalDate dateDeliberationPremierGroupe;
+    private LocalDate dateDeliberationDeuxiemeGroupe;
     private String presidentJury;
     private Instant createdAt;
 }

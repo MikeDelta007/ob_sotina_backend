@@ -102,8 +102,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.A3.model.RelevNoteA3 releve = A3Service.creer(req);
@@ -153,8 +154,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.B.model.RelevNoteB releve = BService.creer(req);
@@ -204,8 +206,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.D.model.RelevNoteD releve = DService.creer(req);
@@ -256,8 +259,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.E.model.RelevNoteE releve = EService.creer(req);
@@ -309,8 +313,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.F1.model.RelevNoteF1 releve = F1Service.creer(req);
@@ -362,8 +367,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.F7.model.RelevNoteF7 releve = F7Service.creer(req);
@@ -414,8 +420,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.G.model.RelevNoteG releve = GService.creer(req);
@@ -466,8 +473,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.G1.model.RelevNoteG1 releve = G1Service.creer(req);
@@ -519,8 +527,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.G2.model.RelevNoteG2 releve = G2Service.creer(req);
@@ -569,8 +578,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.Lprime1.model.RelevNoteLPrime1 releve = Lprime1Service.creer(req);
@@ -619,8 +629,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.L1A.model.RelevNoteL1A releve = L1AService.creer(req);
@@ -669,8 +680,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.L1B.model.RelevNoteL1B releve = L1BService.creer(req);
@@ -719,8 +731,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.L2.model.RelevNoteL2 releve = L2Service.creer(req);
@@ -769,8 +782,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.S1.model.RelevNoteS1 releve = S1Service.creer(req);
@@ -819,8 +833,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.S2.model.RelevNoteS2 releve = S2Service.creer(req);
@@ -870,8 +885,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.S3.model.RelevNoteS3 releve = S3Service.creer(req);
@@ -923,8 +939,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.S4.model.RelevNoteS4 releve = S4Service.creer(req);
@@ -976,8 +993,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.S5.model.RelevNoteS5 releve = S5Service.creer(req);
@@ -1030,8 +1048,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.T1.model.RelevNoteT1 releve = T1Service.creer(req);
@@ -1083,8 +1102,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.T2.model.RelevNoteT2 releve = T2Service.creer(req);
@@ -1133,8 +1153,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.A4.model.RelevNoteA4 releve = A4Service.creer(req);
@@ -1184,8 +1205,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.A1.model.RelevNoteA1 releve = A1Service.creer(req);
@@ -1235,8 +1257,9 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberationPremierGroupe(LocalDate.of(2026, 7, 20));
+            req.setDateDeliberationDeuxiemeGroupe(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.A2.model.RelevNoteA2 releve = A2Service.creer(req);
@@ -1266,8 +1289,8 @@ public class SeedAllSeriesTest {
         or_.put("MATH", 14);
             req.setNotesOrales(or_);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberation(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.a3deuxiemepartie.model.ReleveA3DeuxiemePartie releve = a3deuxiemepartieService.creer(req);
@@ -1298,8 +1321,8 @@ public class SeedAllSeriesTest {
         or_.put("MATH_ORAL", 9);
             req.setNotesOrales(or_);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberation(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.c2emepartie.model.ReleveC2emePartie releve = c2emepartieService.creer(req);
@@ -1334,8 +1357,8 @@ public class SeedAllSeriesTest {
             ep.setNote(13);
             req.setEducationPhysique(ep);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberation(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.ddeuxiemepartie.model.ReleveDDeuxiemePartie releve = ddeuxiemepartieService.creer(req);
@@ -1368,8 +1391,8 @@ public class SeedAllSeriesTest {
         or_.put("EPREUVE_ATELIER", 16);
             req.setNotesOrales(or_);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberation(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.f1deuxiemepartie.model.ReleveF1DeuxiemePartie releve = f1deuxiemepartieService.creer(req);
@@ -1400,8 +1423,8 @@ public class SeedAllSeriesTest {
         or_.put("MATH", 9);
             req.setNotesOrales(or_);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberation(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.a1deuxiemepartie.model.ReleveA1DeuxiemePartie releve = a1deuxiemepartieService.creer(req);
@@ -1432,8 +1455,8 @@ public class SeedAllSeriesTest {
         or_.put("MATH", 9);
             req.setNotesOrales(or_);
 
-            req.setLieuDelivrance("DAKAR");
-            req.setDateDelivrance(LocalDate.of(2026, 7, 20));
+            req.setLieuDeliberation("DAKAR");
+            req.setDateDeliberation(LocalDate.of(2026, 7, 20));
             req.setPresidentJury("Professeur TEST");
 
             com.officedubac.project.modules.a2deuxiemepartie.model.ReleveA2DeuxiemePartie releve = a2deuxiemepartieService.creer(req);

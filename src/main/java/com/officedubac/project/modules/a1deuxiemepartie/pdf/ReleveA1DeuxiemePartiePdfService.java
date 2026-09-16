@@ -12,7 +12,9 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -31,9 +33,10 @@ public class ReleveA1DeuxiemePartiePdfService {
     private static final String TEMPLATE_PATH = "templates/releve-A1-2emePartie-template.pdf";
     private static final String POLICE_PATH = "fonts/DejaVuSans.ttf";
 
-    private static final DateTimeFormatter DATE_JOUR_MOIS = DateTimeFormatter.ofPattern("dd/MM");
+    private static final DateTimeFormatter DATE_JOUR_MOIS = DateTimeFormatter.ofPattern("d MMMM", Locale.FRENCH);
     private static final DateTimeFormatter DATE_ANNEE_2_CHIFFRES = DateTimeFormatter.ofPattern("yy");
     private static final DateTimeFormatter DATE_NAISSANCE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter DATE_GENERATION = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
 
     private static final float TAILLE_ENTETE    = 9f;
     private static final float TAILLE_IDENTITE  = 9f;
@@ -59,6 +62,7 @@ public class ReleveA1DeuxiemePartiePdfService {
             ecrireTotalGeneral(cb, font, releve);
             ecrireDecision(cb, releve);
             ecrirePiedDePage(cb, font, releve);
+            ecrireTamponGeneration(cb, font);
 
             stamper.close();
             reader.close();
@@ -187,11 +191,19 @@ public class ReleveA1DeuxiemePartiePdfService {
     }
 
     private void ecrirePiedDePage(PdfContentByte cb, BaseFont font, ReleveA1DeuxiemePartie r) {
-        texte(cb, font, TAILLE_PIED_PAGE, LIEU_DELIVRANCE_X, LIEU_DELIVRANCE_Y, r.getLieuDelivrance());
-        if (r.getDateDelivrance() != null) {
-            texte(cb, font, TAILLE_PIED_PAGE, JOUR_MOIS_X, JOUR_MOIS_Y, r.getDateDelivrance().format(DATE_JOUR_MOIS));
-            texte(cb, font, TAILLE_PIED_PAGE, ANNEE_2_CHIFFRES_X, ANNEE_2_CHIFFRES_Y, r.getDateDelivrance().format(DATE_ANNEE_2_CHIFFRES));
-        }
+        if (r.getDateDeliberation() == null) return;
+        texte(cb, font, TAILLE_PIED_PAGE, LIEU_DELIBERATION_X, LIEU_DELIBERATION_Y, r.getLieuDeliberation());
+        texte(cb, font, TAILLE_PIED_PAGE, JOUR_MOIS_X, JOUR_MOIS_Y, r.getDateDeliberation().format(DATE_JOUR_MOIS));
+        texte(cb, font, TAILLE_PIED_PAGE, ANNEE_2_CHIFFRES_X, ANNEE_2_CHIFFRES_Y, r.getDateDeliberation().format(DATE_ANNEE_2_CHIFFRES));
         // Le nom du Président du Jury n'est pas imprimé ici (voir ReleveA1DeuxiemePartieCoordinates)
+    }
+
+    /**
+     * Tampon "DAKAR, le [date du jour]" imprimé juste en dessous de "Cachet
+     * obligatoire". Lieu fixe ("DAKAR") et date système, indépendants du
+     * lieu/date de délibération saisis par le jury (ligne "Fait à ... le ...").
+     */
+    private void ecrireTamponGeneration(PdfContentByte cb, BaseFont font) {
+        texte(cb, font, TAILLE_PIED_PAGE, GENERE_X, GENERE_Y, "DAKAR, le " + LocalDate.now().format(DATE_GENERATION));
     }
 }

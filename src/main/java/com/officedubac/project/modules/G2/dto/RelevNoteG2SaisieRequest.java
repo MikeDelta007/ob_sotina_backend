@@ -37,8 +37,9 @@ public class RelevNoteG2SaisieRequest {
     private List<EpreuveFacultativeSaisie> epreuvesFacultatives;
     private EducationPhysiqueSaisie educationPhysique;
 
-    private String lieuDelivrance;
-    private LocalDate dateDelivrance;
+    private String lieuDeliberation;
+    private LocalDate dateDeliberationPremierGroupe;
+    private LocalDate dateDeliberationDeuxiemeGroupe;
     private String presidentJury;
 
     public static class EpreuveOraleControleSaisie {
@@ -125,11 +126,14 @@ public class RelevNoteG2SaisieRequest {
     public EducationPhysiqueSaisie getEducationPhysique() { return educationPhysique; }
     public void setEducationPhysique(EducationPhysiqueSaisie educationPhysique) { this.educationPhysique = educationPhysique; }
 
-    public String getLieuDelivrance() { return lieuDelivrance; }
-    public void setLieuDelivrance(String lieuDelivrance) { this.lieuDelivrance = lieuDelivrance; }
+    public String getLieuDeliberation() { return lieuDeliberation; }
+    public void setLieuDeliberation(String v) { this.lieuDeliberation = v; }
 
-    public LocalDate getDateDelivrance() { return dateDelivrance; }
-    public void setDateDelivrance(LocalDate dateDelivrance) { this.dateDelivrance = dateDelivrance; }
+    public LocalDate getDateDeliberationPremierGroupe() { return dateDeliberationPremierGroupe; }
+    public void setDateDeliberationPremierGroupe(LocalDate v) { this.dateDeliberationPremierGroupe = v; }
+
+    public LocalDate getDateDeliberationDeuxiemeGroupe() { return dateDeliberationDeuxiemeGroupe; }
+    public void setDateDeliberationDeuxiemeGroupe(LocalDate v) { this.dateDeliberationDeuxiemeGroupe = v; }
 
     public String getPresidentJury() { return presidentJury; }
     public void setPresidentJury(String presidentJury) { this.presidentJury = presidentJury; }

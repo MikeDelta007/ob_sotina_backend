@@ -121,6 +121,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/releves-s5/**").permitAll()
                         .requestMatchers("/api/v1/releves-t1/**").permitAll()
                         .requestMatchers("/api/v1/releves-t2/**").permitAll()
+                        .requestMatchers("/api/v1/releves/rechercher").permitAll()
                         .requestMatchers("/api/v1/stats/**").hasAnyAuthority(Role.ADMIN.name())
                         .anyRequest().authenticated()
                 )
