@@ -129,11 +129,11 @@ public class ExpressionBesoinService {
     // initial dépasse le seuil imposant sa validation.
     private void notifierValidateurs(ExpressionBesoin eb) {
         userRepository.findByProfilName(Role.CSA)
-                .forEach(u -> whatsAppService.envoyerNotificationValidation(u.getPhone()));
+                .forEach(u -> whatsAppService.envoyerNotificationValidation(u.getPersonnel().getPhone()));
 
         if (eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) > 0) {
             userRepository.findByProfilName(Role.DIRECTEUR)
-                    .forEach(u -> whatsAppService.envoyerNotificationValidation(u.getPhone()));
+                    .forEach(u -> whatsAppService.envoyerNotificationValidation(u.getPersonnel().getPhone()));
         }
     }
 

@@ -22,15 +22,16 @@ public class ProfileResource {
     @PutMapping("/me")
     public ResponseEntity<User> updateMe(@RequestBody ProfileUpdateDTO dto) {
         User user = currentUser();
-        user.setPhone(dto.getPhone());
-        user.setEmail(dto.getEmail());
-        user.setCivilite(dto.getCivilite());
-        user.setBank(dto.getBank());
-        user.setCode_bank(dto.getCode_bank());
-        user.setCode_agc(dto.getCode_agc());
-        user.setNum_compte(dto.getNum_compte());
-        user.setKey_rib(dto.getKey_rib());
-        user.setMatricule_voiture(dto.getMatricule_voiture());
+        Personnel personnel = user.getPersonnel();
+        personnel.setPhone(dto.getPhone());
+        personnel.setEmail(dto.getEmail());
+        personnel.setCivilite(dto.getCivilite());
+        personnel.setBank(dto.getBank());
+        personnel.setCode_bank(dto.getCode_bank());
+        personnel.setCode_agc(dto.getCode_agc());
+        personnel.setNum_compte(dto.getNum_compte());
+        personnel.setKey_rib(dto.getKey_rib());
+        personnel.setVoiture(dto.getVoiture());
         return ResponseEntity.ok(userRepository.save(user));
     }
 

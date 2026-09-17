@@ -3,6 +3,9 @@ package com.officedubac.project.services;
 import com.officedubac.project.dto.*;
 import com.officedubac.project.models.*;
 import com.officedubac.project.models.InspectionAcademie;
+import com.officedubac.project.personnel.Personnel;
+import com.officedubac.project.personnel.PersonnelRepository;
+import com.officedubac.project.personnel.TypePersonnel;
 import com.officedubac.project.repository.*;
 import jakarta.mail.MessagingException;
 import lombok.RequiredArgsConstructor;
@@ -99,6 +102,9 @@ public class ParametrageService
 
     @Autowired
     private EmailService emailservice;
+
+    @Autowired
+    private PersonnelRepository personnelRepository;
 
     public String getCellValue(Cell cell) {
         if (cell == null) {
@@ -648,36 +654,41 @@ public class ParametrageService
         log.info(String.valueOf(send_access_smtp));
         Map<String, Object> variables = new HashMap<>();
         Profil prf = profilRepository.findByName(userDTO.getProfil().getName().name());
-        User user = User.builder()
+        Personnel personnel = Personnel.builder()
                 .firstname(userDTO.getFirstname())
                 .lastname(userDTO.getLastname())
                 .phone(userDTO.getPhone())
                 .email(userDTO.getEmail())
-                .login(userDTO.getLogin())
-                .first_connexion(true)
-                .password(new BCryptPasswordEncoder().encode(userDTO.getPassword()))
-                .acteur(userDTO.getActeur())
-                .profil(prf)
-                .state_account(userDTO.isState_account())
                 .bank(userDTO.getBank())
                 .matricule(userDTO.getMatricule())
                 .civilite(userDTO.getCivilite())
                 .division(userDTO.getDivision())
                 .fonction(userDTO.getFonction())
                 .code_bank(userDTO.getCode_bank())
-                .matricule_voiture(userDTO.getMatricule_voiture())
+                .voiture(userDTO.getVoiture())
                 .code_agc(userDTO.getCode_agc())
                 .num_compte(userDTO.getNum_compte())
                 .key_rib(userDTO.getKey_rib())
                 .typePersonnel(userDTO.getTypePersonnel())
                 // Solde initial toujours calculé à partir du type de personnel (compte neuf)
                 .soldeConges(userDTO.getTypePersonnel() != null ? userDTO.getTypePersonnel().joursConges() : null)
+                .actif(true)
+                .build();
+
+        User user = User.builder()
+                .login(userDTO.getLogin())
+                .first_connexion(true)
+                .password(new BCryptPasswordEncoder().encode(userDTO.getPassword()))
+                .acteur(userDTO.getActeur())
+                .profil(prf)
+                .state_account(userDTO.isState_account())
+                .personnel(personnel)
                 .build();
 
         Query query = new Query();
         query.addCriteria(new Criteria().orOperator(
-                Criteria.where("email").is(user.getEmail()),
-                Criteria.where("phone").is(user.getPhone()),
+                Criteria.where("personnel.email").is(userDTO.getEmail()),
+                Criteria.where("personnel.phone").is(userDTO.getPhone()),
                 Criteria.where("login").is(user.getLogin())
         ));
 
@@ -694,14 +705,14 @@ public class ParametrageService
                             HttpStatus.CONFLICT
                     );
                 }
-                if (u.getEmail().equals(userDTO.getEmail())) {
+                if (u.getPersonnel().getEmail().equals(userDTO.getEmail())) {
                     throw new BusinessResourceException(
                             "email-error",
                             "Attention, cette adresse email existe déjà !",
                             HttpStatus.CONFLICT
                     );
                 }
-                if (u.getPhone().equals(userDTO.getPhone())) {
+                if (u.getPersonnel().getPhone().equals(userDTO.getPhone())) {
                     throw new BusinessResourceException(
                             "phone-error",
                             "Attention, ce numéro de téléphone existe déjà !",
@@ -723,6 +734,95 @@ public class ParametrageService
 
         return userRepository.save(user);
 
+    }
+
+    // Création d'un compte à partir d'une fiche Personnel existante (voir /personnel/personnels).
+    // Un agent ne peut avoir deux comptes : la fiche autonome est supprimée une fois consommée.
+    public User createUserFromPersonnel(CreerCompteDepuisPersonnelDTO dto, boolean send_access_smtp) throws MessagingException
+    {
+        Personnel source = personnelRepository.findById(dto.getPersonnelId())
+                .orElseThrow(() -> new BusinessResourceException(
+                        "personnel-introuvable", "Agent introuvable", HttpStatus.NOT_FOUND));
+
+        if (source.getTypePersonnel() == TypePersonnel.EXTERNE) {
+            throw new BusinessResourceException(
+                    "personnel-externe", "Le personnel externe n'a pas besoin de compte", HttpStatus.BAD_REQUEST);
+        }
+
+        Profil prf = profilRepository.findByName(dto.getProfil().getName().name());
+        Personnel personnel = Personnel.builder()
+                .firstname(source.getFirstname())
+                .lastname(source.getLastname())
+                .phone(source.getPhone())
+                .email(source.getEmail())
+                .bank(source.getBank())
+                .matricule(source.getMatricule())
+                .civilite(source.getCivilite())
+                .division(source.getDivision())
+                .fonction(source.getFonction())
+                .code_bank(source.getCode_bank())
+                .voiture(source.getVoiture())
+                .code_agc(source.getCode_agc())
+                .num_compte(source.getNum_compte())
+                .key_rib(source.getKey_rib())
+                .typePersonnel(source.getTypePersonnel())
+                .soldeConges(source.getTypePersonnel() != null ? source.getTypePersonnel().joursConges() : null)
+                .actif(true)
+                .build();
+
+        User user = User.builder()
+                .login(dto.getLogin())
+                .first_connexion(true)
+                .password(new BCryptPasswordEncoder().encode(dto.getPassword()))
+                .acteur(dto.getActeur())
+                .profil(prf)
+                .state_account(dto.isState_account())
+                .personnel(personnel)
+                .build();
+
+        Query query = new Query();
+        query.addCriteria(new Criteria().orOperator(
+                Criteria.where("personnel.email").is(personnel.getEmail()),
+                Criteria.where("personnel.phone").is(personnel.getPhone()),
+                Criteria.where("login").is(user.getLogin())
+        ));
+
+        List<User> existing = mongoTemplate.find(query, User.class);
+
+        if (!existing.isEmpty())
+        {
+            for (User u : existing) {
+                if (u.getLogin().equals(dto.getLogin())) {
+                    throw new BusinessResourceException(
+                            "login-error", "Attention, ce login existe déjà !", HttpStatus.CONFLICT);
+                }
+                if (personnel.getEmail() != null && personnel.getEmail().equals(u.getPersonnel().getEmail())) {
+                    throw new BusinessResourceException(
+                            "email-error", "Attention, cette adresse email existe déjà !", HttpStatus.CONFLICT);
+                }
+                if (personnel.getPhone() != null && personnel.getPhone().equals(u.getPersonnel().getPhone())) {
+                    throw new BusinessResourceException(
+                            "phone-error", "Attention, ce numéro de téléphone existe déjà !", HttpStatus.CONFLICT);
+                }
+            }
+        }
+
+        User saved = userRepository.save(user);
+
+        // Un agent ne peut avoir deux comptes : on retire la fiche autonome désormais rattachée à un compte
+        personnelRepository.deleteById(source.getId());
+
+        if (send_access_smtp)
+        {
+            Map<String, Object> variables = new HashMap<>();
+            variables.put("title", "Bienvenue sur PortailBAC 🎉 !");
+            variables.put("message", "Merci de vous être inscrit, le compte est activé avec succés.");
+            variables.put("login", dto.getLogin());
+            variables.put("password", dto.getPassword());
+            emailservice.sendEmailAccountCreated(personnel.getEmail(), "[Office du Baccalauréat / PortailBAC] Création officielle de compte", variables);
+        }
+
+        return saved;
     }
 
     public boolean importUserByFile(String filePath) {
@@ -769,9 +869,13 @@ public class ParametrageService
                 if (profil == null) continue;
 
                 // Création de l'utilisateur
+                Personnel personnel = new Personnel();
+                personnel.setEmail(email);
+                personnel.setPhone(phone);
+                personnel.setActif(true);
+
                 User us = new User();
-                us.setEmail(email);
-                us.setPhone(phone);
+                us.setPersonnel(personnel);
                 us.setLogin(getCellValue(etabCell));
                 us.setPassword(passwordHashed);
                 us.setActeur(acteur);
@@ -1182,8 +1286,8 @@ public class ParametrageService
             query.addCriteria(new Criteria().andOperator(
                     Criteria.where("_id").ne(idUsr), // exclure le candidat en cours
                     new Criteria().orOperator(
-                            Criteria.where("email").is(userDTO.getEmail()),
-                            Criteria.where("phone").is(userDTO.getPhone()),
+                            Criteria.where("personnel.email").is(userDTO.getEmail()),
+                            Criteria.where("personnel.phone").is(userDTO.getPhone()),
                             Criteria.where("login").is(userDTO.getLogin())
                     )
             ));
@@ -1201,14 +1305,14 @@ public class ParametrageService
                                 HttpStatus.CONFLICT
                         );
                     }
-                    if (u.getEmail().equals(userDTO.getEmail())) {
+                    if (u.getPersonnel().getEmail().equals(userDTO.getEmail())) {
                         throw new BusinessResourceException(
                                 "email-error",
                                 "Attention, cette adresse email existe déjà !",
                                 HttpStatus.CONFLICT
                         );
                     }
-                    if (u.getPhone().equals(userDTO.getPhone())) {
+                    if (u.getPersonnel().getPhone().equals(userDTO.getPhone())) {
                         throw new BusinessResourceException(
                                 "phone-error",
                                 "Attention, ce numéro de téléphone existe déjà !",
@@ -1217,27 +1321,31 @@ public class ParametrageService
                     }
                 }
             }
-            update_usr.setFirstname(userDTO.getFirstname());
-            update_usr.setLastname(userDTO.getLastname());
-            update_usr.setPhone(userDTO.getPhone());
-            update_usr.setEmail(userDTO.getEmail());
+            Personnel personnel = update_usr.getPersonnel() != null ? update_usr.getPersonnel() : new Personnel();
+            personnel.setFirstname(userDTO.getFirstname());
+            personnel.setLastname(userDTO.getLastname());
+            personnel.setPhone(userDTO.getPhone());
+            personnel.setEmail(userDTO.getEmail());
+            personnel.setBank(userDTO.getBank());
+            personnel.setMatricule(userDTO.getMatricule());
+            personnel.setCivilite(userDTO.getCivilite());
+            personnel.setDivision(userDTO.getDivision());
+            personnel.setFonction(userDTO.getFonction());
+            personnel.setCode_bank(userDTO.getCode_bank());
+            personnel.setVoiture(userDTO.getVoiture());
+            personnel.setCode_agc(userDTO.getCode_agc());
+            personnel.setNum_compte(userDTO.getNum_compte());
+            personnel.setKey_rib(userDTO.getKey_rib());
+            personnel.setTypePersonnel(userDTO.getTypePersonnel());
+            // Le solde peut être corrigé manuellement par l'ADMIN à l'édition (report, régularisation...)
+            personnel.setSoldeConges(userDTO.getSoldeConges());
+            personnel.setActif(true);
+
             update_usr.setLogin(userDTO.getLogin());
             update_usr.setActeur(userDTO.getActeur());
             update_usr.setProfil(prf);
             update_usr.setState_account(userDTO.isState_account());
-            update_usr.setBank(userDTO.getBank());
-            update_usr.setMatricule(userDTO.getMatricule());
-            update_usr.setCivilite(userDTO.getCivilite());
-            update_usr.setDivision(userDTO.getDivision());
-            update_usr.setFonction(userDTO.getFonction());
-            update_usr.setCode_bank(userDTO.getCode_bank());
-            update_usr.setMatricule_voiture(userDTO.getMatricule_voiture());
-            update_usr.setCode_agc(userDTO.getCode_agc());
-            update_usr.setNum_compte(userDTO.getNum_compte());
-            update_usr.setKey_rib(userDTO.getKey_rib());
-            update_usr.setTypePersonnel(userDTO.getTypePersonnel());
-            // Le solde peut être corrigé manuellement par l'ADMIN à l'édition (report, régularisation...)
-            update_usr.setSoldeConges(userDTO.getSoldeConges());
+            update_usr.setPersonnel(personnel);
             return userRepository.save(update_usr);
         }
         else

@@ -59,6 +59,12 @@ public class ParametrageController
         return ResponseEntity.ok(parametrageService.createUser(userDTO, send_access_smtp));
     }
 
+    @Operation(summary="Service de création d'un utilisateur à partir d'une fiche Personnel existante")
+    @PostMapping("/create-user-from-personnel")
+    public ResponseEntity<User> createUserFromPersonnel(@RequestBody CreerCompteDepuisPersonnelDTO dto, @RequestParam boolean send_access_smtp) throws MessagingException {
+        return ResponseEntity.ok(parametrageService.createUserFromPersonnel(dto, send_access_smtp));
+    }
+
     @Operation(summary="Service de mis à jour d'un utilisateur")
     @PutMapping(value="/update-user")
     public ResponseEntity<User> updateCandidat(@RequestParam String idUsr, @RequestBody UserDTO userDTO) throws Exception

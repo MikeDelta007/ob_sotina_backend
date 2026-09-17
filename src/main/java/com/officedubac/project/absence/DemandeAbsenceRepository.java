@@ -4,7 +4,9 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import java.util.List;
 
 public interface DemandeAbsenceRepository extends MongoRepository<DemandeAbsence, String> {
-    List<DemandeAbsence> findByDemandeurIdOrderByDateCreationDesc(String demandeurId);
-    List<DemandeAbsence> findByStatutOrderByDateCreationDesc(StatutAbsence statut);
-    List<DemandeAbsence> findByStatutAndDivisionIdInOrderByDateCreationDesc(StatutAbsence statut, List<String> divisionIds);
+    List<DemandeAbsence> findByDemandeurIdAndTypeOrderByDateCreationDesc(String demandeurId, TypeAbsence type);
+    List<DemandeAbsence> findByStatutAndTypeOrderByDateCreationDesc(StatutAbsence statut, TypeAbsence type);
+    List<DemandeAbsence> findByStatutAndTypeAndDivisionIdInOrderByDateCreationDesc(StatutAbsence statut, TypeAbsence type, List<String> divisionIds);
+    List<DemandeAbsence> findByTypeAndDivisionIdInOrderByDateCreationDesc(TypeAbsence type, List<String> divisionIds);
+    List<DemandeAbsence> findByTypeOrderByDateCreationDesc(TypeAbsence type);
 }

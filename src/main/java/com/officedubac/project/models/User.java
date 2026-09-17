@@ -1,8 +1,6 @@
 package com.officedubac.project.models;
 
-import com.officedubac.project.personnel.Division;
-import com.officedubac.project.personnel.Fonction;
-import com.officedubac.project.personnel.TypePersonnel;
+import com.officedubac.project.personnel.Personnel;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.DBRef;
@@ -23,12 +21,8 @@ public class User implements UserDetails
 {
     @Id
     private String id;
-    private String firstname;
-    private String lastname;
     private String login;
     private String password;
-    private String phone;
-    private String email;
     private boolean state_account;
     private boolean first_connexion;
     private String sessionId = null;
@@ -36,24 +30,10 @@ public class User implements UserDetails
     private Acteurs acteur;
     private Profil profil;
 
-    // ── Informations personnel/RH (indépendantes d'Acteurs, dédié scolarité/examens) ──
-    private String bank;
-    private String matricule;
-    private Civilite civilite;
-    private Division division;
-    private Fonction fonction;
-    private String code_bank;
-    private String matricule_voiture;
-    private String code_agc;
-    private String num_compte;
-    private String key_rib;
-
-    // ── Congés ──
-    // PERMANENT (30j/an) ou PERSONNEL_APPUI (10j/an) ; détermine l'allocation annuelle
-    private TypePersonnel typePersonnel;
-    // Solde de jours de congés restants ; décrémenté à la validation finale d'une demande
-    // d'absence, réinitialisé chaque 1er janvier selon typePersonnel (voir CongesResetScheduler)
-    private Integer soldeConges;
+    // Identité + informations personnel/RH, portées par Personnel (embarqué, pas de @DBRef —
+    // même convention qu'acteur). Permet à un chauffeur externe sans compte d'exister comme un
+    // Personnel autonome (voir com.officedubac.project.personnel.PersonnelRepository).
+    private Personnel personnel;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

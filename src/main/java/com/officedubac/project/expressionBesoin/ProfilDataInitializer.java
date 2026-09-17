@@ -22,7 +22,7 @@ public class ProfilDataInitializer implements CommandLineRunner {
     private final ProfilRepository profilRepo;
 
     private static final Role[] ROLES_EB = {
-        Role.CHEF_SERVICE, Role.CSA, Role.DIRECTEUR, Role.CHEF_COMPTABLE, Role.AGENT_COMPTABLE
+        Role.CHEF_SERVICE, Role.CSA, Role.DIRECTEUR, Role.CHEF_COMPTABLE, Role.AGENT_COMPTABLE, Role.AGENT
     };
 
     @Override

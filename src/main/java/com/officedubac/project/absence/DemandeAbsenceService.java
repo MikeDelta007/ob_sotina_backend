@@ -4,6 +4,7 @@ import com.officedubac.project.models.Role;
 import com.officedubac.project.models.User;
 import com.officedubac.project.personnel.Division;
 import com.officedubac.project.personnel.DivisionRepository;
+import com.officedubac.project.personnel.Personnel;
 import com.officedubac.project.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -30,17 +31,28 @@ public class DemandeAbsenceService {
         }
         int nombreJours = (int) (ChronoUnit.DAYS.between(req.getDateDebut(), req.getDateFin()) + 1);
 
-        // Si un solde de congés est configuré (typePersonnel défini), la demande ne peut pas
-        // dépasser le solde restant. Si le solde n'est pas encore configuré, on ne bloque pas.
-        if (demandeur.getSoldeConges() != null && nombreJours > demandeur.getSoldeConges()) {
-            throw new RuntimeException("La période demandée (" + nombreJours + " jour(s)) dépasse votre solde de congés restant ("
-                    + demandeur.getSoldeConges() + " jour(s))");
+        // Le motif n'est obligatoire que pour une AUTORISATION ponctuelle — un CONGE n'a pas
+        // besoin de justification.
+        if (req.getType() == TypeAbsence.AUTORISATION && (req.getMotif() == null || req.getMotif().isBlank())) {
+            throw new RuntimeException("Le motif est obligatoire pour une autorisation d'absence");
+        }
+
+        // Le solde disponible pour un CONGE tient compte des AUTORISATION déjà prises et pas
+        // encore régularisées (cf. Personnel.getSoldeDisponible()) — elles ne décomptent rien
+        // dans l'immédiat, mais réduisent d'autant ce qui reste posable en congé.
+        if (req.getType() == TypeAbsence.CONGE) {
+            Integer soldeDisponible = demandeur.getPersonnel().getSoldeDisponible();
+            if (soldeDisponible != null && nombreJours > soldeDisponible) {
+                throw new RuntimeException("La période demandée (" + nombreJours + " jour(s)) dépasse votre solde de congés disponible ("
+                        + soldeDisponible + " jour(s))");
+            }
         }
 
         DemandeAbsence demande = DemandeAbsence.builder()
                 .demandeurId(demandeur.getId())
-                .demandeurNom(demandeur.getFirstname() + " " + demandeur.getLastname())
-                .divisionId(demandeur.getDivision() != null ? demandeur.getDivision().getId() : null)
+                .demandeurNom(demandeur.getPersonnel().getFirstname() + " " + demandeur.getPersonnel().getLastname())
+                .divisionId(demandeur.getPersonnel().getDivision() != null ? demandeur.getPersonnel().getDivision().getId() : null)
+                .type(req.getType())
                 .dateDebut(req.getDateDebut())
                 .dateFin(req.getDateFin())
                 .nombreJours(nombreJours)
@@ -58,8 +70,8 @@ public class DemandeAbsenceService {
         if (role == Role.CSA || role == Role.DIRECTEUR || role == Role.ADMIN) {
             return StatutAbsence.EN_ATTENTE_CSA;
         }
-        Division division = demandeur.getDivision() != null
-                ? divisionRepo.findById(demandeur.getDivision().getId()).orElse(null)
+        Division division = demandeur.getPersonnel().getDivision() != null
+                ? divisionRepo.findById(demandeur.getPersonnel().getDivision().getId()).orElse(null)
                 : null;
         if (division == null || division.getChefServiceId() == null || division.getChefServiceId().isBlank()) {
             return StatutAbsence.EN_ATTENTE_CSA;
@@ -70,23 +82,23 @@ public class DemandeAbsenceService {
         return StatutAbsence.EN_ATTENTE_CHEF;
     }
 
-    public List<DemandeAbsence> mesDemandes() {
+    public List<DemandeAbsence> mesDemandes(TypeAbsence type) {
         User user = currentUser();
-        return demandeRepo.findByDemandeurIdOrderByDateCreationDesc(user.getId());
+        return demandeRepo.findByDemandeurIdAndTypeOrderByDateCreationDesc(user.getId(), type);
     }
 
-    public List<DemandeAbsence> aValider() {
+    public List<DemandeAbsence> aValider(TypeAbsence type) {
         User user = currentUser();
         Role role = user.getProfil() != null ? user.getProfil().getName() : null;
 
         if (role == Role.CSA) {
-            return demandeRepo.findByStatutOrderByDateCreationDesc(StatutAbsence.EN_ATTENTE_CSA);
+            return demandeRepo.findByStatutAndTypeOrderByDateCreationDesc(StatutAbsence.EN_ATTENTE_CSA, type);
         }
         if (role == Role.DIRECTEUR) {
-            return demandeRepo.findByStatutOrderByDateCreationDesc(StatutAbsence.EN_ATTENTE_DIRECTEUR);
+            return demandeRepo.findByStatutAndTypeOrderByDateCreationDesc(StatutAbsence.EN_ATTENTE_DIRECTEUR, type);
         }
         if (role == Role.ADMIN) {
-            return demandeRepo.findAll().stream()
+            return demandeRepo.findByTypeOrderByDateCreationDesc(type).stream()
                     .filter(d -> d.getStatut() == StatutAbsence.EN_ATTENTE_CHEF
                             || d.getStatut() == StatutAbsence.EN_ATTENTE_CSA
                             || d.getStatut() == StatutAbsence.EN_ATTENTE_DIRECTEUR)
@@ -101,10 +113,68 @@ public class DemandeAbsenceService {
         if (divisionsDontJeSuisChef.isEmpty()) {
             return List.of();
         }
-        return demandeRepo.findByStatutAndDivisionIdInOrderByDateCreationDesc(StatutAbsence.EN_ATTENTE_CHEF, divisionsDontJeSuisChef);
+        return demandeRepo.findByStatutAndTypeAndDivisionIdInOrderByDateCreationDesc(StatutAbsence.EN_ATTENTE_CHEF, type, divisionsDontJeSuisChef);
+    }
+
+    // Historique complet (tous statuts) des demandes des agents des divisions dont l'utilisateur
+    // est chef — contrairement à aValider(), pas limité aux demandes encore actionnables par lui.
+    public List<DemandeAbsence> demandesDeMesAgents(TypeAbsence type) {
+        User user = currentUser();
+
+        List<String> divisionsDontJeSuisChef = divisionRepo.findByActifTrue().stream()
+                .filter(d -> user.getId().equals(d.getChefServiceId()))
+                .map(Division::getId)
+                .collect(Collectors.toList());
+
+        if (divisionsDontJeSuisChef.isEmpty()) {
+            return List.of();
+        }
+        return demandeRepo.findByTypeAndDivisionIdInOrderByDateCreationDesc(type, divisionsDontJeSuisChef);
+    }
+
+    // Demandes déjà traitées PAR MOI — onglet "Déjà validées". Pour le chef et le CSA (étapes
+    // intermédiaires), "déjà traitée" veut dire "j'ai déjà donné mon avis à mon étape", que la
+    // chaîne soit terminée ou non plus loin. Pour le Directeur (étape finale) et l'Admin
+    // (supervision), ça correspond naturellement aux demandes closes (VALIDEE/REJETEE).
+    public List<DemandeAbsence> demandesTraitees(TypeAbsence type) {
+        User user = currentUser();
+        Role role = user.getProfil() != null ? user.getProfil().getName() : null;
+
+        if (role == Role.CSA) {
+            return demandeRepo.findByTypeOrderByDateCreationDesc(type).stream()
+                    .filter(d -> d.isValidationCsa() || d.isRejetCsa())
+                    .collect(Collectors.toList());
+        }
+        if (role == Role.DIRECTEUR || role == Role.ADMIN) {
+            return demandeRepo.findByTypeOrderByDateCreationDesc(type).stream()
+                    .filter(d -> d.getStatut() == StatutAbsence.VALIDEE || d.getStatut() == StatutAbsence.REJETEE)
+                    .collect(Collectors.toList());
+        }
+
+        List<String> divisionsDontJeSuisChef = divisionRepo.findByActifTrue().stream()
+                .filter(d -> user.getId().equals(d.getChefServiceId()))
+                .map(Division::getId)
+                .collect(Collectors.toList());
+        if (divisionsDontJeSuisChef.isEmpty()) {
+            return List.of();
+        }
+        return demandeRepo.findByTypeAndDivisionIdInOrderByDateCreationDesc(type, divisionsDontJeSuisChef).stream()
+                .filter(d -> d.isValidationChef() || d.isRejetChef())
+                .collect(Collectors.toList());
     }
 
     public DemandeAbsence valider(String id) {
+        return traiterEtape(id, true, null);
+    }
+
+    public DemandeAbsence rejeter(String id, String motif) {
+        return traiterEtape(id, false, motif);
+    }
+
+    // Un rejet du chef ou du CSA n'est qu'un avis enregistré sur son étape — il n'arrête pas la
+    // chaîne, qui continue toujours jusqu'au Directeur. Seule la décision du Directeur est
+    // finale (VALIDEE ou REJETEE).
+    private DemandeAbsence traiterEtape(String id, boolean valide, String motif) {
         DemandeAbsence demande = demandeRepo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Demande d'absence introuvable"));
         User caller = currentUser();
@@ -118,29 +188,44 @@ public class DemandeAbsenceService {
                 if (division == null || !caller.getId().equals(division.getChefServiceId())) {
                     throw new RuntimeException("Vous n'êtes pas le chef de la division de ce demandeur");
                 }
-                demande.setValidationChef(true);
+                demande.setValidationChef(valide);
+                demande.setRejetChef(!valide);
                 demande.setValidateurChef(caller.getLogin());
-                demande.setDateValidationChef(now);
+                demande.setMotifRejetChef(valide ? null : motif);
+                demande.setDateTraitementChef(now);
                 demande.setStatut(StatutAbsence.EN_ATTENTE_CSA);
             }
             case EN_ATTENTE_CSA -> {
                 if (!hasAuthority("CSA")) {
-                    throw new RuntimeException("Seul le CSA peut valider cette demande à cette étape");
+                    throw new RuntimeException("Seul le CSA peut traiter cette demande à cette étape");
                 }
-                demande.setValidationCsa(true);
+                demande.setValidationCsa(valide);
+                demande.setRejetCsa(!valide);
                 demande.setValidateurCsa(caller.getLogin());
-                demande.setDateValidationCsa(now);
+                demande.setMotifRejetCsa(valide ? null : motif);
+                demande.setDateTraitementCsa(now);
                 demande.setStatut(StatutAbsence.EN_ATTENTE_DIRECTEUR);
             }
             case EN_ATTENTE_DIRECTEUR -> {
                 if (!hasAuthority("DIRECTEUR")) {
                     throw new RuntimeException("Seul le Directeur peut valider cette demande à cette étape");
                 }
-                demande.setValidationDirecteur(true);
+                demande.setValidationDirecteur(valide);
                 demande.setValidateurDirecteur(caller.getLogin());
                 demande.setDateValidationDirecteur(now);
-                demande.setStatut(StatutAbsence.VALIDEE);
-                decompterConges(demande);
+                if (valide) {
+                    demande.setStatut(StatutAbsence.VALIDEE);
+                    if (demande.getType() == TypeAbsence.CONGE) {
+                        decompterConges(demande);
+                    } else {
+                        cumulerAutorisation(demande);
+                    }
+                } else {
+                    demande.setStatut(StatutAbsence.REJETEE);
+                    demande.setMotifRejet(motif);
+                    demande.setRejetePar(caller.getLogin());
+                    demande.setDateRejet(now);
+                }
             }
             default -> throw new RuntimeException("Cette demande n'est plus en attente de validation");
         }
@@ -149,27 +234,33 @@ public class DemandeAbsenceService {
     }
 
     // Déduit les jours de la demande du solde de congés du demandeur, uniquement à la
-    // validation finale (une demande rejetée en cours de route ne coûte aucun jour).
+    // validation finale (une demande rejetée en cours de route ne coûte aucun jour). Les
+    // jours d'AUTORISATION cumulés depuis le dernier congé sont réglés en même temps
+    // (soustraits du solde puis remis à zéro) — le congé "absorbe" les autorisations prises
+    // entretemps.
     private void decompterConges(DemandeAbsence demande) {
         User demandeur = userRepository.findById(demande.getDemandeurId()).orElse(null);
-        if (demandeur == null || demandeur.getSoldeConges() == null) {
+        if (demandeur == null || demandeur.getPersonnel() == null || demandeur.getPersonnel().getSoldeConges() == null) {
             return;
         }
-        demandeur.setSoldeConges(Math.max(0, demandeur.getSoldeConges() - demande.getNombreJours()));
+        Personnel personnel = demandeur.getPersonnel();
+        int cumulAutorisation = personnel.getJoursAutorisationCumules() != null ? personnel.getJoursAutorisationCumules() : 0;
+        personnel.setSoldeConges(Math.max(0, personnel.getSoldeConges() - demande.getNombreJours() - cumulAutorisation));
+        personnel.setJoursAutorisationCumules(0);
         userRepository.save(demandeur);
     }
 
-    public DemandeAbsence rejeter(String id, String motif) {
-        DemandeAbsence demande = demandeRepo.findById(id)
-                .orElseThrow(() -> new RuntimeException("Demande d'absence introuvable"));
-        if (demande.getStatut() == StatutAbsence.VALIDEE || demande.getStatut() == StatutAbsence.REJETEE) {
-            throw new RuntimeException("Cette demande ne peut plus être rejetée");
+    // Une AUTORISATION validée ne décompte rien dans l'immédiat, mais s'accumule pour être
+    // régularisée (déduite) au prochain congé validé.
+    private void cumulerAutorisation(DemandeAbsence demande) {
+        User demandeur = userRepository.findById(demande.getDemandeurId()).orElse(null);
+        if (demandeur == null || demandeur.getPersonnel() == null) {
+            return;
         }
-        demande.setStatut(StatutAbsence.REJETEE);
-        demande.setMotifRejet(motif);
-        demande.setRejetePar(currentUser().getLogin());
-        demande.setDateRejet(LocalDateTime.now());
-        return demandeRepo.save(demande);
+        Personnel personnel = demandeur.getPersonnel();
+        int cumulActuel = personnel.getJoursAutorisationCumules() != null ? personnel.getJoursAutorisationCumules() : 0;
+        personnel.setJoursAutorisationCumules(cumulActuel + demande.getNombreJours());
+        userRepository.save(demandeur);
     }
 
     private User currentUser() {

@@ -1,6 +1,7 @@
 package com.officedubac.project;
 
 import com.officedubac.project.models.*;
+import com.officedubac.project.personnel.Personnel;
 import com.officedubac.project.repository.*;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
@@ -753,13 +754,17 @@ public class DataSeeder {
 
                 Acteurs act3_ = acteursRepository.save(acteur3);
 
+                Personnel personnel3 = new Personnel();
+                personnel3.setFirstname("ADMIN CENTRAL");
+                personnel3.setLastname("ADMIN CENTRAL");
+                personnel3.setPhone("");
+                personnel3.setEmail("");
+                personnel3.setActif(true);
+
                 User user3 = new User();
-                user3.setFirstname("ADMIN CENTRAL");
-                user3.setLastname("ADMIN CENTRAL");
+                user3.setPersonnel(personnel3);
                 user3.setLogin("ADMIN CENTRAL");
                 user3.setPassword(new BCryptPasswordEncoder().encode("OfficeDuBac1960@"));
-                user3.setPhone("");
-                user3.setEmail("");
                 user3.setState_account(true);
                 user3.setProfil(prf3);
                 user3.setActeur(act3_);

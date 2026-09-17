@@ -21,10 +21,13 @@ public class CongesResetScheduler {
     @Scheduled(cron = "0 0 0 1 1 *")
     public void reinitialiserSoldesConges() {
         List<User> users = userRepository.findAll().stream()
-                .filter(u -> u.getTypePersonnel() != null)
+                .filter(u -> u.getPersonnel() != null && u.getPersonnel().getTypePersonnel() != null)
                 .toList();
 
-        users.forEach(u -> u.setSoldeConges(u.getTypePersonnel().joursConges()));
+        users.forEach(u -> {
+            u.getPersonnel().setSoldeConges(u.getPersonnel().getTypePersonnel().joursConges());
+            u.getPersonnel().setJoursAutorisationCumules(0);
+        });
         userRepository.saveAll(users);
 
         log.info("Réinitialisation annuelle des soldes de congés effectuée pour {} agent(s)", users.size());

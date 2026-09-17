@@ -6,6 +6,7 @@ import com.officedubac.project.models.Profil;
 import com.officedubac.project.personnel.Division;
 import com.officedubac.project.personnel.Fonction;
 import com.officedubac.project.personnel.TypePersonnel;
+import com.officedubac.project.personnel.Voiture;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -33,7 +34,7 @@ public class UserDTO {
     private Division division;
     private Fonction fonction;
     private String code_bank;
-    private String matricule_voiture;
+    private Voiture voiture;
     private String code_agc;
     private String num_compte;
     private String key_rib;

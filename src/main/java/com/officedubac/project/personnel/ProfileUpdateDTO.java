@@ -21,5 +21,5 @@ public class ProfileUpdateDTO {
     private String code_agc;
     private String num_compte;
     private String key_rib;
-    private String matricule_voiture;
+    private Voiture voiture;
 }

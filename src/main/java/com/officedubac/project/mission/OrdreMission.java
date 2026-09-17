@@ -6,6 +6,7 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Data
 @Builder
@@ -17,12 +18,16 @@ public class OrdreMission {
     @Id
     private String id;
 
-    private String agentId;
-    private String agentNom;
-    private String destination;
+    // Destination : une ou plusieurs régions
+    private List<String> regionIds;
+    private List<String> regionNoms;
+
     private String motif;
     private LocalDate dateDebut;
     private LocalDate dateFin;
+
+    // Lignes façon facture : une par agent, chacune avec sa propre voiture (et éventuellement son chauffeur dédié)
+    private List<LigneMission> lignes;
 
     private String creeParId;
     private String creeParNom;
