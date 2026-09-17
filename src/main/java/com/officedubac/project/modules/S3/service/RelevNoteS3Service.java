@@ -192,8 +192,9 @@ public class RelevNoteS3Service {
         releve.setMentionDeuxiemeGroupe(mention(totalDefinitifAvecFacultatifs, MatieresS3.BAREME_TOTAL_DEFINITIF));
         releve.setDecisionDeuxiemeGroupe(decision(totalDefinitifAvecFacultatifs, MatieresS3.BAREME_TOTAL_DEFINITIF));
 
-        releve.setLieuDelivrance(request.getLieuDelivrance());
-        releve.setDateDelivrance(request.getDateDelivrance());
+        releve.setLieuDeliberation(request.getLieuDeliberation());
+        releve.setDateDeliberationPremierGroupe(request.getDateDeliberationPremierGroupe());
+        releve.setDateDeliberationDeuxiemeGroupe(request.getDateDeliberationDeuxiemeGroupe());
         releve.setPresidentJury(request.getPresidentJury());
     }
 

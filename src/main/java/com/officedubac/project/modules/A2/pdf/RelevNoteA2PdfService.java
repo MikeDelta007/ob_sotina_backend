@@ -14,7 +14,9 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -26,8 +28,9 @@ public class RelevNoteA2PdfService {
     private static final String TEMPLATE_PATH = "templates/releve-A2-template.pdf";
     private static final String POLICE_PATH = "fonts/Verdana.ttf";
 
-    private static final DateTimeFormatter DATE_JOUR_MOIS = DateTimeFormatter.ofPattern("dd/MM");
+    private static final DateTimeFormatter DATE_JOUR_MOIS = DateTimeFormatter.ofPattern("d MMMM", Locale.FRENCH);
     private static final DateTimeFormatter DATE_ANNEE_2_CHIFFRES = DateTimeFormatter.ofPattern("yy");
+    private static final DateTimeFormatter DATE_GENERATION = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
 
     // Tailles de police par contexte (adaptées à l'espace disponible dans chaque cellule)
     private static final float TAILLE_ENTETE     = 9f;  // N° table, jury, année
@@ -49,7 +52,7 @@ public class RelevNoteA2PdfService {
             BaseFont font = chargerPolice();
             PdfContentByte cb = stamper.getOverContent(1);
 
-            ecrireSession(cb, releve);
+            ecrireSession(cb, font, releve);
             ecrireEnTete(cb, font, releve);
             ecrireCandidat(cb, font, releve);
             ecrirePremierGroupe(cb, font, releve);
@@ -58,12 +61,13 @@ public class RelevNoteA2PdfService {
             ecrireEpreuvesFacultativesEtEducPhysique(cb, font, releve);
             ecrireTotaux(cb, font, releve);
             ecrireDecisions(cb, font, releve);
+            ecrireTamponGeneration(cb, font, releve);
 
             stamper.close();
             reader.close();
             return out.toByteArray();
         } catch (IOException | com.lowagie.text.DocumentException e) {
-            throw new IllegalStateException("Erreur lors de la génération du relevé A1 en PDF: " + e.getMessage(), e);
+            throw new IllegalStateException("Erreur lors de la génération du relevé A2 en PDF: " + e.getMessage(), e);
         }
     }
 
@@ -85,7 +89,7 @@ public class RelevNoteA2PdfService {
             try {
                 return BaseFont.createFont(BaseFont.HELVETICA, BaseFont.CP1252, BaseFont.NOT_EMBEDDED);
             } catch (Exception ex) {
-                throw new IllegalStateException("Impossible de charger une police pour le PDF A1", ex);
+                throw new IllegalStateException("Impossible de charger une police pour le PDF A2", ex);
             }
         }
     }
@@ -123,16 +127,6 @@ public class RelevNoteA2PdfService {
         cb.restoreState();
     }
 
-    /** Barre horizontalement le texte non retenu (ex : session NORMALE / DE REMPLACEMENT). */
-    private void barrer(PdfContentByte cb, float x0, float x1, float y) {
-        cb.saveState();
-        cb.setLineWidth(1f);
-        cb.moveTo(x0, y);
-        cb.lineTo(x1, y);
-        cb.stroke();
-        cb.restoreState();
-    }
-
     private String str(Integer v) {
         return v == null ? null : String.valueOf(v);
     }
@@ -141,14 +135,16 @@ public class RelevNoteA2PdfService {
     // Sections
     // ---------------------------------------------------------------
 
-    private void ecrireSession(PdfContentByte cb, RelevNoteA2 r) {
+    /**
+     * Contrairement à A1, ce gabarit n'a pas de rature "NORMALE / DE
+     * REMPLACEMENT" pré-imprimée : c'est une ligne "Session : ______" à
+     * remplir, donc on y écrit directement le libellé de la session.
+     */
+    private void ecrireSession(PdfContentByte cb, BaseFont font, RelevNoteA2 r) {
         TypeSession session = r.getSession();
-        if (session == TypeSession.NORMALE) {
-            barrer(cb, SESSION_REMPLACEMENT_X0, SESSION_REMPLACEMENT_X1, SESSION_REMPLACEMENT_Y);
-        } else if (session == TypeSession.REMPLACEMENT) {
-            barrer(cb, SESSION_NORMALE_X0, SESSION_NORMALE_X1, SESSION_NORMALE_Y);
-        }
-        // session == null : on ne barre rien (aucune indication saisie)
+        if (session == null) return;
+        String libelle = session == TypeSession.NORMALE ? "NORMALE" : "DE REMPLACEMENT";
+        texte(cb, font, TAILLE_ENTETE, SESSION_TEXT_X, SESSION_TEXT_Y, libelle);
     }
 
     private void ecrireEnTete(PdfContentByte cb, BaseFont font, RelevNoteA2 r) {
@@ -265,7 +261,8 @@ public class RelevNoteA2PdfService {
         DecisionJury d2 = r.getDecisionDeuxiemeGroupe();
         if (d2 == DecisionJury.ADMIS) {
             coche(cb, DEC2_COCHE_ADMIS_CX, DEC2_COCHE_ADMIS_CY);
-            texte(cb, font, TAILLE_DECISION, DEC2_MENTION_X, DEC2_MENTION_Y, libelleMention(r.getMentionDeuxiemeGroupe()));
+            // La mention du 2ème groupe est pré-imprimée ("... la mention PASSABLE")
+            // sur ce gabarit : rien à écrire par-dessus (voir RelevNoteA2Coordinates).
         } else if (d2 == DecisionJury.AJOURNE) {
             coche(cb, DEC2_COCHE_AJOURNE_CX, DEC2_COCHE_AJOURNE_CY);
         }
@@ -273,21 +270,33 @@ public class RelevNoteA2PdfService {
     }
 
     private void ecrirePiedDePage1erGroupe(PdfContentByte cb, BaseFont font, RelevNoteA2 r) {
-        texte(cb, font, TAILLE_PIED_PAGE, DEC1_LIEU_X, DEC1_LIEU_Y, r.getLieuDelivrance());
-        if (r.getDateDelivrance() != null) {
-            texte(cb, font, TAILLE_PIED_PAGE, DEC1_JOUR_MOIS_X, DEC1_JOUR_MOIS_Y, r.getDateDelivrance().format(DATE_JOUR_MOIS));
-            texte(cb, font, TAILLE_PIED_PAGE, DEC1_ANNEE2_X, DEC1_ANNEE2_Y, r.getDateDelivrance().format(DATE_ANNEE_2_CHIFFRES));
-        }
+        if (r.getDateDeliberationPremierGroupe() == null) return;
+        texte(cb, font, TAILLE_PIED_PAGE, DEC1_LIEU_X, DEC1_LIEU_Y, r.getLieuDeliberation());
+        texte(cb, font, TAILLE_PIED_PAGE, DEC1_JOUR_MOIS_X, DEC1_JOUR_MOIS_Y, r.getDateDeliberationPremierGroupe().format(DATE_JOUR_MOIS));
+        texte(cb, font, TAILLE_PIED_PAGE, DEC1_ANNEE2_X, DEC1_ANNEE2_Y, r.getDateDeliberationPremierGroupe().format(DATE_ANNEE_2_CHIFFRES));
         // Le nom du Président du Jury n'est pas imprimé ici : voir RelevNoteA1Coordinates
     }
 
     private void ecrirePiedDePage2emeGroupe(PdfContentByte cb, BaseFont font, RelevNoteA2 r) {
-        texte(cb, font, TAILLE_PIED_PAGE, DEC2_LIEU_X, DEC2_LIEU_Y, r.getLieuDelivrance());
-        if (r.getDateDelivrance() != null) {
-            texte(cb, font, TAILLE_PIED_PAGE, DEC2_JOUR_MOIS_X, DEC2_JOUR_MOIS_Y, r.getDateDelivrance().format(DATE_JOUR_MOIS));
-            texte(cb, font, TAILLE_PIED_PAGE, DEC2_ANNEE2_X, DEC2_ANNEE2_Y, r.getDateDelivrance().format(DATE_ANNEE_2_CHIFFRES));
-        }
+        if (r.getDateDeliberationDeuxiemeGroupe() == null) return;
+        texte(cb, font, TAILLE_PIED_PAGE, DEC2_LIEU_X, DEC2_LIEU_Y, r.getLieuDeliberation());
+        texte(cb, font, TAILLE_PIED_PAGE, DEC2_JOUR_MOIS_X, DEC2_JOUR_MOIS_Y, r.getDateDeliberationDeuxiemeGroupe().format(DATE_JOUR_MOIS));
+        texte(cb, font, TAILLE_PIED_PAGE, DEC2_ANNEE2_X, DEC2_ANNEE2_Y, r.getDateDeliberationDeuxiemeGroupe().format(DATE_ANNEE_2_CHIFFRES));
         // Le nom du Président du Jury n'est pas imprimé ici : voir RelevNoteA1Coordinates
+    }
+
+    /**
+     * Tampon "DAKAR, le [date du jour]" imprimé juste en dessous de "Cachet
+     * obligatoire ... Président du Jury" : côté 1er groupe si le candidat
+     * s'y est arrêté (pas de décision 2ème groupe), sinon côté 2ème groupe.
+     */
+    private void ecrireTamponGeneration(PdfContentByte cb, BaseFont font, RelevNoteA2 r) {
+        String tampon = "DAKAR, le " + LocalDate.now().format(DATE_GENERATION);
+        if (r.getDecisionDeuxiemeGroupe() == null) {
+            texte(cb, font, TAILLE_PIED_PAGE, DEC1_GENERE_X, DEC1_GENERE_Y, tampon);
+        } else {
+            texte(cb, font, TAILLE_PIED_PAGE, DEC2_GENERE_X, DEC2_GENERE_Y, tampon);
+        }
     }
 
     private String libelleMention(Mention m) {

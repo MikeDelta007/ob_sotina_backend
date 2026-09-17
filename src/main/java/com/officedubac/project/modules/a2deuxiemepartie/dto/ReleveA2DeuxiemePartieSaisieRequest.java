@@ -24,8 +24,8 @@ public class ReleveA2DeuxiemePartieSaisieRequest {
     /** clé = code matière (cf. MatieresA2DeuxiemePartie.EPREUVES_ORALES), valeur = note sur 20 */
     private Map<String, Integer> notesOrales;
 
-    private String lieuDelivrance;
-    private LocalDate dateDelivrance;
+    private String lieuDeliberation;
+    private LocalDate dateDeliberation;
     private String presidentJury;
 
     public String getJuryNumero() { return juryNumero; }
@@ -64,11 +64,11 @@ public class ReleveA2DeuxiemePartieSaisieRequest {
     public Map<String, Integer> getNotesOrales() { return notesOrales; }
     public void setNotesOrales(Map<String, Integer> notesOrales) { this.notesOrales = notesOrales; }
 
-    public String getLieuDelivrance() { return lieuDelivrance; }
-    public void setLieuDelivrance(String lieuDelivrance) { this.lieuDelivrance = lieuDelivrance; }
+    public String getLieuDeliberation() { return lieuDeliberation; }
+    public void setLieuDeliberation(String lieuDeliberation) { this.lieuDeliberation = lieuDeliberation; }
 
-    public LocalDate getDateDelivrance() { return dateDelivrance; }
-    public void setDateDelivrance(LocalDate dateDelivrance) { this.dateDelivrance = dateDelivrance; }
+    public LocalDate getDateDeliberation() { return dateDeliberation; }
+    public void setDateDeliberation(LocalDate dateDeliberation) { this.dateDeliberation = dateDeliberation; }
 
     public String getPresidentJury() { return presidentJury; }
     public void setPresidentJury(String presidentJury) { this.presidentJury = presidentJury; }

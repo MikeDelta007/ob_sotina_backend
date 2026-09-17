@@ -12,7 +12,9 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -29,9 +31,10 @@ public class RelevNoteG1PdfService {
     private static final String TEMPLATE_PATH = "templates/releve-G1-template.pdf";
     private static final String POLICE_PATH = "fonts/Verdana.ttf";
 
-    private static final DateTimeFormatter DATE_JOUR_MOIS = DateTimeFormatter.ofPattern("dd/MM");
+    private static final DateTimeFormatter DATE_JOUR_MOIS = DateTimeFormatter.ofPattern("d MMMM", Locale.FRENCH);
     private static final DateTimeFormatter DATE_ANNEE_2_CHIFFRES = DateTimeFormatter.ofPattern("yy");
     private static final DateTimeFormatter DATE_NAISSANCE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter DATE_GENERATION = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
 
     private static final float TAILLE_ENTETE = 9f;
     private static final float TAILLE_IDENTITE = 9f;
@@ -61,6 +64,7 @@ public class RelevNoteG1PdfService {
             ecrireEpreuvesFacultativesEtEducPhysique(cb, font, releve);
             ecrireTotaux(cb, font, releve);
             ecrireDecisions(cb, font, releve);
+            ecrireTamponGeneration(cb, font, releve);
 
             stamper.close();
             reader.close();
@@ -207,19 +211,18 @@ public class RelevNoteG1PdfService {
     private void ecrireDecisions(PdfContentByte cb, BaseFont font, RelevNoteG1 r) {
         DecisionJury d1 = r.getDecisionPremierGroupe();
         texte(cb, font, TAILLE_DECISION, DEC1_TEXTE_X, DEC1_TEXTE_Y, libelleDecision1(d1, r.getMentionPremierGroupe()));
-        ecrirePiedDePage(cb, font, r, DEC1_LIEU_X, DEC1_JOUR_MOIS_X, DEC1_ANNEE2_X, DEC1_PIED_Y);
+        ecrirePiedDePage(cb, font, r.getLieuDeliberation(), r.getDateDeliberationPremierGroupe(), DEC1_LIEU_X, DEC1_JOUR_MOIS_X, DEC1_ANNEE2_X, DEC1_PIED_Y);
 
         DecisionJury d2 = r.getDecisionDeuxiemeGroupe();
         texte(cb, font, TAILLE_DECISION, DEC2_TEXTE_X, DEC2_TEXTE_Y, libelleDecision2(d2, r.getMentionDeuxiemeGroupe()));
-        ecrirePiedDePage(cb, font, r, DEC2_LIEU_X, DEC2_JOUR_MOIS_X, DEC2_ANNEE2_X, DEC2_PIED_Y);
+        ecrirePiedDePage(cb, font, r.getLieuDeliberation(), r.getDateDeliberationDeuxiemeGroupe(), DEC2_LIEU_X, DEC2_JOUR_MOIS_X, DEC2_ANNEE2_X, DEC2_PIED_Y);
     }
 
-    private void ecrirePiedDePage(PdfContentByte cb, BaseFont font, RelevNoteG1 r, float lieuX, float jourMoisX, float annee2X, float y) {
-        texte(cb, font, TAILLE_PIED_PAGE, lieuX, y, r.getLieuDelivrance());
-        if (r.getDateDelivrance() != null) {
-            texte(cb, font, TAILLE_PIED_PAGE, jourMoisX, y, r.getDateDelivrance().format(DATE_JOUR_MOIS));
-            texte(cb, font, TAILLE_PIED_PAGE, annee2X, y, r.getDateDelivrance().format(DATE_ANNEE_2_CHIFFRES));
-        }
+    private void ecrirePiedDePage(PdfContentByte cb, BaseFont font, String lieu, java.time.LocalDate date, float lieuX, float jourMoisX, float annee2X, float y) {
+        if (date == null) return;
+        texte(cb, font, TAILLE_PIED_PAGE, lieuX, y, lieu);
+        texte(cb, font, TAILLE_PIED_PAGE, jourMoisX, y, date.format(DATE_JOUR_MOIS));
+        texte(cb, font, TAILLE_PIED_PAGE, annee2X, y, date.format(DATE_ANNEE_2_CHIFFRES));
     }
 
     private String libelleDecision1(DecisionJury d, Mention mention) {
@@ -238,6 +241,20 @@ public class RelevNoteG1PdfService {
             case AJOURNE -> "AJOURNE";
             case AUTORISE_SECOND_GROUPE -> null;
         };
+    }
+
+    /**
+     * Tampon "DAKAR, le [date du jour]" imprimé juste en dessous de "Cachet
+     * obligatoire ... Président du Jury" : côté 1er groupe si le candidat
+     * s'y est arrêté (pas de décision 2ème groupe), sinon côté 2ème groupe.
+     */
+    private void ecrireTamponGeneration(PdfContentByte cb, BaseFont font, RelevNoteG1 r) {
+        String tampon = "DAKAR, le " + LocalDate.now().format(DATE_GENERATION);
+        if (r.getDecisionDeuxiemeGroupe() == null) {
+            texte(cb, font, TAILLE_PIED_PAGE, DEC1_GENERE_X, DEC1_GENERE_Y, tampon);
+        } else {
+            texte(cb, font, TAILLE_PIED_PAGE, DEC2_GENERE_X, DEC2_GENERE_Y, tampon);
+        }
     }
 
     private String libelleMention(Mention m) {

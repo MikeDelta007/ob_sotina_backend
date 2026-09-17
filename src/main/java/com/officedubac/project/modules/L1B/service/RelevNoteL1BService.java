@@ -192,8 +192,9 @@ public class RelevNoteL1BService {
         releve.setMentionDeuxiemeGroupe(mention(totalDefinitifAvecFacultatifs, MatieresL1B.BAREME_TOTAL_DEFINITIF));
         releve.setDecisionDeuxiemeGroupe(decision(totalDefinitifAvecFacultatifs, MatieresL1B.BAREME_TOTAL_DEFINITIF));
 
-        releve.setLieuDelivrance(request.getLieuDelivrance());
-        releve.setDateDelivrance(request.getDateDelivrance());
+        releve.setLieuDeliberation(request.getLieuDeliberation());
+        releve.setDateDeliberationPremierGroupe(request.getDateDeliberationPremierGroupe());
+        releve.setDateDeliberationDeuxiemeGroupe(request.getDateDeliberationDeuxiemeGroupe());
         releve.setPresidentJury(request.getPresidentJury());
     }
 

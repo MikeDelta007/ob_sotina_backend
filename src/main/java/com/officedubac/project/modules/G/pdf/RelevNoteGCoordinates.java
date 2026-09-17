@@ -20,14 +20,14 @@ public final class RelevNoteGCoordinates {
     public static final float NUMERO_TABLE_X = 110.4f, NUMERO_TABLE_Y = 674.0f;
 
     // ---- Identité du candidat ----
-    public static final float NOM_PRENOM_X = 44.3f, NOM_PRENOM_Y = 632.4f;
-    public static final float DATE_NAISSANCE_X = 74.3f, DATE_NAISSANCE_Y = 606.8f;
-    public static final float LIEU_NAISSANCE_X = 224.3f, LIEU_NAISSANCE_Y = 606.8f;
-    public static final float ETABLISSEMENT_X = 388.2f, ETABLISSEMENT_Y = 632.4f;
-    public static final float INDICATIF_X = 518.2f, INDICATIF_Y = 632.4f;
-    public static final float OPTIONS_X = 398.2f, OPTIONS_Y = 606.8f;
-    public static final float NATIONALITE_X = 375.2f, NATIONALITE_Y = 581.3f;
-    public static final float NOMBRE_DE_FOIS_X = 501.9f, NOMBRE_DE_FOIS_Y = 581.3f;
+    public static final float NOM_PRENOM_X = 44.3f, NOM_PRENOM_Y = 601f;
+    public static final float DATE_NAISSANCE_X = 74.3f, DATE_NAISSANCE_Y = 586f;
+    public static final float LIEU_NAISSANCE_X = 224.3f, LIEU_NAISSANCE_Y = 586f;
+    public static final float ETABLISSEMENT_X = 388.2f, ETABLISSEMENT_Y = 601f;
+    public static final float INDICATIF_X = 518.2f, INDICATIF_Y = 601f;
+    public static final float OPTIONS_X = 398.2f, OPTIONS_Y = 586f;
+    public static final float NATIONALITE_X = 375.2f, NATIONALITE_Y = 566f;
+    public static final float NOMBRE_DE_FOIS_X = 501.9f, NOMBRE_DE_FOIS_Y = 566f;
 
     // ---- 1er groupe : colonnes centrées "Note sur 20" et "Points obtenus" ----
     public static final float G1_NOTE_CENTER_X = 149.3f;
@@ -71,12 +71,17 @@ public final class RelevNoteGCoordinates {
     public static final float TOTAL_DEFINITIF_Y = 345.8f;
 
     // ---- Décisions du jury : texte libre sur la ligne "Le candidat a été déclaré ..." ----
-    public static final float DEC1_TEXTE_X = 179.2f, DEC1_TEXTE_Y = 256.4f;
-    public static final float DEC2_TEXTE_X = 425.7f, DEC2_TEXTE_Y = 307.5f;
+    public static final float DEC1_TEXTE_X = 179.2f, DEC1_TEXTE_Y = 231.4f;
+    public static final float DEC2_TEXTE_X = 425.7f, DEC2_TEXTE_Y = 300.5f;
 
     // ---- Pied de page 1er groupe : "Fait à ... le ... 19..." (format court) ----
-    public static final float DEC1_LIEU_X = 64.2f, DEC1_JOUR_MOIS_X = 129.2f, DEC1_ANNEE2_X = 229.2f, DEC1_PIED_Y = 195.5f;
+    public static final float DEC1_LIEU_X = 64.2f, DEC1_JOUR_MOIS_X = 129.2f, DEC1_ANNEE2_X = 229.2f, DEC1_PIED_Y = 180.5f;
 
     // ---- Pied de page 2eme groupe (format long) ----
-    public static final float DEC2_LIEU_X = 310.7f, DEC2_JOUR_MOIS_X = 435.7f, DEC2_ANNEE2_X = 555.7f, DEC2_PIED_Y = 254.1f;
+    public static final float DEC2_LIEU_X = 310.7f, DEC2_JOUR_MOIS_X = 435.7f, DEC2_ANNEE2_X = 555.7f, DEC2_PIED_Y = 232.1f;
+
+    // ---- Tampon "DAKAR, le [date du jour]" — sous "Cachet obligatoire ...
+    // Président du Jury" ----
+    public static final float DEC1_GENERE_X = 45f, DEC1_GENERE_Y = 130.5f;
+    public static final float DEC2_GENERE_X = 301f, DEC2_GENERE_Y = 182.1f;
 }

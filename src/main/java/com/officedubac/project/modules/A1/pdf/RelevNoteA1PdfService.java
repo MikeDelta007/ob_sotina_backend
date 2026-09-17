@@ -12,7 +12,9 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -44,8 +46,9 @@ public class RelevNoteA1PdfService {
     private static final String TEMPLATE_PATH = "templates/releve-A1-template.pdf";
     private static final String POLICE_PATH = "fonts/Verdana.ttf";
 
-    private static final DateTimeFormatter DATE_JOUR_MOIS = DateTimeFormatter.ofPattern("dd/MM");
+    private static final DateTimeFormatter DATE_JOUR_MOIS = DateTimeFormatter.ofPattern("d MMMM", Locale.FRENCH);
     private static final DateTimeFormatter DATE_ANNEE_2_CHIFFRES = DateTimeFormatter.ofPattern("yy");
+    private static final DateTimeFormatter DATE_GENERATION = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
 
     // Tailles de police par contexte (adaptées à l'espace disponible dans chaque cellule)
     private static final float TAILLE_ENTETE     = 9f;  // N° table, jury, année
@@ -76,6 +79,7 @@ public class RelevNoteA1PdfService {
             ecrireEpreuvesFacultativesEtEducPhysique(cb, font, releve);
             ecrireTotaux(cb, font, releve);
             ecrireDecisions(cb, font, releve);
+            ecrireTamponGeneration(cb, font, releve);
 
             stamper.close();
             reader.close();
@@ -190,7 +194,8 @@ public class RelevNoteA1PdfService {
         texte(cb, font, TAILLE_IDENTITE, NOMBRE_DE_FOIS_X, NOMBRE_DE_FOIS_Y, c.getNombreDeFois());
     }
 
-    private void ecrirePremierGroupe(PdfContentByte cb, BaseFont font, RelevNoteA1 r) {
+    private void ecrirePremierGroupe(PdfContentByte cb, BaseFont font, RelevNoteA1 r)
+    {
         Map<String, NoteEpreuve> parCode = r.getNotesPremierGroupe().stream()
                 .collect(Collectors.toMap(NoteEpreuve::getMatiereCode, n -> n));
 
@@ -205,7 +210,8 @@ public class RelevNoteA1PdfService {
         texteCentre(cb, font, TAILLE_TOTAUX, G1_POINTS_CENTER_X, G2_TOTAL_Y, String.valueOf(r.getTotalPremierGroupe()));
     }
 
-    private void ligneNote(PdfContentByte cb, BaseFont font, NoteEpreuve note, float y) {
+    private void ligneNote(PdfContentByte cb, BaseFont font, NoteEpreuve note, float y)
+    {
         if (note == null) return;
         texteCentre(cb, font, TAILLE_GRILLE, G1_NOTE_CENTER_X, y, note.getNote() == null ? null : String.valueOf(note.getNote()));
         texteCentre(cb, font, TAILLE_GRILLE, G1_POINTS_CENTER_X, y, note.getPointsObtenus() == null ? null : String.valueOf(note.getPointsObtenus()));
@@ -269,43 +275,64 @@ public class RelevNoteA1PdfService {
     private void ecrireDecisions(PdfContentByte cb, BaseFont font, RelevNoteA1 r) {
         // ---- 1er groupe ----
         DecisionJury d1 = r.getDecisionPremierGroupe();
-        if (d1 == DecisionJury.ADMIS) {
+        if (d1 == DecisionJury.ADMIS)
+        {
             coche(cb, DEC1_COCHE_ADMIS_CX, DEC1_COCHE_ADMIS_CY);
             texte(cb, font, TAILLE_DECISION, DEC1_MENTION_X, DEC1_MENTION_Y, libelleMention(r.getMentionPremierGroupe()));
-        } else if (d1 == DecisionJury.AUTORISE_SECOND_GROUPE) {
+        }
+        else if (d1 == DecisionJury.AUTORISE_SECOND_GROUPE)
+        {
             coche(cb, DEC1_COCHE_AUTORISE_CX, DEC1_COCHE_AUTORISE_CY);
-        } else if (d1 == DecisionJury.AJOURNE) {
+        }
+        else if (d1 == DecisionJury.AJOURNE)
+        {
             coche(cb, DEC1_COCHE_AJOURNE_CX, DEC1_COCHE_AJOURNE_CY);
         }
         ecrirePiedDePage1erGroupe(cb, font, r);
 
         // ---- 2eme groupe ----
         DecisionJury d2 = r.getDecisionDeuxiemeGroupe();
-        if (d2 == DecisionJury.ADMIS) {
+        if (d2 == DecisionJury.ADMIS)
+        {
             coche(cb, DEC2_COCHE_ADMIS_CX, DEC2_COCHE_ADMIS_CY);
-            texte(cb, font, TAILLE_DECISION, DEC2_MENTION_X, DEC2_MENTION_Y, libelleMention(r.getMentionDeuxiemeGroupe()));
-        } else if (d2 == DecisionJury.AJOURNE) {
+            texte(cb, font, TAILLE_DECISION, DEC2_MENTION_X, DEC2_MENTION_Y,null);
+        }
+        else if (d2 == DecisionJury.AJOURNE) {
             coche(cb, DEC2_COCHE_AJOURNE_CX, DEC2_COCHE_AJOURNE_CY);
         }
         ecrirePiedDePage2emeGroupe(cb, font, r);
     }
 
     private void ecrirePiedDePage1erGroupe(PdfContentByte cb, BaseFont font, RelevNoteA1 r) {
-        texte(cb, font, TAILLE_PIED_PAGE, DEC1_LIEU_X, DEC1_LIEU_Y, r.getLieuDelivrance());
-        if (r.getDateDelivrance() != null) {
-            texte(cb, font, TAILLE_PIED_PAGE, DEC1_JOUR_MOIS_X, DEC1_JOUR_MOIS_Y, r.getDateDelivrance().format(DATE_JOUR_MOIS));
-            texte(cb, font, TAILLE_PIED_PAGE, DEC1_ANNEE2_X, DEC1_ANNEE2_Y, r.getDateDelivrance().format(DATE_ANNEE_2_CHIFFRES));
-        }
+        if (r.getDateDeliberationPremierGroupe() == null) return;
+        texte(cb, font, TAILLE_PIED_PAGE, DEC1_LIEU_X, DEC1_LIEU_Y, r.getLieuDeliberation());
+        texte(cb, font, TAILLE_PIED_PAGE, DEC1_JOUR_MOIS_X, DEC1_JOUR_MOIS_Y, r.getDateDeliberationPremierGroupe().format(DATE_JOUR_MOIS));
+        texte(cb, font, TAILLE_PIED_PAGE, DEC1_ANNEE2_X, DEC1_ANNEE2_Y, r.getDateDeliberationPremierGroupe().format(DATE_ANNEE_2_CHIFFRES));
         // Le nom du Président du Jury n'est pas imprimé ici : voir RelevNoteA1Coordinates
     }
 
     private void ecrirePiedDePage2emeGroupe(PdfContentByte cb, BaseFont font, RelevNoteA1 r) {
-        texte(cb, font, TAILLE_PIED_PAGE, DEC2_LIEU_X, DEC2_LIEU_Y, r.getLieuDelivrance());
-        if (r.getDateDelivrance() != null) {
-            texte(cb, font, TAILLE_PIED_PAGE, DEC2_JOUR_MOIS_X, DEC2_JOUR_MOIS_Y, r.getDateDelivrance().format(DATE_JOUR_MOIS));
-            texte(cb, font, TAILLE_PIED_PAGE, DEC2_ANNEE2_X, DEC2_ANNEE2_Y, r.getDateDelivrance().format(DATE_ANNEE_2_CHIFFRES));
-        }
+        if (r.getDateDeliberationDeuxiemeGroupe() == null) return;
+        texte(cb, font, TAILLE_PIED_PAGE, DEC2_LIEU_X, DEC2_LIEU_Y, r.getLieuDeliberation());
+        texte(cb, font, TAILLE_PIED_PAGE, DEC2_JOUR_MOIS_X, DEC2_JOUR_MOIS_Y, r.getDateDeliberationDeuxiemeGroupe().format(DATE_JOUR_MOIS));
+        texte(cb, font, TAILLE_PIED_PAGE, DEC2_ANNEE2_X, DEC2_ANNEE2_Y, r.getDateDeliberationDeuxiemeGroupe().format(DATE_ANNEE_2_CHIFFRES));
         // Le nom du Président du Jury n'est pas imprimé ici : voir RelevNoteA1Coordinates
+    }
+
+    /**
+     * Tampon "DAKAR, le [date du jour]" imprimé juste en dessous de "Cachet
+     * obligatoire ... Président du Jury" : côté 1er groupe si le candidat
+     * s'y est arrêté (pas de décision 2ème groupe), sinon côté 2ème groupe.
+     * Lieu fixe ("DAKAR") et date système, indépendants du lieu/date de
+     * délibération saisis par le jury (ligne "Fait à ... le ...").
+     */
+    private void ecrireTamponGeneration(PdfContentByte cb, BaseFont font, RelevNoteA1 r) {
+        String tampon = "DAKAR, le " + LocalDate.now().format(DATE_GENERATION);
+        if (r.getDecisionDeuxiemeGroupe() == null) {
+            texte(cb, font, TAILLE_PIED_PAGE, DEC1_GENERE_X, DEC1_GENERE_Y, tampon);
+        } else {
+            texte(cb, font, TAILLE_PIED_PAGE, DEC2_GENERE_X, DEC2_GENERE_Y, tampon);
+        }
     }
 
     private String libelleMention(Enums.Mention m) {

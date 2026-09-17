@@ -46,8 +46,9 @@ public class RelevNoteA2 {
     private Enums.DecisionJury decisionDeuxiemeGroupe;
     private Enums.Mention mentionDeuxiemeGroupe;
 
-    private String lieuDelivrance;
-    private LocalDate dateDelivrance;
+    private String lieuDeliberation;
+    private LocalDate dateDeliberationPremierGroupe;
+    private LocalDate dateDeliberationDeuxiemeGroupe;
     private String presidentJury;
     private Instant createdAt;
 }

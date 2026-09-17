@@ -32,5 +32,5 @@ public final class ReleveF1DeuxiemePartieCoordinates {
 
     public static final float DEC_TEXTE_X = 196.0f, DEC_TEXTE_Y = 362.5f;
 
-    public static final float LIEU_DELIVRANCE_X = 128.9f, JOUR_MOIS_X = 208.9f, ANNEE2_X = 268.9f, PIED_Y = 310.1f;
+    public static final float LIEU_DELIBERATION_X = 128.9f, JOUR_MOIS_X = 208.9f, ANNEE2_X = 268.9f, PIED_Y = 310.1f;
 }
