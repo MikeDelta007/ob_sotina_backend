@@ -17,7 +17,7 @@ public class ExpressionBesoinResource {
 
     private final ExpressionBesoinService expressionBesoinService;
 
-    // ── Chef de service / CSA / Directeur / Chef comptable / Agent comptable ──
+    // ── Agent / Chef de service / CSA / Directeur / Chef comptable / Agent comptable ──
     @PreAuthorize("hasAnyAuthority('CHEF_SERVICE','CSA','DIRECTEUR','CHEF_COMPTABLE','AGENT_COMPTABLE')")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ExpressionBesoin> creer(
@@ -50,6 +50,13 @@ public class ExpressionBesoinResource {
         return ResponseEntity.ok(expressionBesoinService.confirmerSatisfaction(id));
     }
 
+    // Lecture seule : un agent simple ne crée pas d'expression de besoin, mais peut consulter
+    // celles où il a été déclaré bénéficiaire par son chef de service.
+    @GetMapping("/liees-a-moi")
+    public ResponseEntity<List<ExpressionBesoin>> getLieesAMoi() {
+        return ResponseEntity.ok(expressionBesoinService.getLieesAMoi());
+    }
+
     // ── CSA / Directeur ──
     @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR')")
     @GetMapping("/a-valider")
@@ -61,6 +68,12 @@ public class ExpressionBesoinResource {
     @GetMapping("/validees")
     public ResponseEntity<List<ExpressionBesoin>> getValidees() {
         return ResponseEntity.ok(expressionBesoinService.getValidees());
+    }
+
+    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR')")
+    @GetMapping("/rejetees")
+    public ResponseEntity<List<ExpressionBesoin>> getRejetees() {
+        return ResponseEntity.ok(expressionBesoinService.getRejetees());
     }
 
     @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR')")

@@ -61,6 +61,10 @@ public class Mandatement {
     private String beneficiaire;
     private String numeroCni;       // optionnel, pas de pièce jointe
 
+    // ── Numéro du PDF de décaissement (ex. DEC_2026_01) — généré une seule fois, à la
+    // première génération du PDF, puis figé (même numéro à chaque téléchargement) ──
+    private String numeroDecaissement;
+
     // ── Expression de besoin d'origine (si créé depuis une EB traitée) ──
     private String expressionBesoinId;
 

@@ -4,6 +4,7 @@ import com.lowagie.text.*;
 import com.lowagie.text.pdf.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 import java.awt.Color;
@@ -29,7 +30,8 @@ public class DecaissementPdfService {
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             Document doc = new Document(PageSize.A4, 70, 70, 60, 60);
-            PdfWriter.getInstance(doc, baos);
+            PdfWriter writer = PdfWriter.getInstance(doc, baos);
+            writer.setPageEvent(new PiedDePageEvent());
             doc.open();
 
             // ── Polices ──
@@ -43,58 +45,36 @@ public class DecaissementPdfService {
             Font fBold14  = FontFactory.getFont(FontFactory.HELVETICA_BOLD,  14);
 
             // ══════════════════════
-            // EN-TÊTE : gauche=entité  droite=lieu+date
+            // EN-TÊTE : République / drapeau / devise / Ministère — lieu et date sont
+            // désormais près de la signature, en bas du document, avec "LE DIRECTEUR,".
             // ══════════════════════
-            PdfPTable header = new PdfPTable(new float[]{50f, 50f});
-            header.setWidthPercentage(100);
-            header.getDefaultCell().setBorder(0);
+            doc.add(new Paragraph("REPUBLIQUE DU SENEGAL", fBold11));
+            // Trait sous République, en texte (pas une bordure de cellule)
+            doc.add(new Paragraph("====================", fBold11));
+            try {
+                ClassPathResource drapeauFile = new ClassPathResource("images/drapeau.png");
+                if (drapeauFile.exists()) {
+                    Image drapeau = Image.getInstance(drapeauFile.getInputStream().readAllBytes());
+                    drapeau.scaleToFit(60f, 40f);
+                    drapeau.setAlignment(Image.ALIGN_LEFT);
+                    drapeau.setIndentationLeft(40f);
+//                    doc.setMargins(90, 70, 60, 60);
+                    doc.add(drapeau);
+//                    doc.setMargins(70, 70, 60, 60);
+                }
+            } catch (Exception e) {
+                log.warn("Drapeau non trouvé (images/drapeau.png)", e);
+            }
+            doc.add(new Paragraph("====================", fBold11));
 
-            // Colonne gauche
-            PdfPCell left = new PdfPCell();
-            left.setBorder(0);
-            left.addElement(new Paragraph("REPUBLIQUE DU SENEGAL", fBold11));
-            // Trait souligné sous République
-            PdfPTable underline = new PdfPTable(1);
-            underline.setWidthPercentage(60);
-            underline.setHorizontalAlignment(Element.ALIGN_LEFT);
-            PdfPCell uc = new PdfPCell(new Phrase(""));
-            uc.setBorderWidthBottom(1f); uc.setBorderWidthTop(0);
-            uc.setBorderWidthLeft(0); uc.setBorderWidthRight(0);
-            uc.setFixedHeight(4f);
-            underline.addCell(uc);
-            left.addElement(underline);
-
-            left.addElement(new Paragraph(" ", fNorm9));
+            // "Un Peuple - Un But - Une Foi", avec une marge gauche
             Paragraph devise = new Paragraph("Un Peuple - Un But - Une Foi", fNorm9);
-            devise.setAlignment(Element.ALIGN_CENTER);
-            left.addElement(devise);
-            left.addElement(new Paragraph(" ", fNorm9));
-            left.addElement(new Paragraph("MINISTERE DE L'ENSEIGNEMENT SUPERIEUR", fBold9));
-            left.addElement(new Paragraph("DE LA RECHERCHE ET DE L'INNOVATION",    fBold9));
-            left.addElement(new Paragraph("OFFICE DU BACCALAUREAT",                fBold9));
-            left.addElement(new Paragraph("Site web: www.officedubac.sn",          fNorm9));
-            left.addElement(new Paragraph("Email: officedubac@ucad.edu.sn",        fNorm9));
-            header.addCell(left);
-
-            // Colonne droite : lieu + date + LE DIRECTEUR
-            PdfPCell right = new PdfPCell();
-            right.setBorder(0);
-            right.setHorizontalAlignment(Element.ALIGN_RIGHT);
-            String dateStr = "Dakar, le " + LocalDate.now().format(DATE_FR);
-            Paragraph datePara = new Paragraph(dateStr, fNorm11);
-            datePara.setAlignment(Element.ALIGN_RIGHT);
-            right.addElement(new Paragraph(" ", fNorm9));
-            right.addElement(new Paragraph(" ", fNorm9));
-            right.addElement(new Paragraph(" ", fNorm9));
-            right.addElement(datePara);
-            right.addElement(new Paragraph(" ", fNorm9));
-            right.addElement(new Paragraph(" ", fNorm9));
-            Paragraph dir = new Paragraph("LE DIRECTEUR,", fNorm11);
-            dir.setAlignment(Element.ALIGN_RIGHT);
-            right.addElement(dir);
-            header.addCell(right);
-
-            doc.add(header);
+            devise.setIndentationLeft(20f);
+            doc.add(devise);
+            doc.add(new Paragraph(" ", fNorm9));
+            doc.add(new Paragraph("MINISTERE DE L'ENSEIGNEMENT SUPERIEUR", fBold9));
+            doc.add(new Paragraph("DE LA RECHERCHE ET DE L'INNOVATION",    fBold9));
+            doc.add(new Paragraph("OFFICE DU BACCALAUREAT",                fBold9));
             doc.add(new Paragraph(" ", fNorm11));
             doc.add(new Paragraph(" ", fNorm11));
             doc.add(new Paragraph(" ", fNorm11));
@@ -170,8 +150,23 @@ public class DecaissementPdfService {
             doc.add(new Paragraph(" ", fNorm11));
 
             // ══════════════════════
-            // SIGNATURE (alignée à droite)
+            // SIGNATURE (alignée à droite) — même structure que le PDF d'autorisation
+            // d'absence (lieu et date, puis le libellé, puis la signature), mais sans image
+            // ici : l'espace entre "LE DIRECTEUR," et le nom est laissé vide.
             // ══════════════════════
+            Paragraph faitA = new Paragraph("Dakar, le " + LocalDate.now().format(DATE_FR), fNorm11);
+            faitA.setAlignment(Element.ALIGN_RIGHT);
+            doc.add(faitA);
+
+            Paragraph dir = new Paragraph("LE DIRECTEUR,", fNorm11);
+            dir.setAlignment(Element.ALIGN_RIGHT);
+            dir.setIndentationRight(40f);
+            doc.add(dir);
+
+            doc.add(new Paragraph(" ", fNorm11));
+            doc.add(new Paragraph(" ", fNorm11));
+            doc.add(new Paragraph(" ", fNorm11));
+
             Paragraph sign = new Paragraph("Cheikh Ahmadou Bamba GUEYE", fBold11);
             sign.setAlignment(Element.ALIGN_RIGHT);
             doc.add(sign);
@@ -182,6 +177,30 @@ public class DecaissementPdfService {
         } catch (Exception e) {
             log.error("Erreur génération PDF décaissement", e);
             throw new RuntimeException("Erreur génération PDF décaissement", e);
+        }
+    }
+
+    // Pied de page (coordonnées de l'Office), répété en bas de chaque page du document.
+    private static class PiedDePageEvent extends PdfPageEventHelper {
+        private static final Font POLICE = FontFactory.getFont(FontFactory.HELVETICA, 8);
+        private static final String TEXTE = "Office du Baccalauréat – Université Cheikh Anta Diop – BP : 5005, "
+                + "Dakar, Fann Sénégal – Email : officedubac@ucad.edu.sn - Site internet : "
+                + "www.officedubac.sn / https://extrantsbac.ucad.sn/";
+
+        @Override
+        public void onEndPage(PdfWriter writer, Document document) {
+            try {
+                // Colonne bornée (pas showTextAligned, qui ne retourne pas à la ligne) : le
+                // texte se répartit sur deux lignes plutôt que de déborder des marges.
+                ColumnText ct = new ColumnText(writer.getDirectContent());
+                ct.setSimpleColumn(document.left(), document.bottom() - 40, document.right(), document.bottom() - 5);
+                ct.setAlignment(Element.ALIGN_CENTER);
+                ct.setLeading(9f);
+                ct.addText(new Phrase(TEXTE, POLICE));
+                ct.go();
+            } catch (DocumentException e) {
+                log.warn("Erreur pied de page PDF", e);
+            }
         }
     }
 

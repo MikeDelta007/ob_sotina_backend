@@ -189,7 +189,23 @@ public class PersonnelResource {
             return ResponseEntity.ok(List.of());
         }
 
-        return ResponseEntity.ok(personnelRepo.findByDivision_IdInAndActifTrue(divisionsDontJeSuisChef));
+        // Agents externes (fiche Personnel autonome, sans compte)
+        List<Personnel> agents = new ArrayList<>(personnelRepo.findByDivision_IdInAndActifTrue(divisionsDontJeSuisChef));
+
+        // Agents internes (avec compte applicatif) de ces mêmes divisions — l'id renvoyé
+        // est alors celui du User, pour que cet agent puisse ensuite retrouver ce qui le
+        // concerne (ex. expressions de besoin) via ses propres écrans en lecture seule.
+        userRepository.findByPersonnel_Division_IdIn(divisionsDontJeSuisChef).stream()
+                .filter(u -> !u.getId().equals(chef.getId()))
+                .forEach(u -> {
+                    Personnel p = u.getPersonnel();
+                    if (p != null) {
+                        p.setId(u.getId());
+                        agents.add(p);
+                    }
+                });
+
+        return ResponseEntity.ok(agents);
     }
 
     // ── Personnels (identité + fonction, généralement externes — sans compte utilisateur).
