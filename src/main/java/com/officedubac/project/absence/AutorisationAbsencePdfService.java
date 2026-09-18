@@ -206,9 +206,18 @@ public class AutorisationAbsencePdfService {
 
         @Override
         public void onEndPage(PdfWriter writer, Document document) {
-            ColumnText.showTextAligned(writer.getDirectContent(), Element.ALIGN_CENTER,
-                    new Phrase(TEXTE, POLICE),
-                    (document.left() + document.right()) / 2, document.bottom() - 20, 0);
+            try {
+                // Colonne bornée (pas showTextAligned, qui ne retourne pas à la ligne) : le
+                // texte se répartit sur deux lignes plutôt que de déborder des marges.
+                ColumnText ct = new ColumnText(writer.getDirectContent());
+                ct.setSimpleColumn(document.left(), document.bottom() - 40, document.right(), document.bottom() - 5);
+                ct.setAlignment(Element.ALIGN_CENTER);
+                ct.setLeading(9f);
+                ct.addText(new Phrase(TEXTE, POLICE));
+                ct.go();
+            } catch (DocumentException e) {
+                log.warn("Erreur pied de page PDF", e);
+            }
         }
     }
 

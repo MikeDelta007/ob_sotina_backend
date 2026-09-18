@@ -45,16 +45,10 @@ public class DecaissementPdfService {
             Font fBold14  = FontFactory.getFont(FontFactory.HELVETICA_BOLD,  14);
 
             // ══════════════════════
-            // EN-TÊTE : gauche=entité  droite=lieu+date
+            // EN-TÊTE : République / drapeau / devise / Ministère — lieu et date sont
+            // désormais près de la signature, en bas du document, avec "LE DIRECTEUR,".
             // ══════════════════════
-            PdfPTable header = new PdfPTable(new float[]{50f, 50f});
-            header.setWidthPercentage(100);
-            header.getDefaultCell().setBorder(0);
-
-            // Colonne gauche
-            PdfPCell left = new PdfPCell();
-            left.setBorder(0);
-            left.addElement(new Paragraph("REPUBLIQUE DU SENEGAL", fBold11));
+            doc.add(new Paragraph("REPUBLIQUE DU SENEGAL", fBold11));
             // Trait souligné sous République
             PdfPTable underline = new PdfPTable(1);
             underline.setWidthPercentage(60);
@@ -64,7 +58,7 @@ public class DecaissementPdfService {
             uc.setBorderWidthLeft(0); uc.setBorderWidthRight(0);
             uc.setFixedHeight(4f);
             underline.addCell(uc);
-            left.addElement(underline);
+            doc.add(underline);
 
             // Drapeau du Sénégal, entre le trait et "Un Peuple - Un But - Une Foi" — même
             // emplacement "en sandwich" que le logo UCAD entre les deux lignes de texte du
@@ -77,35 +71,20 @@ public class DecaissementPdfService {
                     Paragraph drapeauPara = new Paragraph(new Chunk(drapeau, 0, 0));
                     drapeauPara.setIndentationLeft(60f);
                     drapeauPara.setSpacingBefore(10f);
-                    left.addElement(drapeauPara);
+                    doc.add(drapeauPara);
                 }
             } catch (Exception e) {
                 log.warn("Drapeau non trouvé (images/drapeau.png)", e);
             }
 
             // "Un Peuple - Un But - Une Foi" aligné avec "REPUBLIQUE DU SENEGAL" (pas centré)
-            Paragraph devise = new Paragraph("Un Peuple - Un But - Une Foi", fNorm9);
-            left.addElement(devise);
-            left.addElement(new Paragraph(" ", fNorm9));
-            left.addElement(new Paragraph("MINISTERE DE L'ENSEIGNEMENT SUPERIEUR", fBold9));
-            left.addElement(new Paragraph("DE LA RECHERCHE ET DE L'INNOVATION",    fBold9));
-            left.addElement(new Paragraph("OFFICE DU BACCALAUREAT",                fBold9));
-            left.addElement(new Paragraph("Site web: www.officedubac.sn",          fNorm9));
-            left.addElement(new Paragraph("Email: officedubac@ucad.edu.sn",        fNorm9));
-            header.addCell(left);
-
-            // Colonne droite : lieu + date uniquement — "LE DIRECTEUR," est déplacé avec la
-            // signature en bas de document (cf. plus bas), comme dans le PDF d'autorisation.
-            PdfPCell right = new PdfPCell();
-            right.setBorder(0);
-            right.setHorizontalAlignment(Element.ALIGN_RIGHT);
-            String dateStr = "Dakar, le " + LocalDate.now().format(DATE_FR);
-            Paragraph datePara = new Paragraph(dateStr, fNorm11);
-            datePara.setAlignment(Element.ALIGN_RIGHT);
-            right.addElement(datePara);
-            header.addCell(right);
-
-            doc.add(header);
+            doc.add(new Paragraph("Un Peuple - Un But - Une Foi", fNorm9));
+            doc.add(new Paragraph(" ", fNorm9));
+            doc.add(new Paragraph("MINISTERE DE L'ENSEIGNEMENT SUPERIEUR", fBold9));
+            doc.add(new Paragraph("DE LA RECHERCHE ET DE L'INNOVATION",    fBold9));
+            doc.add(new Paragraph("OFFICE DU BACCALAUREAT",                fBold9));
+            doc.add(new Paragraph("Site web: www.officedubac.sn",          fNorm9));
+            doc.add(new Paragraph("Email: officedubac@ucad.edu.sn",        fNorm9));
             doc.add(new Paragraph(" ", fNorm11));
             doc.add(new Paragraph(" ", fNorm11));
             doc.add(new Paragraph(" ", fNorm11));
@@ -182,9 +161,13 @@ public class DecaissementPdfService {
 
             // ══════════════════════
             // SIGNATURE (alignée à droite) — même structure que le PDF d'autorisation
-            // d'absence (libellé, puis la signature), mais sans image ici : l'espace entre
-            // "LE DIRECTEUR," et le nom est laissé vide.
+            // d'absence (lieu et date, puis le libellé, puis la signature), mais sans image
+            // ici : l'espace entre "LE DIRECTEUR," et le nom est laissé vide.
             // ══════════════════════
+            Paragraph faitA = new Paragraph("Dakar, le " + LocalDate.now().format(DATE_FR), fNorm11);
+            faitA.setAlignment(Element.ALIGN_RIGHT);
+            doc.add(faitA);
+
             Paragraph dir = new Paragraph("LE DIRECTEUR,", fNorm11);
             dir.setAlignment(Element.ALIGN_RIGHT);
             doc.add(dir);
@@ -215,9 +198,18 @@ public class DecaissementPdfService {
 
         @Override
         public void onEndPage(PdfWriter writer, Document document) {
-            ColumnText.showTextAligned(writer.getDirectContent(), Element.ALIGN_CENTER,
-                    new Phrase(TEXTE, POLICE),
-                    (document.left() + document.right()) / 2, document.bottom() - 20, 0);
+            try {
+                // Colonne bornée (pas showTextAligned, qui ne retourne pas à la ligne) : le
+                // texte se répartit sur deux lignes plutôt que de déborder des marges.
+                ColumnText ct = new ColumnText(writer.getDirectContent());
+                ct.setSimpleColumn(document.left(), document.bottom() - 40, document.right(), document.bottom() - 5);
+                ct.setAlignment(Element.ALIGN_CENTER);
+                ct.setLeading(9f);
+                ct.addText(new Phrase(TEXTE, POLICE));
+                ct.go();
+            } catch (DocumentException e) {
+                log.warn("Erreur pied de page PDF", e);
+            }
         }
     }
 
