@@ -214,9 +214,8 @@ public class ExpressionBesoinService {
             eb.setDateValidationDirecteur(LocalDateTime.now());
         }
 
-        // Le Directeur est toujours l'étape décisionnaire finale quand sa validation est
-        // requise — même si le CSA a rejeté au préalable, la chaîne continue jusqu'à lui.
-        // Sinon (petit montant), le CSA seul suffit.
+        // Le Directeur est l'étape décisionnaire finale quand sa validation est requise
+        // (montant > seuil) — en dessous, il n'intervient pas du tout, le CSA seul suffit.
         boolean directeurRequis = eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) > 0;
         if (directeurRequis ? eb.isValidationDirecteur() : eb.isValidationCsa()) {
             eb.setStatut(ExpressionBesoin.Statut.VALIDEE);
@@ -241,8 +240,8 @@ public class ExpressionBesoinService {
 
     // Comme pour les congés/autorisations : un rejet du CSA n'interrompt la chaîne que si
     // le Directeur doit aussi se prononcer (montant > seuil) — dans ce cas, elle continue
-    // jusqu'à lui, seul décisionnaire final. Sinon, le rejet du CSA est immédiatement
-    // définitif puisqu'aucune autre étape n'est prévue.
+    // jusqu'à lui, seul décisionnaire final. En dessous du seuil, le Directeur n'intervient
+    // jamais sur cette expression : le rejet du CSA y est donc immédiatement définitif.
     public ExpressionBesoin rejeter(String id, String motif) {
         ExpressionBesoin eb = getById(id);
         if (eb.getStatut() != ExpressionBesoin.Statut.EN_ATTENTE)
