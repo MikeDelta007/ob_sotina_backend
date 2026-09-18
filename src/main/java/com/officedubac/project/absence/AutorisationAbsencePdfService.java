@@ -32,14 +32,12 @@ public class AutorisationAbsencePdfService {
             PdfWriter.getInstance(doc, baos);
             doc.open();
 
-            Font fBold12 = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
             Font fBold11 = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11);
             Font fNorm11 = FontFactory.getFont(FontFactory.HELVETICA, 11);
-            Font fItalic10 = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 10);
             Font fBold18 = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18);
 
             // ══════════════════════
-            // EN-TÊTE : gauche = République + Ministère + Office, droite = N° + date
+            // EN-TÊTE : gauche = Université + logo + Office, droite = N°
             // ══════════════════════
             PdfPTable header = new PdfPTable(new float[]{55f, 45f});
             header.setWidthPercentage(100);
@@ -47,41 +45,33 @@ public class AutorisationAbsencePdfService {
 
             PdfPCell left = new PdfPCell();
             left.setBorder(0);
-            left.addElement(new Paragraph("REPUBLIQUE DU SENEGAL", fBold12));
-            PdfPTable underline = new PdfPTable(1);
-            underline.setWidthPercentage(55);
-            underline.setHorizontalAlignment(Element.ALIGN_LEFT);
-            PdfPCell uc = new PdfPCell(new Phrase(""));
-            uc.setBorderWidthBottom(1f); uc.setBorderWidthTop(0);
-            uc.setBorderWidthLeft(0); uc.setBorderWidthRight(0);
-            uc.setFixedHeight(4f);
-            underline.addCell(uc);
-            left.addElement(underline);
+            left.setHorizontalAlignment(Element.ALIGN_LEFT);
+            Paragraph universite = new Paragraph("UNIVERSITE CHEIKH ANTA DIOP", fBold11);
+            universite.setAlignment(Element.ALIGN_LEFT);
+            left.addElement(universite);
 
             try {
-                ClassPathResource flagFile = new ClassPathResource("images/drapeau.png");
-                if (flagFile.exists()) {
-                    Image flag = Image.getInstance(flagFile.getInputStream().readAllBytes());
-                    flag.scaleToFit(50f, 35f);
-                    left.addElement(flag);
+                ClassPathResource logoFile = new ClassPathResource("images/logo-UCAD.png");
+                if (logoFile.exists()) {
+                    Image logo = Image.getInstance(logoFile.getInputStream().readAllBytes());
+                    logo.scaleToFit(50f, 50f);
+                    Paragraph logoPara = new Paragraph(new Chunk(logo, 0, 0));
+                    logoPara.setIndentationLeft(60f);
+                    logoPara.setSpacingBefore(10f);
+                    left.addElement(logoPara);
                 }
             } catch (Exception e) {
-                log.warn("Drapeau non trouvé (images/drapeau.png)", e);
+                log.warn("Logo UCAD non trouvé (images/logo-UCAD.png)", e);
             }
-
-            left.addElement(new Paragraph("Un Peuple – Un But – Une Foi", fItalic10));
-            left.addElement(new Paragraph(" ", fNorm11));
-            left.addElement(new Paragraph("Ministère de l'Enseignement", fBold11));
-            left.addElement(new Paragraph("supérieur, de la Recherche et de", fBold11));
-            left.addElement(new Paragraph("l'Innovation", fBold11));
-            left.addElement(new Paragraph(" ", fNorm11));
-            left.addElement(new Paragraph("OFFICE DU BACCALAUREAT", fBold11));
+            Paragraph office = new Paragraph("OFFICE DU BACCALAUREAT", fBold11);
+            office.setAlignment(Element.ALIGN_LEFT);
+            left.addElement(office);
             header.addCell(left);
 
             PdfPCell right = new PdfPCell();
             right.setBorder(0);
             right.setHorizontalAlignment(Element.ALIGN_RIGHT);
-            Paragraph numero = new Paragraph("N° .......................... MESRI/SG/OB/DOB/kt", fNorm11);
+            Paragraph numero = new Paragraph("N° .......................... MESRI/UCAD/OB/DOB/kt", fNorm11);
             numero.setAlignment(Element.ALIGN_RIGHT);
             right.addElement(numero);
             header.addCell(right);
@@ -125,7 +115,11 @@ public class AutorisationAbsencePdfService {
             corpsCell.setPaddingTop(8f);
             corpsCell.setPaddingBottom(8f);
 
-            corpsCell.addElement(new Paragraph("Le Directeur de l'Office du Baccalauréat autorise :", fNorm11));
+            Paragraph autorisePar = new Paragraph();
+            autorisePar.add(new Chunk("Le ", fNorm11));
+            autorisePar.add(new Chunk("Directeur", fBold11));
+            autorisePar.add(new Chunk(" de l'Office du Baccalauréat autorise :", fNorm11));
+            corpsCell.addElement(autorisePar);
             corpsCell.addElement(new Paragraph(" ", fNorm11));
             corpsCell.addElement(champ("Monsieur / Madame", demande.getDemandeurNom(), fNorm11, fBold11));
             corpsCell.addElement(champ("Qualité et fonction", qualiteFonction, fNorm11, fBold11));
@@ -157,44 +151,30 @@ public class AutorisationAbsencePdfService {
             doc.add(new Paragraph(" ", fNorm11));
 
             // ══════════════════════
-            // SIGNATURE (reprend exactement la structure de ConvocationItextService.buildSignature)
+            // SIGNATURE
             // ══════════════════════
-            PdfPTable sigTable = new PdfPTable(new float[]{50f, 50f});
-            sigTable.setWidthPercentage(100);
-
-            PdfPCell leftRef = new PdfPCell();
-            leftRef.setBorder(0);
-            leftRef.addElement(new Paragraph(" ", fNorm11));
-            sigTable.addCell(leftRef);
-
-            PdfPCell rightSig = new PdfPCell();
-            rightSig.setBorder(0);
-            rightSig.setHorizontalAlignment(Element.ALIGN_RIGHT);
             Paragraph faitA = new Paragraph("Fait à Dakar, le " + dateEmission.format(DATE_COURTE), fNorm11);
-            faitA.setSpacingAfter(0f);
-            rightSig.addElement(faitA);
-            Paragraph directeurLabel = new Paragraph("Le Directeur", fNorm11);
-            directeurLabel.setIndentationRight(40f);
-            directeurLabel.setSpacingAfter(0f);
-            rightSig.addElement(directeurLabel);
-            sigTable.addCell(rightSig);
+            faitA.setAlignment(Element.ALIGN_RIGHT);
+            doc.add(faitA);
 
-            doc.add(sigTable);
+            Paragraph directeurLabel = new Paragraph("Le Directeur", fBold11);
+            directeurLabel.setAlignment(Element.ALIGN_RIGHT);
+            directeurLabel.setIndentationRight(40f);
+            doc.add(directeurLabel);
 
             try {
                 ClassPathResource sigFile = new ClassPathResource("images/signature.png");
                 if (sigFile.exists()) {
-                    PdfPTable sigImgTable = new PdfPTable(1);
-                    sigImgTable.setWidthPercentage(100);
-                    PdfPCell sigImgCell = new PdfPCell();
-                    sigImgCell.setBorder(0);
-                    sigImgCell.setPaddingRight(35f);
-                    sigImgCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
                     Image signature = Image.getInstance(sigFile.getInputStream().readAllBytes());
-                    signature.scaleAbsoluteWidth(70f);
-                    sigImgCell.addElement(signature);
-                    sigImgTable.addCell(sigImgCell);
-                    doc.add(sigImgTable);
+                    signature.scaleToFit(90f, 90f);
+                    signature.setAlignment(Image.ALIGN_RIGHT);
+                    signature.setIndentationRight(20f);
+                    // Décale temporairement la marge droite pour reproduire l'indentation sans
+                    // casser l'enchaînement vertical du document (un Chunk/Paragraph autour de
+                    // l'image casse le flux et fait chevaucher tout ce qui suit).
+                    doc.setMargins(60, 120, 50, 50);
+                    doc.add(signature);
+                    doc.setMargins(60, 60, 50, 50);
                 } else {
                     log.warn("Signature non trouvée (images/signature.png)");
                 }
