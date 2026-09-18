@@ -74,8 +74,8 @@ public class DecaissementPdfService {
                     Image drapeau = Image.getInstance(drapeauFile.getInputStream().readAllBytes());
                     drapeau.scaleToFit(36f, 24f);
                     Paragraph drapeauPara = new Paragraph(new Chunk(drapeau, 0, 0));
-                    drapeauPara.setAlignment(Element.ALIGN_CENTER);
-                    drapeauPara.setSpacingBefore(4f);
+                    drapeauPara.setIndentationLeft(60f);
+                    drapeauPara.setSpacingBefore(10f);
                     left.addElement(drapeauPara);
                 }
             } catch (Exception e) {
