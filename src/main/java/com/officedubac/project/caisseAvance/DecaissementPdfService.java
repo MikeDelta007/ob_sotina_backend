@@ -52,22 +52,25 @@ public class DecaissementPdfService {
             // Trait sous République, en texte (pas une bordure de cellule)
             doc.add(new Paragraph("====================", fBold11));
 
-            // Drapeau du Sénégal, entre le trait et "Un Peuple - Un But - Une Foi" — même
-            // emplacement "en sandwich" que le logo UCAD entre les deux lignes de texte du
-            // PDF d'autorisation d'absence.
+            // Drapeau du Sénégal, aligné à gauche avec une marge supplémentaire — ajouté
+            // directement (pas enveloppé dans un Chunk/Paragraph, qui ignore l'alignement hors
+            // cellule ; même technique que la signature ajoutée directement dans le PDF
+            // d'autorisation, avec une marge de page temporaire pour décaler l'image).
+            doc.add(new Paragraph(" ", fNorm9));
             try {
                 ClassPathResource drapeauFile = new ClassPathResource("images/drapeau.png");
                 if (drapeauFile.exists()) {
                     Image drapeau = Image.getInstance(drapeauFile.getInputStream().readAllBytes());
                     drapeau.scaleToFit(60f, 40f);
-                    Paragraph drapeauPara = new Paragraph(new Chunk(drapeau, 0, 0));
-                    drapeauPara.setIndentationLeft(60f);
-                    drapeauPara.setSpacingBefore(10f);
-                    doc.add(drapeauPara);
+                    drapeau.setAlignment(Image.ALIGN_LEFT);
+                    doc.setMargins(90, 70, 60, 60);
+                    doc.add(drapeau);
+                    doc.setMargins(70, 70, 60, 60);
                 }
             } catch (Exception e) {
                 log.warn("Drapeau non trouvé (images/drapeau.png)", e);
             }
+            doc.add(new Paragraph(" ", fNorm9));
 
             // Trait sous le drapeau, en texte — le drapeau est ainsi encadré par une ligne
             // au-dessus et une ligne en dessous.
