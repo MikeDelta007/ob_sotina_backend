@@ -49,16 +49,8 @@ public class DecaissementPdfService {
             // désormais près de la signature, en bas du document, avec "LE DIRECTEUR,".
             // ══════════════════════
             doc.add(new Paragraph("REPUBLIQUE DU SENEGAL", fBold11));
-            // Trait sous République (bordure de cellule, pas un soulignement de texte)
-            PdfPTable underline = new PdfPTable(1);
-            underline.setWidthPercentage(60);
-            underline.setHorizontalAlignment(Element.ALIGN_LEFT);
-            PdfPCell uc = new PdfPCell(new Phrase(""));
-            uc.setBorderWidthBottom(1f); uc.setBorderWidthTop(0);
-            uc.setBorderWidthLeft(0); uc.setBorderWidthRight(0);
-            uc.setFixedHeight(4f);
-            underline.addCell(uc);
-            doc.add(underline);
+            // Trait sous République, en texte (pas une bordure de cellule)
+            doc.add(new Paragraph("====================", fBold11));
 
             // Drapeau du Sénégal, entre le trait et "Un Peuple - Un But - Une Foi" — même
             // emplacement "en sandwich" que le logo UCAD entre les deux lignes de texte du
@@ -77,17 +69,9 @@ public class DecaissementPdfService {
                 log.warn("Drapeau non trouvé (images/drapeau.png)", e);
             }
 
-            // Trait sous le drapeau (même style que celui sous République) : le drapeau est
-            // ainsi encadré par une ligne au-dessus et une ligne en dessous.
-            PdfPTable overline = new PdfPTable(1);
-            overline.setWidthPercentage(60);
-            overline.setHorizontalAlignment(Element.ALIGN_LEFT);
-            PdfPCell oc = new PdfPCell(new Phrase(""));
-            oc.setBorderWidthBottom(1f); oc.setBorderWidthTop(0);
-            oc.setBorderWidthLeft(0); oc.setBorderWidthRight(0);
-            oc.setFixedHeight(4f);
-            overline.addCell(oc);
-            doc.add(overline);
+            // Trait sous le drapeau, en texte — le drapeau est ainsi encadré par une ligne
+            // au-dessus et une ligne en dessous.
+            doc.add(new Paragraph("====================", fBold11));
 
             // "Un Peuple - Un But - Une Foi", avec une marge gauche
             Paragraph devise = new Paragraph("Un Peuple - Un But - Une Foi", fNorm9);
