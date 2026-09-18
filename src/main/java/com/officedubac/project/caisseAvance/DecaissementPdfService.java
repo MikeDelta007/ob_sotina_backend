@@ -4,6 +4,7 @@ import com.lowagie.text.*;
 import com.lowagie.text.pdf.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Service;
 
 import java.awt.Color;
@@ -29,7 +30,8 @@ public class DecaissementPdfService {
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             Document doc = new Document(PageSize.A4, 70, 70, 60, 60);
-            PdfWriter.getInstance(doc, baos);
+            PdfWriter writer = PdfWriter.getInstance(doc, baos);
+            writer.setPageEvent(new PiedDePageEvent());
             doc.open();
 
             // ── Polices ──
@@ -63,6 +65,22 @@ public class DecaissementPdfService {
             uc.setFixedHeight(4f);
             underline.addCell(uc);
             left.addElement(underline);
+
+            // Drapeau du Sénégal, sous "REPUBLIQUE DU SENEGAL" (même technique d'insertion
+            // d'image dans une cellule que le logo UCAD du PDF d'autorisation d'absence).
+            try {
+                ClassPathResource drapeauFile = new ClassPathResource("images/drapeau.png");
+                if (drapeauFile.exists()) {
+                    Image drapeau = Image.getInstance(drapeauFile.getInputStream().readAllBytes());
+                    drapeau.scaleToFit(36f, 24f);
+                    Paragraph drapeauPara = new Paragraph(new Chunk(drapeau, 0, 0));
+                    drapeauPara.setAlignment(Element.ALIGN_CENTER);
+                    drapeauPara.setSpacingBefore(4f);
+                    left.addElement(drapeauPara);
+                }
+            } catch (Exception e) {
+                log.warn("Drapeau non trouvé (images/drapeau.png)", e);
+            }
 
             left.addElement(new Paragraph(" ", fNorm9));
             Paragraph devise = new Paragraph("Un Peuple - Un But - Une Foi", fNorm9);
@@ -182,6 +200,21 @@ public class DecaissementPdfService {
         } catch (Exception e) {
             log.error("Erreur génération PDF décaissement", e);
             throw new RuntimeException("Erreur génération PDF décaissement", e);
+        }
+    }
+
+    // Pied de page (coordonnées de l'Office), répété en bas de chaque page du document.
+    private static class PiedDePageEvent extends PdfPageEventHelper {
+        private static final Font POLICE = FontFactory.getFont(FontFactory.HELVETICA, 8);
+        private static final String TEXTE = "Office du Baccalauréat – Université Cheikh Anta Diop – BP : 5005, "
+                + "Dakar, Fann Sénégal – Email : officedubac@ucad.edu.sn - Site internet : "
+                + "www.officedubac.sn / https://extrantsbac.ucad.sn/";
+
+        @Override
+        public void onEndPage(PdfWriter writer, Document document) {
+            ColumnText.showTextAligned(writer.getDirectContent(), Element.ALIGN_CENTER,
+                    new Phrase(TEXTE, POLICE),
+                    (document.left() + document.right()) / 2, document.bottom() - 20, 0);
         }
     }
 

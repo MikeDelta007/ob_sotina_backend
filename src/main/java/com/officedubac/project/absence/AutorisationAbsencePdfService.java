@@ -29,7 +29,8 @@ public class AutorisationAbsencePdfService {
         try {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             Document doc = new Document(PageSize.A4, 60, 60, 50, 50);
-            PdfWriter.getInstance(doc, baos);
+            PdfWriter writer = PdfWriter.getInstance(doc, baos);
+            writer.setPageEvent(new PiedDePageEvent());
             doc.open();
 
             Font fBold11 = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11);
@@ -39,7 +40,7 @@ public class AutorisationAbsencePdfService {
             // ══════════════════════
             // EN-TÊTE : gauche = Université + logo + Office, droite = N°
             // ══════════════════════
-            PdfPTable header = new PdfPTable(new float[]{55f, 45f});
+            PdfPTable header = new PdfPTable(new float[]{50f, 50f});
             header.setWidthPercentage(100);
             header.getDefaultCell().setBorder(0);
 
@@ -71,7 +72,7 @@ public class AutorisationAbsencePdfService {
             PdfPCell right = new PdfPCell();
             right.setBorder(0);
             right.setHorizontalAlignment(Element.ALIGN_RIGHT);
-            Paragraph numero = new Paragraph("N° .......................... MESRI/UCAD/OB/DOB/kt", fNorm11);
+            Paragraph numero = new Paragraph("N° .......................... MESRI/UCAD/OB/CSA/ot", fNorm11);
             numero.setAlignment(Element.ALIGN_RIGHT);
             right.addElement(numero);
             header.addCell(right);
@@ -193,6 +194,21 @@ public class AutorisationAbsencePdfService {
         } catch (Exception e) {
             log.error("Erreur génération PDF autorisation d'absence", e);
             throw new RuntimeException("Erreur génération PDF autorisation d'absence", e);
+        }
+    }
+
+    // Pied de page (coordonnées de l'Office), répété en bas de chaque page du document.
+    private static class PiedDePageEvent extends PdfPageEventHelper {
+        private static final Font POLICE = FontFactory.getFont(FontFactory.HELVETICA, 8);
+        private static final String TEXTE = "Office du Baccalauréat – Université Cheikh Anta Diop – BP : 5005, "
+                + "Dakar, Fann Sénégal – Email : officedubac@ucad.edu.sn - Site internet : "
+                + "www.officedubac.sn / https://extrantsbac.ucad.sn/";
+
+        @Override
+        public void onEndPage(PdfWriter writer, Document document) {
+            ColumnText.showTextAligned(writer.getDirectContent(), Element.ALIGN_CENTER,
+                    new Phrase(TEXTE, POLICE),
+                    (document.left() + document.right()) / 2, document.bottom() - 20, 0);
         }
     }
 
