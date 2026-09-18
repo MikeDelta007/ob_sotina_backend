@@ -326,18 +326,25 @@ public class ExpressionBesoinService {
         return expressionBesoinRepo.findByBeneficiaireIdOrderByDateCreationDesc(moi.getId());
     }
 
-    // Ne montre que ce qu'il reste réellement à valider pour le rôle connecté :
-    // un CSA qui a déjà validé un dossier (encore EN_ATTENTE du Directeur) ne doit plus le voir ici.
+    // Ce qu'il reste réellement à valider pour le rôle connecté (un CSA qui a déjà validé
+    // un dossier encore EN_ATTENTE du Directeur ne doit plus le voir comme "à traiter"),
+    // plus les dossiers rejetés — un rejet est définitif, il n'apparaît nulle part ailleurs
+    // pour un validateur, donc il reste visible ici (sans les actions Valider/Rejeter).
     public List<ExpressionBesoin> getAValider() {
         boolean estCsa = hasAuthority("CSA");
         boolean estDirecteur = hasAuthority("DIRECTEUR");
-        return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.EN_ATTENTE).stream()
+        java.util.stream.Stream<ExpressionBesoin> enAttente = expressionBesoinRepo
+                .findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.EN_ATTENTE).stream()
                 .filter(eb -> {
                     boolean directeurRequis = eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) > 0;
                     if (estCsa && !eb.isValidationCsa()) return true;
                     if (estDirecteur && directeurRequis && !eb.isValidationDirecteur()) return true;
                     return false;
-                })
+                });
+        List<ExpressionBesoin> rejetees = expressionBesoinRepo
+                .findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.REJETEE);
+        return java.util.stream.Stream.concat(enAttente, rejetees.stream())
+                .sorted(java.util.Comparator.comparing(ExpressionBesoin::getDateCreation).reversed())
                 .toList();
     }
 
