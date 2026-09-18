@@ -66,19 +66,9 @@ public class DecaissementPdfService {
             underline.addCell(uc);
             left.addElement(underline);
 
-            // "Un Peuple - Un But - Une Foi" aligné avec "REPUBLIQUE DU SENEGAL", juste sous
-            // le trait — ne pas interrompre ce trio avec autre chose.
-            Paragraph devise = new Paragraph("Un Peuple - Un But - Une Foi", fNorm9);
-            left.addElement(devise);
-            left.addElement(new Paragraph(" ", fNorm9));
-            left.addElement(new Paragraph("MINISTERE DE L'ENSEIGNEMENT SUPERIEUR", fBold9));
-            left.addElement(new Paragraph("DE LA RECHERCHE ET DE L'INNOVATION",    fBold9));
-            left.addElement(new Paragraph("OFFICE DU BACCALAUREAT",                fBold9));
-            left.addElement(new Paragraph("Site web: www.officedubac.sn",          fNorm9));
-            left.addElement(new Paragraph("Email: officedubac@ucad.edu.sn",        fNorm9));
-
-            // Drapeau du Sénégal, après le bloc République/Ministère (même technique
-            // d'insertion d'image en cellule que le logo UCAD du PDF d'autorisation d'absence).
+            // Drapeau du Sénégal, entre le trait et "Un Peuple - Un But - Une Foi" — même
+            // emplacement "en sandwich" que le logo UCAD entre les deux lignes de texte du
+            // PDF d'autorisation d'absence.
             try {
                 ClassPathResource drapeauFile = new ClassPathResource("images/drapeau.png");
                 if (drapeauFile.exists()) {
@@ -92,23 +82,27 @@ public class DecaissementPdfService {
             } catch (Exception e) {
                 log.warn("Drapeau non trouvé (images/drapeau.png)", e);
             }
+
+            // "Un Peuple - Un But - Une Foi" aligné avec "REPUBLIQUE DU SENEGAL" (pas centré)
+            Paragraph devise = new Paragraph("Un Peuple - Un But - Une Foi", fNorm9);
+            left.addElement(devise);
+            left.addElement(new Paragraph(" ", fNorm9));
+            left.addElement(new Paragraph("MINISTERE DE L'ENSEIGNEMENT SUPERIEUR", fBold9));
+            left.addElement(new Paragraph("DE LA RECHERCHE ET DE L'INNOVATION",    fBold9));
+            left.addElement(new Paragraph("OFFICE DU BACCALAUREAT",                fBold9));
+            left.addElement(new Paragraph("Site web: www.officedubac.sn",          fNorm9));
+            left.addElement(new Paragraph("Email: officedubac@ucad.edu.sn",        fNorm9));
             header.addCell(left);
 
-            // Colonne droite : lieu + date + LE DIRECTEUR, ancrés en bas de la ligne d'en-tête
-            // pour rester correctement positionnés quelle que soit la hauteur de la colonne
-            // gauche (drapeau inclus), plutôt que des espaceurs à hauteur fixe.
+            // Colonne droite : lieu + date uniquement — "LE DIRECTEUR," est déplacé avec la
+            // signature en bas de document (cf. plus bas), comme dans le PDF d'autorisation.
             PdfPCell right = new PdfPCell();
             right.setBorder(0);
             right.setHorizontalAlignment(Element.ALIGN_RIGHT);
-            right.setVerticalAlignment(Element.ALIGN_BOTTOM);
             String dateStr = "Dakar, le " + LocalDate.now().format(DATE_FR);
             Paragraph datePara = new Paragraph(dateStr, fNorm11);
             datePara.setAlignment(Element.ALIGN_RIGHT);
             right.addElement(datePara);
-            right.addElement(new Paragraph(" ", fNorm9));
-            Paragraph dir = new Paragraph("LE DIRECTEUR,", fNorm11);
-            dir.setAlignment(Element.ALIGN_RIGHT);
-            right.addElement(dir);
             header.addCell(right);
 
             doc.add(header);
@@ -187,8 +181,18 @@ public class DecaissementPdfService {
             doc.add(new Paragraph(" ", fNorm11));
 
             // ══════════════════════
-            // SIGNATURE (alignée à droite)
+            // SIGNATURE (alignée à droite) — même structure que le PDF d'autorisation
+            // d'absence (libellé, puis la signature), mais sans image ici : l'espace entre
+            // "LE DIRECTEUR," et le nom est laissé vide.
             // ══════════════════════
+            Paragraph dir = new Paragraph("LE DIRECTEUR,", fNorm11);
+            dir.setAlignment(Element.ALIGN_RIGHT);
+            doc.add(dir);
+
+            doc.add(new Paragraph(" ", fNorm11));
+            doc.add(new Paragraph(" ", fNorm11));
+            doc.add(new Paragraph(" ", fNorm11));
+
             Paragraph sign = new Paragraph("Cheikh Ahmadou Bamba GUEYE", fBold11);
             sign.setAlignment(Element.ALIGN_RIGHT);
             doc.add(sign);
