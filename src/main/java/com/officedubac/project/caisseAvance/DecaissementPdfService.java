@@ -77,14 +77,26 @@ public class DecaissementPdfService {
                 log.warn("Drapeau non trouvé (images/drapeau.png)", e);
             }
 
-            // "Un Peuple - Un But - Une Foi" aligné avec "REPUBLIQUE DU SENEGAL" (pas centré)
-            doc.add(new Paragraph("Un Peuple - Un But - Une Foi", fNorm9));
+            // Trait sous le drapeau (même style que celui sous République) : le drapeau est
+            // ainsi encadré par une ligne au-dessus et une ligne en dessous.
+            PdfPTable overline = new PdfPTable(1);
+            overline.setWidthPercentage(60);
+            overline.setHorizontalAlignment(Element.ALIGN_LEFT);
+            PdfPCell oc = new PdfPCell(new Phrase(""));
+            oc.setBorderWidthBottom(1f); oc.setBorderWidthTop(0);
+            oc.setBorderWidthLeft(0); oc.setBorderWidthRight(0);
+            oc.setFixedHeight(4f);
+            overline.addCell(oc);
+            doc.add(overline);
+
+            // "Un Peuple - Un But - Une Foi", avec une marge gauche
+            Paragraph devise = new Paragraph("Un Peuple - Un But - Une Foi", fNorm9);
+            devise.setIndentationLeft(20f);
+            doc.add(devise);
             doc.add(new Paragraph(" ", fNorm9));
             doc.add(new Paragraph("MINISTERE DE L'ENSEIGNEMENT SUPERIEUR", fBold9));
             doc.add(new Paragraph("DE LA RECHERCHE ET DE L'INNOVATION",    fBold9));
             doc.add(new Paragraph("OFFICE DU BACCALAUREAT",                fBold9));
-            doc.add(new Paragraph("Site web: www.officedubac.sn",          fNorm9));
-            doc.add(new Paragraph("Email: officedubac@ucad.edu.sn",        fNorm9));
             doc.add(new Paragraph(" ", fNorm11));
             doc.add(new Paragraph(" ", fNorm11));
             doc.add(new Paragraph(" ", fNorm11));
@@ -170,6 +182,7 @@ public class DecaissementPdfService {
 
             Paragraph dir = new Paragraph("LE DIRECTEUR,", fNorm11);
             dir.setAlignment(Element.ALIGN_RIGHT);
+            dir.setIndentationRight(40f);
             doc.add(dir);
 
             doc.add(new Paragraph(" ", fNorm11));
