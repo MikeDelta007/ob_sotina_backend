@@ -71,6 +71,12 @@ public class ExpressionBesoinResource {
     }
 
     @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR')")
+    @GetMapping("/rejetees")
+    public ResponseEntity<List<ExpressionBesoin>> getRejetees() {
+        return ResponseEntity.ok(expressionBesoinService.getRejetees());
+    }
+
+    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR')")
     @PutMapping("/{id}/valider")
     public ResponseEntity<ExpressionBesoin> valider(@PathVariable String id, @RequestBody(required = false) ValiderRequest req) {
         return ResponseEntity.ok(expressionBesoinService.valider(id, req != null ? req : new ValiderRequest()));

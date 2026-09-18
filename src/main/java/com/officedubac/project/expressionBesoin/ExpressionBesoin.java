@@ -62,13 +62,23 @@ public class ExpressionBesoin {
     private String validateurCsaNom;
     private LocalDateTime dateValidationCsa;
 
+    // ── Rejet CSA : n'interrompt pas la chaîne si le Directeur doit aussi se prononcer
+    // (montant > seuil) — comme pour les congés/autorisations, seul le Directeur décide
+    // alors définitivement. Si aucune validation du Directeur n'est requise, le rejet du
+    // CSA est en revanche immédiatement définitif (cf. rejeter()/finaliserRejet()). ──
+    private boolean rejetCsa;
+    private String motifRejetCsa;
+    private String rejeteParCsaNom;
+    private LocalDateTime dateRejetCsa;
+
     // ── Validation Directeur (uniquement requise si montantInitial > seuil) ──
     private boolean validationDirecteur;
     private String validateurDirecteur;
     private String validateurDirecteurNom;
     private LocalDateTime dateValidationDirecteur;
 
-    // ── Rejet ──
+    // ── Rejet définitif : celui du Directeur quand sa validation est requise, sinon celui
+    // du CSA (seul décisionnaire dans ce cas) ──
     private String motifRejet;
     private String rejetePar;
     private String rejeteParNom;

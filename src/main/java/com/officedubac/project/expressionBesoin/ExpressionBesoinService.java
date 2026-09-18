@@ -214,8 +214,11 @@ public class ExpressionBesoinService {
             eb.setDateValidationDirecteur(LocalDateTime.now());
         }
 
+        // Le Directeur est toujours l'étape décisionnaire finale quand sa validation est
+        // requise — même si le CSA a rejeté au préalable, la chaîne continue jusqu'à lui.
+        // Sinon (petit montant), le CSA seul suffit.
         boolean directeurRequis = eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) > 0;
-        if (eb.isValidationCsa() && (!directeurRequis || eb.isValidationDirecteur())) {
+        if (directeurRequis ? eb.isValidationDirecteur() : eb.isValidationCsa()) {
             eb.setStatut(ExpressionBesoin.Statut.VALIDEE);
         }
 
@@ -236,20 +239,46 @@ public class ExpressionBesoinService {
         eb.setMontantInitial(eb.getPrixUnitaire().multiply(BigDecimal.valueOf(quantiteEffective)));
     }
 
+    // Comme pour les congés/autorisations : un rejet du CSA n'interrompt la chaîne que si
+    // le Directeur doit aussi se prononcer (montant > seuil) — dans ce cas, elle continue
+    // jusqu'à lui, seul décisionnaire final. Sinon, le rejet du CSA est immédiatement
+    // définitif puisqu'aucune autre étape n'est prévue.
     public ExpressionBesoin rejeter(String id, String motif) {
         ExpressionBesoin eb = getById(id);
-        if (eb.getStatut() == ExpressionBesoin.Statut.TRAITEE || eb.getStatut() == ExpressionBesoin.Statut.REJETEE)
+        if (eb.getStatut() != ExpressionBesoin.Statut.EN_ATTENTE)
             throw new RuntimeException("Cette expression de besoin ne peut plus être rejetée");
 
         User rejetant = userRepository.findByLogin(getUsername())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        boolean estCsa = hasAuthority("CSA");
+        boolean estDirecteur = hasAuthority("DIRECTEUR");
+        if (!estCsa && !estDirecteur)
+            throw new RuntimeException("Rôle non autorisé à rejeter une expression de besoin");
 
+        boolean directeurRequis = eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) > 0;
+
+        if (estCsa) {
+            eb.setRejetCsa(true);
+            eb.setMotifRejetCsa(motif);
+            eb.setRejeteParCsaNom(nomComplet(rejetant));
+            eb.setDateRejetCsa(LocalDateTime.now());
+            if (!directeurRequis) {
+                finaliserRejet(eb, motif, rejetant);
+            }
+        } else {
+            // Le Directeur tranche toujours définitivement, y compris après un rejet du CSA.
+            finaliserRejet(eb, motif, rejetant);
+        }
+
+        return expressionBesoinRepo.save(eb);
+    }
+
+    private void finaliserRejet(ExpressionBesoin eb, String motif, User rejetant) {
         eb.setStatut(ExpressionBesoin.Statut.REJETEE);
         eb.setMotifRejet(motif);
         eb.setRejetePar(rejetant.getLogin());
         eb.setRejeteParNom(nomComplet(rejetant));
         eb.setDateRejet(LocalDateTime.now());
-        return expressionBesoinRepo.save(eb);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -326,26 +355,24 @@ public class ExpressionBesoinService {
         return expressionBesoinRepo.findByBeneficiaireIdOrderByDateCreationDesc(moi.getId());
     }
 
-    // Ce qu'il reste réellement à valider pour le rôle connecté (un CSA qui a déjà validé
-    // un dossier encore EN_ATTENTE du Directeur ne doit plus le voir comme "à traiter"),
-    // plus les dossiers rejetés — un rejet est définitif, il n'apparaît nulle part ailleurs
-    // pour un validateur, donc il reste visible ici (sans les actions Valider/Rejeter).
+    // Ne montre que ce qu'il reste réellement à valider pour le rôle connecté :
+    // un CSA qui a déjà validé un dossier (encore EN_ATTENTE du Directeur) ne doit plus le voir ici.
     public List<ExpressionBesoin> getAValider() {
         boolean estCsa = hasAuthority("CSA");
         boolean estDirecteur = hasAuthority("DIRECTEUR");
-        java.util.stream.Stream<ExpressionBesoin> enAttente = expressionBesoinRepo
-                .findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.EN_ATTENTE).stream()
+        return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.EN_ATTENTE).stream()
                 .filter(eb -> {
                     boolean directeurRequis = eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) > 0;
-                    if (estCsa && !eb.isValidationCsa()) return true;
+                    if (estCsa && !eb.isValidationCsa() && !eb.isRejetCsa()) return true;
                     if (estDirecteur && directeurRequis && !eb.isValidationDirecteur()) return true;
                     return false;
-                });
-        List<ExpressionBesoin> rejetees = expressionBesoinRepo
-                .findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.REJETEE);
-        return java.util.stream.Stream.concat(enAttente, rejetees.stream())
-                .sorted(java.util.Comparator.comparing(ExpressionBesoin::getDateCreation).reversed())
+                })
                 .toList();
+    }
+
+    // Dossiers rejetés (un rejet est définitif) — onglet dédié pour le CSA/Directeur.
+    public List<ExpressionBesoin> getRejetees() {
+        return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.REJETEE);
     }
 
     // Dossiers déjà validés par le rôle connecté (qu'ils attendent encore l'autre validateur,
