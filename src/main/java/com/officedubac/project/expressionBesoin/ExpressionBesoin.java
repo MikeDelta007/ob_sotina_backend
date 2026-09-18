@@ -9,7 +9,6 @@ import org.springframework.data.mongodb.core.mapping.Document;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.List;
 
 @Data
 @Builder
@@ -21,11 +20,24 @@ public class ExpressionBesoin {
     @Id
     private String id;
 
-    // ── Lignes (désignation/quantité/prix), comme la fiche papier officielle ──
-    private List<Ligne> lignes;
-
-    // Somme des lignes (quantité × prix unitaire), recalculée à chaque création/modification
+    // ── Motif unique (désignation/quantité/prix), comme la fiche papier officielle ──
+    // Réutilise les mêmes motifs que la caisse d'avance
+    private String motifId;
+    private String motifLibelle;
+    // Optionnelle : certaines désignations ne sont pas quantitatives (ex. un forfait)
+    private Integer quantite;
+    private BigDecimal prixUnitaire;
+    // Montant courant = prixUnitaire × quantité effective (accordée par le Directeur si
+    // renseignée, sinon par le CSA, sinon la quantité initiale demandée), recalculé à
+    // chaque changement de prix/quantité/quantité accordée.
     private BigDecimal montantInitial;
+    // Quantités accordées, renseignées indépendamment par chaque validateur lors de la
+    // validation (uniquement si quantite != null) — la comptabilité traite celle du
+    // Directeur quand les deux sont requises, celle du CSA sinon.
+    private Integer quantiteAccordeeCsa;
+    private Integer quantiteAccordeeDirecteur;
+    // Copié depuis le motif au moment de la création (snapshot, comme motifLibelle)
+    private boolean requiertSatisfaction;
 
     // ── Justificatif : soit une facture proforma, soit une déclaration sur l'honneur ──
     // @JsonProperty explicite : Jackson dérive sinon la clé JSON "AFacturePreformat"
@@ -38,37 +50,47 @@ public class ExpressionBesoin {
 
     private Statut statut;
 
+    // ── Bénéficiaire, déclaré par le créateur (chef) dès la création : soit lui-même,
+    // soit un agent de sa division (Personnel, généralement sans compte applicatif) ──
+    private String beneficiaireId;
+    private String beneficiaireNom;
+    private boolean beneficiaireMoiMeme;
+
     // ── Validation CSA ──
     private boolean validationCsa;
     private String validateurCsa;
+    private String validateurCsaNom;
     private LocalDateTime dateValidationCsa;
 
     // ── Validation Directeur (uniquement requise si montantInitial > seuil) ──
     private boolean validationDirecteur;
     private String validateurDirecteur;
+    private String validateurDirecteurNom;
     private LocalDateTime dateValidationDirecteur;
 
     // ── Rejet ──
     private String motifRejet;
     private String rejetePar;
+    private String rejeteParNom;
     private LocalDateTime dateRejet;
 
-    // ── Traitement comptable (montant réel + bénéficiaire) ──
+    // ── Traitement comptable (montant réel) ──
     private BigDecimal montantReel;
-    private String beneficiaire;
     private String traitePar;
+    private String traiteParNom;
     private LocalDateTime dateTraitement;
 
     // ── Consommation par un mandatement ──
     private boolean utiliseePourMandatement;
     private String mandatementId;
 
-    // ── Satisfaction du demandeur (si au moins une ligne utilise un motif qui l'exige) ──
+    // ── Satisfaction du demandeur (si le motif l'exige) ──
     // Doit être confirmée avant tout décaissement du mandatement issu de cette EB.
     private boolean satisfactionConfirmee;
     private LocalDateTime dateSatisfaction;
 
     private String creePar;
+    private String creeParNom;
 
     @CreatedDate
     private LocalDateTime dateCreation;
@@ -76,28 +98,4 @@ public class ExpressionBesoin {
     private LocalDateTime dateModification;
 
     public enum Statut { EN_ATTENTE, VALIDEE, REJETEE, TRAITEE }
-
-    @Data
-    @Builder
-    @NoArgsConstructor
-    @AllArgsConstructor
-    public static class Ligne {
-        // Réutilise les mêmes motifs que la caisse d'avance
-        private String motifId;
-        private String motifLibelle;
-        // Optionnelle : certaines désignations ne sont pas quantitatives (ex. un forfait)
-        private Integer quantite;
-        private BigDecimal prixUnitaire;
-        // Montant courant = prixUnitaire × quantité effective (accordée par le Directeur si
-        // renseignée, sinon par le CSA, sinon la quantité initiale demandée), recalculé à
-        // chaque changement de prix/quantité/quantité accordée.
-        private BigDecimal montant;
-        // Quantités accordées, renseignées indépendamment par chaque validateur lors de la
-        // validation (uniquement si quantite != null) — la comptabilité traite celle du
-        // Directeur quand les deux sont requises, celle du CSA sinon.
-        private Integer quantiteAccordeeCsa;
-        private Integer quantiteAccordeeDirecteur;
-        // Copié depuis le motif au moment de la création (snapshot, comme motifLibelle)
-        private boolean requiertSatisfaction;
-    }
 }
