@@ -66,8 +66,19 @@ public class DecaissementPdfService {
             underline.addCell(uc);
             left.addElement(underline);
 
-            // Drapeau du Sénégal, sous "REPUBLIQUE DU SENEGAL" (même technique d'insertion
-            // d'image dans une cellule que le logo UCAD du PDF d'autorisation d'absence).
+            // "Un Peuple - Un But - Une Foi" aligné avec "REPUBLIQUE DU SENEGAL", juste sous
+            // le trait — ne pas interrompre ce trio avec autre chose.
+            Paragraph devise = new Paragraph("Un Peuple - Un But - Une Foi", fNorm9);
+            left.addElement(devise);
+            left.addElement(new Paragraph(" ", fNorm9));
+            left.addElement(new Paragraph("MINISTERE DE L'ENSEIGNEMENT SUPERIEUR", fBold9));
+            left.addElement(new Paragraph("DE LA RECHERCHE ET DE L'INNOVATION",    fBold9));
+            left.addElement(new Paragraph("OFFICE DU BACCALAUREAT",                fBold9));
+            left.addElement(new Paragraph("Site web: www.officedubac.sn",          fNorm9));
+            left.addElement(new Paragraph("Email: officedubac@ucad.edu.sn",        fNorm9));
+
+            // Drapeau du Sénégal, après le bloc République/Ministère (même technique
+            // d'insertion d'image en cellule que le logo UCAD du PDF d'autorisation d'absence).
             try {
                 ClassPathResource drapeauFile = new ClassPathResource("images/drapeau.png");
                 if (drapeauFile.exists()) {
@@ -81,31 +92,19 @@ public class DecaissementPdfService {
             } catch (Exception e) {
                 log.warn("Drapeau non trouvé (images/drapeau.png)", e);
             }
-
-            left.addElement(new Paragraph(" ", fNorm9));
-            Paragraph devise = new Paragraph("Un Peuple - Un But - Une Foi", fNorm9);
-            devise.setAlignment(Element.ALIGN_CENTER);
-            left.addElement(devise);
-            left.addElement(new Paragraph(" ", fNorm9));
-            left.addElement(new Paragraph("MINISTERE DE L'ENSEIGNEMENT SUPERIEUR", fBold9));
-            left.addElement(new Paragraph("DE LA RECHERCHE ET DE L'INNOVATION",    fBold9));
-            left.addElement(new Paragraph("OFFICE DU BACCALAUREAT",                fBold9));
-            left.addElement(new Paragraph("Site web: www.officedubac.sn",          fNorm9));
-            left.addElement(new Paragraph("Email: officedubac@ucad.edu.sn",        fNorm9));
             header.addCell(left);
 
-            // Colonne droite : lieu + date + LE DIRECTEUR
+            // Colonne droite : lieu + date + LE DIRECTEUR, ancrés en bas de la ligne d'en-tête
+            // pour rester correctement positionnés quelle que soit la hauteur de la colonne
+            // gauche (drapeau inclus), plutôt que des espaceurs à hauteur fixe.
             PdfPCell right = new PdfPCell();
             right.setBorder(0);
             right.setHorizontalAlignment(Element.ALIGN_RIGHT);
+            right.setVerticalAlignment(Element.ALIGN_BOTTOM);
             String dateStr = "Dakar, le " + LocalDate.now().format(DATE_FR);
             Paragraph datePara = new Paragraph(dateStr, fNorm11);
             datePara.setAlignment(Element.ALIGN_RIGHT);
-            right.addElement(new Paragraph(" ", fNorm9));
-            right.addElement(new Paragraph(" ", fNorm9));
-            right.addElement(new Paragraph(" ", fNorm9));
             right.addElement(datePara);
-            right.addElement(new Paragraph(" ", fNorm9));
             right.addElement(new Paragraph(" ", fNorm9));
             Paragraph dir = new Paragraph("LE DIRECTEUR,", fNorm11);
             dir.setAlignment(Element.ALIGN_RIGHT);
