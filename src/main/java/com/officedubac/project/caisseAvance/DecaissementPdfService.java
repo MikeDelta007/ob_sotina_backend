@@ -49,7 +49,7 @@ public class DecaissementPdfService {
             // désormais près de la signature, en bas du document, avec "LE DIRECTEUR,".
             // ══════════════════════
             doc.add(new Paragraph("REPUBLIQUE DU SENEGAL", fBold11));
-            // Trait souligné sous République
+            // Trait sous République (bordure de cellule, pas un soulignement de texte)
             PdfPTable underline = new PdfPTable(1);
             underline.setWidthPercentage(60);
             underline.setHorizontalAlignment(Element.ALIGN_LEFT);
@@ -67,7 +67,7 @@ public class DecaissementPdfService {
                 ClassPathResource drapeauFile = new ClassPathResource("images/drapeau.png");
                 if (drapeauFile.exists()) {
                     Image drapeau = Image.getInstance(drapeauFile.getInputStream().readAllBytes());
-                    drapeau.scaleToFit(36f, 24f);
+                    drapeau.scaleToFit(60f, 40f);
                     Paragraph drapeauPara = new Paragraph(new Chunk(drapeau, 0, 0));
                     drapeauPara.setIndentationLeft(60f);
                     drapeauPara.setSpacingBefore(10f);
