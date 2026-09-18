@@ -1,5 +1,6 @@
 package com.officedubac.project.caisseAvance;
 
+import com.officedubac.project.expressionBesoin.ExpressionBesoinService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.bson.types.ObjectId;
@@ -22,9 +23,10 @@ import java.util.concurrent.ThreadLocalRandom;
 @RequiredArgsConstructor
 public class MandatementService {
 
-    private final MandatementRepository mandatementRepo;
-    private final CaisseAvanceService   caisseService;
-    private final GridFsTemplate        gridFsTemplate;
+    private final MandatementRepository    mandatementRepo;
+    private final CaisseAvanceService      caisseService;
+    private final GridFsTemplate           gridFsTemplate;
+    private final ExpressionBesoinService  expressionBesoinService;
 
     private static final BigDecimal SEUIL_CHEQUE = BigDecimal.valueOf(100_000);
 
@@ -33,12 +35,15 @@ public class MandatementService {
     // ═══════════════════════════════════════════════════════════════
     public Mandatement mandatementSimple(
             MandatementSimpleRequest req,
-            MultipartFile pdfFacture,
-            MultipartFile pdfCheque,
-            MultipartFile pdfCni) {
+            MultipartFile piecesJustificatives) {
 
         String username = getUsername();
         BigDecimal montant = req.getMontant();
+
+        // Si le motif de cette EB exige une confirmation de satisfaction du demandeur,
+        // elle doit être donnée avant tout décaissement — vérifié avant de décaisser.
+        if (req.getExpressionBesoinId() != null && !req.getExpressionBesoinId().isBlank())
+            expressionBesoinService.verifierSatisfactionPourDecaissement(req.getExpressionBesoinId());
 
         BigDecimal avance   = req.getTypePaiement() == Mandatement.TypePaiement.AVANCE
                               ? req.getMontantAvance() : montant;
@@ -63,9 +68,7 @@ public class MandatementService {
                 .montant(montant)
                 .motifId(req.getMotifId())
                 .motifLibelle(req.getMotifLibelle())
-                .urlPdfFacture(saveFile(pdfFacture, "facture"))
-                .urlPdfCheque(saveFile(pdfCheque,  "cheque"))
-                .urlPdfCni(saveFile(pdfCni,         "cni"))
+                .urlPiecesJustificatives(saveFile(piecesJustificatives, "pieces-justificatives"))
                 .build();
 
         Mandatement mandatement = Mandatement.builder()
@@ -81,10 +84,19 @@ public class MandatementService {
                 .soldeApres(decaissement.getSoldeApres())
                 .factures(List.of(facture))
                 .description(req.getDescription())
+                .beneficiaire(req.getBeneficiaire())
+                .numeroCni(req.getNumeroCni())
+                .expressionBesoinId(req.getExpressionBesoinId())
                 .creePar(username)
                 .build();
 
         Mandatement saved = mandatementRepo.save(mandatement);
+
+        // Si ce mandatement provient d'une expression de besoin traitée, la marquer
+        // comme consommée pour qu'elle sorte de la liste déroulante de création.
+        if (req.getExpressionBesoinId() != null && !req.getExpressionBesoinId().isBlank())
+            expressionBesoinService.marquerUtilisee(req.getExpressionBesoinId(), saved.getId());
+
         logResultat(saved, decaissement);
         return saved;
     }
@@ -94,9 +106,7 @@ public class MandatementService {
     // ═══════════════════════════════════════════════════════════════
     public Mandatement mandatementCumulatif(
             MandatementCumulatifRequest req,
-            List<MultipartFile> pdfs,
-            List<MultipartFile> cheques,
-            List<MultipartFile> cnis) {
+            List<MultipartFile> pieces) {
 
         String username = getUsername();
 
@@ -115,6 +125,13 @@ public class MandatementService {
         if (!caisseService.soldeSuffisant(total))
             throw new RuntimeException("Le total du mandatement cumulatif (" + total
                     + ") dépasse le solde de la caisse. Approvisionnez la caisse avant de continuer.");
+
+        // Chaque facture peut provenir d'une EB différente exigeant sa propre confirmation
+        // de satisfaction — vérifiées toutes avant le décaissement global unique.
+        for (MandatementCumulatifRequest.Ligne ligne : req.getLignes()) {
+            if (ligne.getExpressionBesoinId() != null && !ligne.getExpressionBesoinId().isBlank())
+                expressionBesoinService.verifierSatisfactionPourDecaissement(ligne.getExpressionBesoinId());
+        }
 
         BigDecimal avanceGlobale = req.getTypePaiement() == Mandatement.TypePaiement.AVANCE
                 ? req.getMontantAvanceGlobal() : total;
@@ -151,9 +168,10 @@ public class MandatementService {
                     .montant(ligne.getMontant())
                     .motifId(ligne.getMotifId())
                     .motifLibelle(ligne.getMotifLibelle())
-                    .urlPdfFacture(saveFile(pdfs    != null && i < pdfs.size()    ? pdfs.get(i)    : null, "facture"))
-                    .urlPdfCheque(saveFile(cheques  != null && i < cheques.size() ? cheques.get(i) : null, "cheque"))
-                    .urlPdfCni(saveFile(cnis        != null && i < cnis.size()    ? cnis.get(i)    : null, "cni"))
+                    .beneficiaire(ligne.getBeneficiaire())
+                    .expressionBesoinId(ligne.getExpressionBesoinId())
+                    .urlPiecesJustificatives(saveFile(
+                            pieces != null && i < pieces.size() ? pieces.get(i) : null, "pieces-justificatives"))
                     .build());
         }
 
@@ -170,10 +188,19 @@ public class MandatementService {
                 .soldeApres(decaissement.getSoldeApres())
                 .factures(factures)
                 .description(req.getDescription())
+                .numeroCni(req.getNumeroCni())
                 .creePar(username)
                 .build();
 
         Mandatement saved = mandatementRepo.save(mandatement);
+
+        // Chaque facture peut provenir d'une expression de besoin traitée différente ;
+        // marquer chacune d'elles comme consommée pour qu'elle sorte de la liste déroulante.
+        for (MandatementCumulatifRequest.Ligne ligne : req.getLignes()) {
+            if (ligne.getExpressionBesoinId() != null && !ligne.getExpressionBesoinId().isBlank())
+                expressionBesoinService.marquerUtilisee(ligne.getExpressionBesoinId(), saved.getId());
+        }
+
         logResultat(saved, decaissement);
         return saved;
     }
@@ -189,7 +216,7 @@ public class MandatementService {
     // ═══════════════════════════════════════════════════════════════
     // PAIEMENT DU RELIQUAT (mandatements en mode AVANCE)
     // ═══════════════════════════════════════════════════════════════
-    public Mandatement payerReliquat(String id, MultipartFile pdfCheque, MultipartFile pdfCni) {
+    public Mandatement payerReliquat(String id, MultipartFile piecesJustificatives) {
         Mandatement m = mandatementRepo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Mandatement introuvable : " + id));
 
@@ -202,9 +229,8 @@ public class MandatementService {
         // propre montant et le solde de la caisse au moment du paiement.
         Mandatement.ModePaiement mode = modeAuto(m.getMontantReliquat());
 
-        if (mode == Mandatement.ModePaiement.CHEQUE
-                && ((pdfCheque == null || pdfCheque.isEmpty()) || (pdfCni == null || pdfCni.isEmpty())))
-            throw new RuntimeException("Le paiement du reliquat par chèque nécessite le chèque et la CNI en pièces jointes");
+        if (mode == Mandatement.ModePaiement.CHEQUE && (piecesJustificatives == null || piecesJustificatives.isEmpty()))
+            throw new RuntimeException("Le paiement du reliquat par chèque nécessite les pièces justificatives en pièce jointe");
 
         CaisseAvanceService.DecaissementResult decaissement =
                 caisseService.decaisser(m.getMontantReliquat(), mode);
@@ -213,8 +239,7 @@ public class MandatementService {
         m.setDateReliquatPaye(LocalDateTime.now());
         m.setModePaiementReliquat(mode);
         if (mode == Mandatement.ModePaiement.CHEQUE) {
-            m.setUrlPdfChequeReliquat(saveFile(pdfCheque, "cheque-reliquat"));
-            m.setUrlPdfCniReliquat(saveFile(pdfCni, "cni-reliquat"));
+            m.setUrlPiecesJustificativesReliquat(saveFile(piecesJustificatives, "pieces-justificatives-reliquat"));
         }
 
         Mandatement saved = mandatementRepo.save(m);

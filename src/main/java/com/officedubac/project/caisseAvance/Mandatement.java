@@ -47,8 +47,7 @@ public class Mandatement {
     private boolean reliquatPaye;
     private LocalDateTime dateReliquatPaye;
     private ModePaiement modePaiementReliquat;   // mode réel du paiement du reliquat
-    private String urlPdfChequeReliquat;         // si modePaiementReliquat = CHEQUE
-    private String urlPdfCniReliquat;            // si modePaiementReliquat = CHEQUE
+    private String urlPiecesJustificativesReliquat;   // si modePaiementReliquat = CHEQUE
 
     // ── Factures embedded ──
     // Simple  : 1 facture
@@ -57,6 +56,13 @@ public class Mandatement {
 
     // ── Observations libres sur le mandatement ──
     private String description;
+
+    // ── Bénéficiaire du décaissement ──
+    private String beneficiaire;
+    private String numeroCni;       // optionnel, pas de pièce jointe
+
+    // ── Expression de besoin d'origine (si créé depuis une EB traitée) ──
+    private String expressionBesoinId;
 
     // ── Auteur ──
     private String creePar;
@@ -79,10 +85,13 @@ public class Mandatement {
         private BigDecimal montant;
         private String motifId;
         private String motifLibelle;
-        // Pièces jointes
-        private String urlPdfFacture;
-        private String urlPdfCheque;    // si CHEQUE
-        private String urlPdfCni;       // si CHEQUE
+        // Bénéficiaire propre à cette facture (un cumulatif regroupe des factures
+        // de bénéficiaires potentiellement différents, comme autant de mandatements simples)
+        private String beneficiaire;
+        // Expression de besoin traitée dont cette facture est issue (optionnel)
+        private String expressionBesoinId;
+        // Pièce jointe unique regroupant facture, chèque et CNI le cas échéant
+        private String urlPiecesJustificatives;
     }
 
     // ── Enums ──

@@ -108,8 +108,8 @@ public class ReleveC2emePartieService {
         double moyenneSur20 = (totalGeneral / (double) MatieresC2emePartie.BAREME_GENERAL) * 20;
         releve.setDecision(moyenneSur20 >= 10 ? DecisionJury.ADMIS : DecisionJury.AJOURNE);
 
-        releve.setLieuDelivrance(request.getLieuDelivrance());
-        releve.setDateDelivrance(request.getDateDelivrance());
+        releve.setLieuDeliberation(request.getLieuDeliberation());
+        releve.setDateDeliberation(request.getDateDeliberation());
         releve.setPresidentJury(request.getPresidentJury());
     }
 

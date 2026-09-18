@@ -1,5 +1,6 @@
 package com.officedubac.project.models;
 
+import com.officedubac.project.personnel.Personnel;
 import lombok.*;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.mongodb.core.mapping.DBRef;
@@ -20,18 +21,19 @@ public class User implements UserDetails
 {
     @Id
     private String id;
-    private String firstname;
-    private String lastname;
     private String login;
     private String password;
-    private String phone;
-    private String email;
     private boolean state_account;
     private boolean first_connexion;
     private String sessionId = null;
 
     private Acteurs acteur;
     private Profil profil;
+
+    // Identité + informations personnel/RH, portées par Personnel (embarqué, pas de @DBRef —
+    // même convention qu'acteur). Permet à un chauffeur externe sans compte d'exister comme un
+    // Personnel autonome (voir com.officedubac.project.personnel.PersonnelRepository).
+    private Personnel personnel;
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

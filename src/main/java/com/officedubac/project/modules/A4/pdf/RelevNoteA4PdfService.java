@@ -12,7 +12,9 @@ import org.springframework.stereotype.Service;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.Locale;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -29,9 +31,10 @@ public class RelevNoteA4PdfService {
     private static final String TEMPLATE_PATH = "templates/releve-A4-template.pdf";
     private static final String POLICE_PATH = "fonts/Verdana.ttf";
 
-    private static final DateTimeFormatter DATE_JOUR_MOIS = DateTimeFormatter.ofPattern("dd/MM");
+    private static final DateTimeFormatter DATE_JOUR_MOIS = DateTimeFormatter.ofPattern("d MMMM", Locale.FRENCH);
     private static final DateTimeFormatter DATE_ANNEE_2_CHIFFRES = DateTimeFormatter.ofPattern("yy");
     private static final DateTimeFormatter DATE_NAISSANCE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter DATE_GENERATION = DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.FRENCH);
 
     private static final float TAILLE_ENTETE = 9f;
     private static final float TAILLE_IDENTITE = 9f;
@@ -52,7 +55,7 @@ public class RelevNoteA4PdfService {
             BaseFont font = chargerPolice();
             PdfContentByte cb = stamper.getOverContent(1);
 
-            ecrireSession(cb, releve);
+            ecrireSession(cb, font, releve);
             ecrireEnTete(cb, font, releve);
             ecrireCandidat(cb, font, releve);
             ecrirePremierGroupe(cb, font, releve);
@@ -61,6 +64,7 @@ public class RelevNoteA4PdfService {
             ecrireEpreuvesFacultativesEtEducPhysique(cb, font, releve);
             ecrireTotaux(cb, font, releve);
             ecrireDecisions(cb, font, releve);
+            ecrireTamponGeneration(cb, font, releve);
 
             stamper.close();
             reader.close();
@@ -111,18 +115,18 @@ public class RelevNoteA4PdfService {
         return v == null ? null : String.valueOf(v);
     }
 
-    private void ecrireSession(PdfContentByte cb, RelevNoteA4 r) {
+    private void ecrireSession(PdfContentByte cb, BaseFont font, RelevNoteA4 r) {
+        // Ce gabarit n'a pas de case NORMALE/DE REMPLACEMENT à barrer : c'est une
+        // ligne à compléter ("...à la session de………………") où l'on écrit le libellé.
         TypeSession session = r.getSession();
-        if (session == TypeSession.NORMALE) {
-            barrer(cb, SESSION_REMPLACEMENT_X0, SESSION_REMPLACEMENT_X1, SESSION_REMPLACEMENT_Y);
-        } else if (session == TypeSession.REMPLACEMENT) {
-            barrer(cb, SESSION_NORMALE_X0, SESSION_NORMALE_X1, SESSION_NORMALE_Y);
-        }
+        if (session == null) return;
+        String libelle = session == TypeSession.NORMALE ? "NORMALE" : "DE REMPLACEMENT";
+        texte(cb, font, TAILLE_ENTETE, SESSION_TEXT_X, SESSION_TEXT_Y, libelle);
     }
 
     private void ecrireEnTete(PdfContentByte cb, BaseFont font, RelevNoteA4 r) {
-        Candidat c = r.getCandidat();
-        texte(cb, font, TAILLE_ENTETE, NUMERO_TABLE_X, NUMERO_TABLE_Y, c == null ? null : c.getNumeroTable());
+        // NB : ce gabarit n'a pas de case "N° de table" imprimée (voir RelevNoteA4Coordinates) —
+        // rien à écrire pour ce champ ici.
         texte(cb, font, TAILLE_ENTETE, JURY_NUMERO_X, JURY_NUMERO_Y, r.getJuryNumero());
         texte(cb, font, TAILLE_ENTETE, ANNEE_X, ANNEE_Y, r.getAnnee() == null ? null : String.valueOf(r.getAnnee()));
     }
@@ -207,19 +211,18 @@ public class RelevNoteA4PdfService {
     private void ecrireDecisions(PdfContentByte cb, BaseFont font, RelevNoteA4 r) {
         DecisionJury d1 = r.getDecisionPremierGroupe();
         texte(cb, font, TAILLE_DECISION, DEC1_TEXTE_X, DEC1_TEXTE_Y, libelleDecision1(d1, r.getMentionPremierGroupe()));
-        ecrirePiedDePage(cb, font, r, DEC1_LIEU_X, DEC1_JOUR_MOIS_X, DEC1_ANNEE2_X, DEC1_PIED_Y);
+        ecrirePiedDePage(cb, font, r.getLieuDeliberation(), r.getDateDeliberationPremierGroupe(), DEC1_LIEU_X, DEC1_JOUR_MOIS_X, DEC1_ANNEE2_X, DEC1_PIED_Y);
 
         DecisionJury d2 = r.getDecisionDeuxiemeGroupe();
         texte(cb, font, TAILLE_DECISION, DEC2_TEXTE_X, DEC2_TEXTE_Y, libelleDecision2(d2, r.getMentionDeuxiemeGroupe()));
-        ecrirePiedDePage(cb, font, r, DEC2_LIEU_X, DEC2_JOUR_MOIS_X, DEC2_ANNEE2_X, DEC2_PIED_Y);
+        ecrirePiedDePage(cb, font, r.getLieuDeliberation(), r.getDateDeliberationDeuxiemeGroupe(), DEC2_LIEU_X, DEC2_JOUR_MOIS_X, DEC2_ANNEE2_X, DEC2_PIED_Y);
     }
 
-    private void ecrirePiedDePage(PdfContentByte cb, BaseFont font, RelevNoteA4 r, float lieuX, float jourMoisX, float annee2X, float y) {
-        texte(cb, font, TAILLE_PIED_PAGE, lieuX, y, r.getLieuDelivrance());
-        if (r.getDateDelivrance() != null) {
-            texte(cb, font, TAILLE_PIED_PAGE, jourMoisX, y, r.getDateDelivrance().format(DATE_JOUR_MOIS));
-            texte(cb, font, TAILLE_PIED_PAGE, annee2X, y, r.getDateDelivrance().format(DATE_ANNEE_2_CHIFFRES));
-        }
+    private void ecrirePiedDePage(PdfContentByte cb, BaseFont font, String lieu, java.time.LocalDate date, float lieuX, float jourMoisX, float annee2X, float y) {
+        if (date == null) return;
+        // Ce gabarit imprime déjà "Dakar, le ... 19 ..." en dur : pas de lieu à écrire par-dessus.
+        texte(cb, font, TAILLE_PIED_PAGE, jourMoisX, y, date.format(DATE_JOUR_MOIS));
+        texte(cb, font, TAILLE_PIED_PAGE, annee2X, y, date.format(DATE_ANNEE_2_CHIFFRES));
     }
 
     private String libelleDecision1(DecisionJury d, Mention mention) {
@@ -238,6 +241,15 @@ public class RelevNoteA4PdfService {
             case AJOURNE -> "AJOURNE";
             case AUTORISE_SECOND_GROUPE -> null;
         };
+    }
+
+    private void ecrireTamponGeneration(PdfContentByte cb, BaseFont font, RelevNoteA4 r) {
+        String tampon = "DAKAR, le " + LocalDate.now().format(DATE_GENERATION);
+        if (r.getDecisionDeuxiemeGroupe() == null) {
+            texte(cb, font, TAILLE_PIED_PAGE, DEC1_GENERE_X, DEC1_GENERE_Y, tampon);
+        } else {
+            texte(cb, font, TAILLE_PIED_PAGE, DEC2_GENERE_X, DEC2_GENERE_Y, tampon);
+        }
     }
 
     private String libelleMention(Mention m) {

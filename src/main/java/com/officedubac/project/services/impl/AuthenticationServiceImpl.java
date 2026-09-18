@@ -2,6 +2,7 @@ package com.officedubac.project.services.impl;
 
 import com.officedubac.project.dto.*;
 import com.officedubac.project.models.*;
+import com.officedubac.project.personnel.Personnel;
 import com.officedubac.project.repository.ProfilRepository;
 import com.officedubac.project.repository.UserRepository;
 import com.officedubac.project.services.AuthenticationService;
@@ -44,13 +45,18 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     {
         logger.info("TEST : " + signUpDTO.getUsr_password());
         Profil profil = this.profilRepository.findById(signUpDTO.getPrfl_id()).orElse(null);
+
+        Personnel personnel = new Personnel();
+        personnel.setFirstname(signUpDTO.getUsr_firstname());
+        personnel.setLastname(signUpDTO.getUsr_lastname());
+        personnel.setPhone(signUpDTO.getPhone());
+        personnel.setEmail(signUpDTO.getEmail());
+        personnel.setActif(true);
+
         User user = new User();
-        user.setFirstname(signUpDTO.getUsr_firstname());
-        user.setLastname(signUpDTO.getUsr_lastname());
+        user.setPersonnel(personnel);
         user.setLogin(signUpDTO.getUsr_login());
         user.setPassword(passwordEncoder.encode(signUpDTO.getUsr_password()));
-        user.setPhone(signUpDTO.getPhone());
-        user.setEmail(signUpDTO.getEmail());
         user.setProfil(profil);
 
         return userRepository.save(user);
@@ -83,7 +89,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
     //Mot de passe perdu
     public User updatePassword(String email) throws MessagingException {
         // Retrieve the existing Utilisateur from the repository
-        User existingUser = userRepository.findByEmail(email);
+        User existingUser = userRepository.findByPersonnel_Email(email);
 
         if (existingUser != null)
         {
@@ -97,7 +103,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             variables.put("login", existingUser.getLogin());
             variables.put("password", newPassword);
 
-            emailService.sendEmailPasswordReinitialised(existingUser.getEmail(), "[Office du Baccalauréat / PortailBAC] Réinitialisation du mot de passe", variables);
+            emailService.sendEmailPasswordReinitialised(existingUser.getPersonnel().getEmail(), "[Office du Baccalauréat / PortailBAC] Réinitialisation du mot de passe", variables);
             return userRepository.save(existingUser);
         }
         else
@@ -126,8 +132,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             User users = userRepository.findById(user.getId()).orElse(null);
 
             usergoToFront.setLogin(users.getLogin());
-            usergoToFront.setFirstname(users.getFirstname());
-            usergoToFront.setLastname(users.getLastname());
+            usergoToFront.setPersonnel(users.getPersonnel());
             usergoToFront.setActeur(users.getActeur());
             usergoToFront.setState_account(users.isState_account());
             usergoToFront.setFirst_connexion(users.isFirst_connexion());

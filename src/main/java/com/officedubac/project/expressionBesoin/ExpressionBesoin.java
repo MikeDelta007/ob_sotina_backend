@@ -1,0 +1,103 @@
+package com.officedubac.project.expressionBesoin;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
+import lombok.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.annotation.Id;
+import org.springframework.data.annotation.LastModifiedDate;
+import org.springframework.data.mongodb.core.mapping.Document;
+
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import java.util.List;
+
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+@Document(collection = "eb_expressions_besoin")
+public class ExpressionBesoin {
+
+    @Id
+    private String id;
+
+    // ── Lignes (désignation/quantité/prix), comme la fiche papier officielle ──
+    private List<Ligne> lignes;
+
+    // Somme des lignes (quantité × prix unitaire), recalculée à chaque création/modification
+    private BigDecimal montantInitial;
+
+    // ── Justificatif : soit une facture proforma, soit une déclaration sur l'honneur ──
+    // @JsonProperty explicite : Jackson dérive sinon la clé JSON "AFacturePreformat"
+    // (les deux premières lettres après "is"/"get" sont majuscules), incompatible avec
+    // le frontend qui envoie/attend "aFacturePreformat".
+    @JsonProperty("aFacturePreformat")
+    private boolean aFacturePreformat;
+    private String urlPdfFactureProforma;
+    private String urlPdfDeclarationHonneur;
+
+    private Statut statut;
+
+    // ── Validation CSA ──
+    private boolean validationCsa;
+    private String validateurCsa;
+    private LocalDateTime dateValidationCsa;
+
+    // ── Validation Directeur (uniquement requise si montantInitial > seuil) ──
+    private boolean validationDirecteur;
+    private String validateurDirecteur;
+    private LocalDateTime dateValidationDirecteur;
+
+    // ── Rejet ──
+    private String motifRejet;
+    private String rejetePar;
+    private LocalDateTime dateRejet;
+
+    // ── Traitement comptable (montant réel + bénéficiaire) ──
+    private BigDecimal montantReel;
+    private String beneficiaire;
+    private String traitePar;
+    private LocalDateTime dateTraitement;
+
+    // ── Consommation par un mandatement ──
+    private boolean utiliseePourMandatement;
+    private String mandatementId;
+
+    // ── Satisfaction du demandeur (si au moins une ligne utilise un motif qui l'exige) ──
+    // Doit être confirmée avant tout décaissement du mandatement issu de cette EB.
+    private boolean satisfactionConfirmee;
+    private LocalDateTime dateSatisfaction;
+
+    private String creePar;
+
+    @CreatedDate
+    private LocalDateTime dateCreation;
+    @LastModifiedDate
+    private LocalDateTime dateModification;
+
+    public enum Statut { EN_ATTENTE, VALIDEE, REJETEE, TRAITEE }
+
+    @Data
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class Ligne {
+        // Réutilise les mêmes motifs que la caisse d'avance
+        private String motifId;
+        private String motifLibelle;
+        // Optionnelle : certaines désignations ne sont pas quantitatives (ex. un forfait)
+        private Integer quantite;
+        private BigDecimal prixUnitaire;
+        // Montant courant = prixUnitaire × quantité effective (accordée par le Directeur si
+        // renseignée, sinon par le CSA, sinon la quantité initiale demandée), recalculé à
+        // chaque changement de prix/quantité/quantité accordée.
+        private BigDecimal montant;
+        // Quantités accordées, renseignées indépendamment par chaque validateur lors de la
+        // validation (uniquement si quantite != null) — la comptabilité traite celle du
+        // Directeur quand les deux sont requises, celle du CSA sinon.
+        private Integer quantiteAccordeeCsa;
+        private Integer quantiteAccordeeDirecteur;
+        // Copié depuis le motif au moment de la création (snapshot, comme motifLibelle)
+        private boolean requiertSatisfaction;
+    }
+}

@@ -27,7 +27,7 @@ public final class MatieresA2 {
     public static final int BAREME_PREMIER_GROUPE = 320;
 
     // ---- 2eme groupe d'épreuves (report 320 + ces épreuves = total définitif 400) ----
-    public static final Matiere GREC_LATIN_2     = new Matiere("LAT_GREC2", "Grec ou Latin",  2, ECRIT, DEUXIEME);
+    public static final Matiere GREC_LATIN_2     = new Matiere("LAT_GREC2", "Langue Vivante",  2, ECRIT, DEUXIEME);
     public static final Matiere MATHEMATIQUES    = new Matiere("MATH",      "Mathématiques",  2, ECRIT, DEUXIEME);
 
     public static final List<Matiere> DEUXIEME_GROUPE = List.of(GREC_LATIN_2, MATHEMATIQUES);

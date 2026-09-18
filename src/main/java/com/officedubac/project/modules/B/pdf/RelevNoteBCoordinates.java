@@ -17,22 +17,22 @@ public final class RelevNoteBCoordinates {
     // ---- En-tête ----
     public static final float JURY_NUMERO_X = 370.3f, JURY_NUMERO_Y = 714.6f;
     public static final float ANNEE_X = 380.3f, ANNEE_Y = 696.3f;
-    public static final float NUMERO_TABLE_X = 110.4f, NUMERO_TABLE_Y = 674.0f;
+    public static final float NUMERO_TABLE_X = 110.4f, NUMERO_TABLE_Y = 655f;
 
     // ---- Identité du candidat ----
-    public static final float NOM_PRENOM_X = 44.3f, NOM_PRENOM_Y = 632.4f;
-    public static final float DATE_NAISSANCE_X = 74.3f, DATE_NAISSANCE_Y = 606.8f;
-    public static final float LIEU_NAISSANCE_X = 224.3f, LIEU_NAISSANCE_Y = 606.8f;
-    public static final float ETABLISSEMENT_X = 388.2f, ETABLISSEMENT_Y = 632.4f;
-    public static final float INDICATIF_X = 518.2f, INDICATIF_Y = 632.4f;
-    public static final float OPTIONS_X = 398.2f, OPTIONS_Y = 606.8f;
-    public static final float NATIONALITE_X = 375.2f, NATIONALITE_Y = 581.3f;
-    public static final float NOMBRE_DE_FOIS_X = 501.9f, NOMBRE_DE_FOIS_Y = 581.3f;
+    public static final float NOM_PRENOM_X = 44.3f, NOM_PRENOM_Y = 601f;
+    public static final float DATE_NAISSANCE_X = 74.3f, DATE_NAISSANCE_Y = 586f;
+    public static final float LIEU_NAISSANCE_X = 224.3f, LIEU_NAISSANCE_Y = 586f;
+    public static final float ETABLISSEMENT_X = 388.2f, ETABLISSEMENT_Y = 601f;
+    public static final float INDICATIF_X = 518.2f, INDICATIF_Y = 601f;
+    public static final float OPTIONS_X = 398.2f, OPTIONS_Y = 586f;
+    public static final float NATIONALITE_X = 375.2f, NATIONALITE_Y = 566f;
+    public static final float NOMBRE_DE_FOIS_X = 501.9f, NOMBRE_DE_FOIS_Y = 566f;
 
     // ---- 1er groupe : colonnes centrées "Note sur 20" et "Points obtenus" ----
     public static final float G1_NOTE_CENTER_X = 143.5f;
     public static final float G1_POINTS_CENTER_X = 209.2f;
-    public static final float[] G1_ROW_Y = { 521.6f, 507.0f, 494.0f, 479.7f, 465.5f, 451.6f, 437.1f, 422.7f };
+    public static final float[] G1_ROW_Y = { 500.0f, 485.4f, 472.4f, 458.1f, 443.9f, 430.0f, 415.5f, 401.1f };
 
     public static final float G1_TOTAL_Y = 364.6f;
     public static final float G2_TOTAL_Y = 307.1f;
@@ -71,12 +71,17 @@ public final class RelevNoteBCoordinates {
     public static final float TOTAL_DEFINITIF_Y = 365.0f;
 
     // ---- Décisions du jury : texte libre sur la ligne "Le candidat a été déclaré ..." ----
-    public static final float DEC1_TEXTE_X = 179.2f, DEC1_TEXTE_Y = 275.7f;
-    public static final float DEC2_TEXTE_X = 425.7f, DEC2_TEXTE_Y = 326.7f;
+    public static final float DEC1_TEXTE_X = 179.2f, DEC1_TEXTE_Y = 250.7f;
+    public static final float DEC2_TEXTE_X = 425.7f, DEC2_TEXTE_Y = 319.7f;
 
     // ---- Pied de page 1er groupe : "Fait à ... le ... 19..." (format court) ----
-    public static final float DEC1_LIEU_X = 64.2f, DEC1_JOUR_MOIS_X = 129.2f, DEC1_ANNEE2_X = 229.2f, DEC1_PIED_Y = 214.8f;
+    public static final float DEC1_LIEU_X = 64.2f, DEC1_JOUR_MOIS_X = 129.2f, DEC1_ANNEE2_X = 229.2f, DEC1_PIED_Y = 199.8f;
 
     // ---- Pied de page 2eme groupe (format long) ----
-    public static final float DEC2_LIEU_X = 310.7f, DEC2_JOUR_MOIS_X = 435.7f, DEC2_ANNEE2_X = 555.7f, DEC2_PIED_Y = 273.4f;
+    public static final float DEC2_LIEU_X = 310.7f, DEC2_JOUR_MOIS_X = 435.7f, DEC2_ANNEE2_X = 555.7f, DEC2_PIED_Y = 251.4f;
+
+    // ---- Tampon "DAKAR, le [date du jour]" — sous "Cachet obligatoire ...
+    // Président du Jury" ----
+    public static final float DEC1_GENERE_X = 55f, DEC1_GENERE_Y = 150f;
+    public static final float DEC2_GENERE_X = 310.7f, DEC2_GENERE_Y = 187f;
 }
