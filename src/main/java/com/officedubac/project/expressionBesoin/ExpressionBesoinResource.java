@@ -17,7 +17,7 @@ public class ExpressionBesoinResource {
 
     private final ExpressionBesoinService expressionBesoinService;
 
-    // ── Chef de service / CSA / Directeur / Chef comptable / Agent comptable ──
+    // ── Agent / Chef de service / CSA / Directeur / Chef comptable / Agent comptable ──
     @PreAuthorize("hasAnyAuthority('CHEF_SERVICE','CSA','DIRECTEUR','CHEF_COMPTABLE','AGENT_COMPTABLE')")
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<ExpressionBesoin> creer(
@@ -48,6 +48,13 @@ public class ExpressionBesoinResource {
     @PutMapping("/{id}/confirmer-satisfaction")
     public ResponseEntity<ExpressionBesoin> confirmerSatisfaction(@PathVariable String id) {
         return ResponseEntity.ok(expressionBesoinService.confirmerSatisfaction(id));
+    }
+
+    // Lecture seule : un agent simple ne crée pas d'expression de besoin, mais peut consulter
+    // celles où il a été déclaré bénéficiaire par son chef de service.
+    @GetMapping("/liees-a-moi")
+    public ResponseEntity<List<ExpressionBesoin>> getLieesAMoi() {
+        return ResponseEntity.ok(expressionBesoinService.getLieesAMoi());
     }
 
     // ── CSA / Directeur ──

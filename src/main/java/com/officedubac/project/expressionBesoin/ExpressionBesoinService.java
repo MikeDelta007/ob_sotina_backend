@@ -124,14 +124,21 @@ public class ExpressionBesoinService {
 
     // Le créateur peut se désigner lui-même bénéficiaire, ou choisir un agent de sa
     // division (liste identique à celle utilisée pour les congés/autorisations, cf.
-    // /personnel/mes-agents) — généralement des agents sans compte applicatif propre.
+    // /personnel/mes-agents) — un agent externe (Personnel autonome, sans compte) ou un
+    // agent disposant d'un compte (User) : dans ce dernier cas, l'id stocké est celui du
+    // User, ce qui permet à cet agent de retrouver ensuite les expressions le concernant
+    // via /expression-besoin/liees-a-moi.
     private Beneficiaire resoudreBeneficiaire(ExpressionBesoinRequest req, User createur) {
         if (req.isBeneficiaireMoiMeme() || req.getBeneficiaireId() == null || req.getBeneficiaireId().isBlank())
             return new Beneficiaire(createur.getId(), nomComplet(createur), true);
 
-        Personnel agent = personnelRepository.findById(req.getBeneficiaireId())
+        String id = req.getBeneficiaireId();
+        Personnel externe = personnelRepository.findById(id).orElse(null);
+        if (externe != null) return new Beneficiaire(externe.getId(), nomComplet(externe), false);
+
+        User interne = userRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Bénéficiaire introuvable"));
-        return new Beneficiaire(agent.getId(), nomComplet(agent), false);
+        return new Beneficiaire(interne.getId(), nomComplet(interne), false);
     }
 
     private BigDecimal montantLigne(BigDecimal prixUnitaire, Integer quantite) {
@@ -309,6 +316,14 @@ public class ExpressionBesoinService {
 
     public List<ExpressionBesoin> getMesExpressions() {
         return expressionBesoinRepo.findByCreeParOrderByDateCreationDesc(getUsername());
+    }
+
+    // Lecture seule pour un agent simple : les expressions de besoin où il a été déclaré
+    // bénéficiaire par son chef de service (il n'en crée jamais lui-même).
+    public List<ExpressionBesoin> getLieesAMoi() {
+        User moi = userRepository.findByLogin(getUsername())
+                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        return expressionBesoinRepo.findByBeneficiaireIdOrderByDateCreationDesc(moi.getId());
     }
 
     // Ne montre que ce qu'il reste réellement à valider pour le rôle connecté :
