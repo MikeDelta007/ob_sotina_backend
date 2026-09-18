@@ -51,29 +51,20 @@ public class DecaissementPdfService {
             doc.add(new Paragraph("REPUBLIQUE DU SENEGAL", fBold11));
             // Trait sous République, en texte (pas une bordure de cellule)
             doc.add(new Paragraph("====================", fBold11));
-
-            // Drapeau du Sénégal, aligné à gauche avec une marge supplémentaire — ajouté
-            // directement (pas enveloppé dans un Chunk/Paragraph, qui ignore l'alignement hors
-            // cellule ; même technique que la signature ajoutée directement dans le PDF
-            // d'autorisation, avec une marge de page temporaire pour décaler l'image).
-            doc.add(new Paragraph(" ", fNorm9));
             try {
                 ClassPathResource drapeauFile = new ClassPathResource("images/drapeau.png");
                 if (drapeauFile.exists()) {
                     Image drapeau = Image.getInstance(drapeauFile.getInputStream().readAllBytes());
                     drapeau.scaleToFit(60f, 40f);
                     drapeau.setAlignment(Image.ALIGN_LEFT);
-                    doc.setMargins(90, 70, 60, 60);
+                    drapeau.setIndentationLeft(40f);
+//                    doc.setMargins(90, 70, 60, 60);
                     doc.add(drapeau);
-                    doc.setMargins(70, 70, 60, 60);
+//                    doc.setMargins(70, 70, 60, 60);
                 }
             } catch (Exception e) {
                 log.warn("Drapeau non trouvé (images/drapeau.png)", e);
             }
-            doc.add(new Paragraph(" ", fNorm9));
-
-            // Trait sous le drapeau, en texte — le drapeau est ainsi encadré par une ligne
-            // au-dessus et une ligne en dessous.
             doc.add(new Paragraph("====================", fBold11));
 
             // "Un Peuple - Un But - Une Foi", avec une marge gauche
