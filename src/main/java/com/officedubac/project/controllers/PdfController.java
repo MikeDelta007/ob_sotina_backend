@@ -615,20 +615,7 @@ public class PdfController
      * cohérent avec le calcul des effectifs dans TirageJuryMatService.
      */
     private static boolean matiereConcerneeParGroupe(RegleMatiere regle, String groupe) {
-        String groupeRegle = Optional.ofNullable(regle.getGroupe())
-                .map(String::trim)
-                .map(String::toUpperCase)
-                .orElse("");
-
-        if ("1ER2NDGRP".equals(groupeRegle)) {
-            return true;
-        }
-
-        if ("1ER".equalsIgnoreCase(groupe)) {
-            return groupeRegle.isEmpty() || "1ERGRP".equals(groupeRegle);
-        }
-
-        return "2NDGRP".equals(groupeRegle);
+        return regle.concerneGroupe(groupe);
     }
 
     private String sanitizeFileName(String name) {
@@ -642,7 +629,9 @@ public class PdfController
 
     @Operation(summary = "Génération de l'étiquette de table - Format A4 Paysage")
     @GetMapping("/generate-etiquetteCantine-paysage")
-    public void generateEtiquettesCantine(HttpServletResponse response) throws IOException, DocumentException
+    public void generateEtiquettesCantine(
+            HttpServletResponse response,
+            @RequestParam(value = "session", required = false, defaultValue = "1") int session) throws IOException, DocumentException
     {
 
         List<FusionRepartitionTirage> sortedList = repository.findAll()
@@ -700,6 +689,7 @@ public class PdfController
 
             // ================= GENERATION =================
             generateEtiquetteCantinePage(
+                    session,
                     effT2ndG,
                     document,
                     logo,
@@ -1050,7 +1040,7 @@ public class PdfController
     }
 
 
-    private void generateEtiquetteCantinePage(double effT2ndG, Document document, Image logo, FusionRepartitionTirage data, String serie, double effectif, String grp, String date, String horaire,
+    private void generateEtiquetteCantinePage(int session_, double effT2ndG, Document document, Image logo, FusionRepartitionTirage data, String serie, double effectif, String grp, String date, String horaire,
                                        Font f10, Font f12Bold, Font f14, Font f22, Font f22Bold, Font f16Bold, Font f26Bold, Font f16, Image qrCode) throws DocumentException {
         // --- 1. EN-TÊTE ---
         PdfPTable header = new PdfPTable(3);
@@ -1128,7 +1118,7 @@ public class PdfController
         office.setSpacingBefore(2.5f);
         document.add(office);
 
-        Paragraph session = new Paragraph("BACCALAUREAT GENERAL SESSION NORMALE " + data.getSession(), f22Bold);
+        Paragraph session = new Paragraph("BACCALAUREAT GENERAL " + libelleSession(session_) + " " + data.getSession(), f22Bold);
         session.setAlignment(Element.ALIGN_CENTER);
         session.setSpacingAfter(20f);
         document.add(session);
@@ -1140,38 +1130,111 @@ public class PdfController
         String ntValue = "DK 20";
         addInfoRow(info, "ACADEMIE :", getAcademieFullName(data.getAcademia()), f14, f22);
         addInfoRow(info, "CENTRE :", data.getCentreEcrit(), f14, f22);
-        addInfoRow(info, "JURY :", Boolean.TRUE.equals(data.getCs()) ? "CS - [CLE CC : " + data.getCC() + "]" + " / [CLE PJ : " + data.getPJ() + "]" : data.getJury() + " - [CLE CC : " + data.getCC() + "]" + " / [CLE PJ : " + data.getPJ() + "]", f14, f22);
+        addInfoRow(info, "JURY :", Boolean.TRUE.equals(data.getCs()) ? "CS - [CLE CC : " + data.getCC() + "]" + " & [CLE PJ : " + data.getPJ() + "]" : data.getJury() + " - [CLE CC : " + data.getCC() + "]" + " / [CLE PJ : " + data.getPJ() + "]", f14, f22);
         addInfoRow(info, "SERIE (S) :", serie, f14, f22);
         addInfoRow(info, "ETABLISSEMENT : ", data.getCentreEcrit(), f14, f22);
 
         document.add(info);
-        document.add(new Paragraph("\n"));
+        document.add(new Paragraph("C O U P E R   I C I _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\n"));
 
         // --- 4. BAS DE PAGE : EPREUVE et CALENDRIER ---
         PdfPTable footer = new PdfPTable(1);
         footer.setWidthPercentage(100);
-        //footer.setWidths(new float[]{2.55f, 1.5f});
         footer.setSpacingBefore(5f);
 
-        // Cellule gauche
+        // Cellule principale
         PdfPCell leftCell = new PdfPCell();
         leftCell.setBorder(Rectangle.BOX);
         leftCell.setPadding(15f);
 
-        Font normal = new Font(Font.HELVETICA, 16, Font.NORMAL);
+        // =====================================================
+        // TABLEAU INTERNE : 2 COLONNES
+        // =====================================================
+
+        PdfPTable infoTable = new PdfPTable(2);
+        infoTable.setWidthPercentage(100);
+        infoTable.setWidths(new float[]{80f, 20f});
+
+        // =====================================================
+        // LIGNE 1 : GROUPE A | JURY
+        // =====================================================
+
         Font bold = new Font(Font.HELVETICA, 16, Font.BOLD);
 
+        // GROUPE A
+        PdfPCell groupeCell = new PdfPCell();
+        groupeCell.setBorder(Rectangle.NO_BORDER);
+
         Paragraph epreuveTitle = new Paragraph();
-        epreuveTitle.add(new Chunk(grp, bold));
-        epreuveTitle.setAlignment(Element.ALIGN_CENTER);
-        leftCell.addElement(epreuveTitle);
+        epreuveTitle.add(new Chunk(grp + " : ", bold));
+        epreuveTitle.setAlignment(Element.ALIGN_LEFT);
+        epreuveTitle.setLeading(0f, 1.20f);
 
-        Paragraph epreuveLibelle = new Paragraph(data.getCentreEcrit().toUpperCase(), f26Bold);
-        epreuveLibelle.setAlignment(Element.ALIGN_CENTER);
+        groupeCell.addElement(epreuveTitle);
+
+        infoTable.addCell(groupeCell);
+
+        // JURY
+        PdfPCell juryTitleCell = new PdfPCell();
+        juryTitleCell.setBorder(Rectangle.NO_BORDER);
+
+        Paragraph juryTitle = new Paragraph();
+        juryTitle.add(new Chunk("JURY : ", bold));
+        juryTitle.setAlignment(Element.ALIGN_RIGHT);
+        juryTitle.setLeading(0f, 1.20f);
+
+        juryTitleCell.addElement(juryTitle);
+
+        infoTable.addCell(juryTitleCell);
+
+        // =====================================================
+        // LIGNE 2 : CENTRE | 119
+        // =====================================================
+
+        // CENTRE D'EXAMEN
+        PdfPCell centreCell = new PdfPCell();
+        centreCell.setBorder(Rectangle.NO_BORDER);
+
+        Paragraph epreuveLibelle = new Paragraph(
+                data.getCentreEcrit().toUpperCase(),
+                f22Bold
+        );
+
+        epreuveLibelle.setAlignment(Element.ALIGN_LEFT);
         epreuveLibelle.setSpacingBefore(2f);
-        epreuveLibelle.setLeading(0f, 1.20f);  // Réduit l'espacement entre les lignes
-        leftCell.addElement(epreuveLibelle);
+        epreuveLibelle.setLeading(0f, 1.20f);
 
+        centreCell.addElement(epreuveLibelle);
+
+        infoTable.addCell(centreCell);
+
+
+        // 119
+        PdfPCell juryNumberCell = new PdfPCell();
+        juryNumberCell.setBorder(Rectangle.NO_BORDER);
+
+        Font juryFont = new Font(
+                Font.HELVETICA,
+                23,
+                Font.BOLD
+        );
+
+        Paragraph juryNumber = new Paragraph();
+        juryNumber.add(new Chunk(String.valueOf(data.getJury()), juryFont));
+        juryNumber.setAlignment(Element.ALIGN_RIGHT);
+        juryNumber.setLeading(0f, 1.20f);
+
+        juryNumberCell.addElement(juryNumber);
+
+        infoTable.addCell(juryNumberCell);
+
+        // =====================================================
+        // AJOUT DU TABLEAU INTERNE
+        // =====================================================
+
+        leftCell.addElement(infoTable);
+
+        // Ajouter la cellule au footer
         footer.addCell(leftCell);
 
         document.add(footer);
@@ -1385,7 +1448,10 @@ public class PdfController
 
     @Operation(summary = "Génération du document BDR LS")
     @PostMapping("/generate-bdr")
-    public void generateBDRDocument(HttpServletResponse response, @RequestBody List<Integer> jurysExclus) throws IOException, DocumentException
+    public void generateBDRDocument(
+            HttpServletResponse response,
+            @RequestBody List<Integer> jurysExclus,
+            @RequestParam(value = "session", required = false, defaultValue = "1") int session) throws IOException, DocumentException
     {
         response.setContentType("application/pdf");
         response.setHeader("Content-Disposition", "inline; filename=BDR_LS_2025.pdf");
@@ -1398,9 +1464,6 @@ public class PdfController
 
         try
         {
-            // Ajout immédiat d'un élément pour éviter le document vide
-            //document.add(new Paragraph("Génération du document en cours...", new Font(Font.HELVETICA, 12)));
-
             // Initialisation des polices
             FontConfiguration fonts = initializeFonts();
 
@@ -1444,7 +1507,7 @@ public class PdfController
                         continue;
                     }
 
-                    buildDocument(document, fonts, logo, data);
+                    buildDocument(document, fonts, logo, data, session);
 
                     if (i < allFRT.size() - 1)
                     {
@@ -1993,7 +2056,7 @@ public class PdfController
     /**
      * Construit l'intégralité du document
      */
-    private void buildDocument(Document document, FontConfiguration fonts, Image logo, RepartitionCompleteDTO data) throws DocumentException, UnsupportedEncodingException {
+    private void buildDocument(Document document, FontConfiguration fonts, Image logo, RepartitionCompleteDTO data, int session) throws DocumentException, UnsupportedEncodingException {
         // En-tête avec logo
 
         String qrContent = buildQRCodeContent_(data);
@@ -2003,7 +2066,7 @@ public class PdfController
         addHeader(document, fonts, logo, qrCode);
         // System.out.println("addHeader"); // LOG
         // Informations principales
-        addMainInfo(document, fonts, data, qrCode);
+        addMainInfo(document, fonts, data, qrCode, session);
         // System.out.println("addMainInfo"); // LOG
         // Tableau des disciplines
         addDisciplinesTable(document, fonts, data, qrCode);
@@ -2196,9 +2259,14 @@ public class PdfController
 
 
 
-    private void addMainInfo(Document document, FontConfiguration fonts, RepartitionCompleteDTO data, Image qrCode) throws DocumentException {
+    /** Libellé de session, même codification que les étiquettes : 1 = normale, 2 = remplacement. */
+    private static String libelleSession(int session) {
+        return session == 2 ? "SESSION DE REMPLACEMENT" : "SESSION NORMALE";
+    }
+
+    private void addMainInfo(Document document, FontConfiguration fonts, RepartitionCompleteDTO data, Image qrCode, int session) throws DocumentException {
         // Titre
-        Paragraph titre = new Paragraph("BACCALAUREAT GENERAL SESSION NORMALE " + data.getSession(), fonts.boldFont);
+        Paragraph titre = new Paragraph("BACCALAUREAT GENERAL " + libelleSession(session) + " " + data.getSession(), fonts.boldFont);
         titre.setAlignment(Element.ALIGN_CENTER);
         titre.setSpacingBefore(5f);
         titre.setSpacingAfter(10f);
@@ -2642,22 +2710,52 @@ public class PdfController
     /**
      * Ajoute la ligne TOTAL ENV
      */
-    private void addTotalRow(PdfPTable table, FontConfiguration fonts, int total1, int total2) {
-        PdfPCell totalLabel = new PdfPCell(new Phrase("TOTAL DES ENVELOPPES A LIVRER ", fonts.boldFont));
-        totalLabel.setColspan(2);
-        totalLabel.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        totalLabel.setPadding(2f);
-        table.addCell(totalLabel);
+    private void addTotalRow(PdfPTable table, FontConfiguration fonts, int total1, int total2)
+    {
 
-        PdfPCell totalValue = new PdfPCell(new Phrase(String.valueOf(total1), fonts.boldFont));
-        totalValue.setHorizontalAlignment(Element.ALIGN_CENTER);
-        totalValue.setPadding(2f);
-        table.addCell(totalValue);
+        PdfPCell label1 = new PdfPCell(new Phrase("TOTAL DES ENVELOPPES A LIVRER PAR GROUPE", fonts.boldFont));
+
+        label1.setColspan(2);
+        label1.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        label1.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        label1.setPadding(2f);
+
+        table.addCell(label1);
+
+        PdfPCell totalValue1 = new PdfPCell(new Phrase(String.valueOf(total1), fonts.boldFont));
+
+        totalValue1.setHorizontalAlignment(Element.ALIGN_CENTER);
+        totalValue1.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        totalValue1.setPadding(2f);
+
+        table.addCell(totalValue1);
+
 
         PdfPCell totalValue2 = new PdfPCell(new Phrase(String.valueOf(total2), fonts.boldFont));
+
         totalValue2.setHorizontalAlignment(Element.ALIGN_CENTER);
+        totalValue2.setVerticalAlignment(Element.ALIGN_MIDDLE);
         totalValue2.setPadding(2f);
+
         table.addCell(totalValue2);
+
+        PdfPCell label2 = new PdfPCell(new Phrase("TOTAL GENERAL", fonts.boldFont));
+
+        label2.setColspan(2);
+        label2.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        label2.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        label2.setPadding(2f);
+
+        table.addCell(label2);
+
+        PdfPCell totalValue34 = new PdfPCell(new Phrase(String.valueOf(total1 + total2), fonts.boldFont));
+
+        totalValue34.setColspan(2);
+        totalValue34.setHorizontalAlignment(Element.ALIGN_CENTER);
+        totalValue34.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        totalValue34.setPadding(2f);
+
+        table.addCell(totalValue34);
     }
 
 
