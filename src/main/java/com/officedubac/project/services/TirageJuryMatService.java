@@ -798,6 +798,10 @@ public class TirageJuryMatService
 
             repository.saveAll(documentsToUpdate);
 
+            // La fusion (fusion_repartition_tirage) est une copie figée de CEP/CES :
+            // on la régénère pour que les clés importées soient immédiatement visibles (étiquettes, etc.)
+            unionCollections();
+
         } catch (Exception e) {
             throw new RuntimeException("Erreur lors de l'import du fichier Excel", e);
         }
@@ -841,6 +845,10 @@ public class TirageJuryMatService
             }
 
             repository2.saveAll(documentsToUpdate);
+
+            // La fusion (fusion_repartition_tirage) est une copie figée de CEP/CES :
+            // on la régénère pour que les clés importées soient immédiatement visibles (étiquettes, etc.)
+            unionCollections();
 
         } catch (Exception e) {
             throw new RuntimeException("Erreur lors de l'import du fichier Excel", e);

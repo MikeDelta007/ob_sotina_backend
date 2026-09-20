@@ -1130,7 +1130,7 @@ public class PdfController
         String ntValue = "DK 20";
         addInfoRow(info, "ACADEMIE :", getAcademieFullName(data.getAcademia()), f14, f22);
         addInfoRow(info, "CENTRE :", data.getCentreEcrit(), f14, f22);
-        addInfoRow(info, "JURY :", Boolean.TRUE.equals(data.getCs()) ? "CS - [CLE CC : " + data.getCC() + "]" + " & [CLE PJ : " + data.getPJ() + "]" : data.getJury() + " - [CLE CC : " + data.getCC() + "]" + " / [CLE PJ : " + data.getPJ() + "]", f14, f22);
+        addInfoRow(info, "JURY :", Boolean.TRUE.equals(data.getCs()) ? "CS - [CLE CC : " + data.getCC() + "]" + " & [CLE PJ : " + data.getPJ() + "]" : data.getJury() + " - [CLE CC : " + data.getCC() + "]" + " & [CLE PJ : " + data.getPJ() + "]", f14, f22);
         addInfoRow(info, "SERIE (S) :", serie, f14, f22);
         addInfoRow(info, "ETABLISSEMENT : ", data.getCentreEcrit(), f14, f22);
 
