@@ -5,12 +5,18 @@ import com.lowagie.text.pdf.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Year;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
@@ -20,6 +26,8 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class DecaissementPdfService {
 
+    private final MongoTemplate mongoTemplate;
+
     private static final DateTimeFormatter DATE_FR =
             DateTimeFormatter.ofPattern("dd MMMM yyyy", Locale.FRENCH);
 
@@ -28,6 +36,8 @@ public class DecaissementPdfService {
     // ══════════════════════════════════════════════════════════════════
     public byte[] genererDecaissement(Mandatement mandatement) {
         try {
+            attribuerNumero(mandatement);
+
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             Document doc = new Document(PageSize.A4, 70, 70, 60, 60);
             PdfWriter writer = PdfWriter.getInstance(doc, baos);
@@ -88,6 +98,9 @@ public class DecaissementPdfService {
             titre.setAlignment(Element.ALIGN_CENTER);
 
             doc.add(new Paragraph(" ", fNorm11));
+            Paragraph numeroPara = new Paragraph("N° " + mandatement.getNumeroDecaissement(), fBold11);
+            numeroPara.setAlignment(Element.ALIGN_CENTER);
+            doc.add(numeroPara);
             doc.add(new Paragraph(" ", fNorm11));
 
             // ══════════════════════
@@ -178,6 +191,33 @@ public class DecaissementPdfService {
             log.error("Erreur génération PDF décaissement", e);
             throw new RuntimeException("Erreur génération PDF décaissement", e);
         }
+    }
+
+    // ── Numéro DEC_<année>_<NN> : compteur par année (2026_01, 02… puis 2027_01, 02…), incrémenté
+    //    atomiquement en base ($inc) donc jamais deux fois le même numéro, même en concurrence.
+    //    Attribué une seule fois par décaissement (même numéro à chaque téléchargement) : si deux
+    //    téléchargements simultanés tentent l'attribution, un seul gagne (condition "numéro absent")
+    //    et l'autre relit le numéro gagnant (au pire un numéro du compteur reste inutilisé). ──
+    private void attribuerNumero(Mandatement m) {
+        if (m.getNumeroDecaissement() != null) return;
+
+        int annee = Year.now().getValue();
+        org.bson.Document compteur = mongoTemplate.findAndModify(
+                Query.query(Criteria.where("_id").is("decaissement_" + annee)),
+                new Update().inc("seq", 1),
+                FindAndModifyOptions.options().returnNew(true).upsert(true),
+                org.bson.Document.class, "sequences");
+        String numero = "DEC_" + annee + "_" + String.format("%02d", compteur.getInteger("seq"));
+
+        Mandatement attribue = mongoTemplate.findAndModify(
+                Query.query(Criteria.where("_id").is(m.getId()).and("numeroDecaissement").is(null)),
+                Update.update("numeroDecaissement", numero),
+                FindAndModifyOptions.options().returnNew(true),
+                Mandatement.class);
+        if (attribue == null) {
+            attribue = mongoTemplate.findById(m.getId(), Mandatement.class);
+        }
+        m.setNumeroDecaissement(attribue != null ? attribue.getNumeroDecaissement() : numero);
     }
 
     // Pied de page (coordonnées de l'Office), répété en bas de chaque page du document.
