@@ -122,7 +122,7 @@ public class AutorisationAbsencePdfService {
             autorisePar.add(new Chunk(" de l'Office du Baccalauréat autorise :", fNorm11));
             corpsCell.addElement(autorisePar);
             corpsCell.addElement(new Paragraph(" ", fNorm11));
-            corpsCell.addElement(champ("Monsieur / Madame", demande.getDemandeurNom(), fNorm11, fBold11));
+            corpsCell.addElement(champ(libelleCivilite(demandeur), demande.getDemandeurNom(), fNorm11, fBold11));
             corpsCell.addElement(champ("Qualité et fonction", qualiteFonction, fNorm11, fBold11));
             corpsCell.addElement(champ("Matricule", matricule, fNorm11, fBold11));
             Paragraph periode = new Paragraph();
@@ -219,6 +219,19 @@ public class AutorisationAbsencePdfService {
                 log.warn("Erreur pied de page PDF", e);
             }
         }
+    }
+
+    // "Monsieur" / "Madame" / "Mademoiselle" selon la civilité du demandeur ; à défaut
+    // (fiche sans civilité), on garde le libellé neutre du formulaire officiel.
+    private String libelleCivilite(User demandeur) {
+        if (demandeur != null && demandeur.getPersonnel() != null && demandeur.getPersonnel().getCivilite() != null) {
+            switch (demandeur.getPersonnel().getCivilite()) {
+                case Mr: return "Monsieur";
+                case Mme: return "Madame";
+                case Mlle: return "Mademoiselle";
+            }
+        }
+        return "Monsieur / Madame";
     }
 
     private Paragraph champ(String label, String valeur, Font fNorm, Font fBold) {
