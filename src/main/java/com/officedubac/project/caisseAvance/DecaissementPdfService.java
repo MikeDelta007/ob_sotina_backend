@@ -5,12 +5,18 @@ import com.lowagie.text.pdf.*;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.mongodb.core.FindAndModifyOptions;
+import org.springframework.data.mongodb.core.MongoTemplate;
+import org.springframework.data.mongodb.core.query.Criteria;
+import org.springframework.data.mongodb.core.query.Query;
+import org.springframework.data.mongodb.core.query.Update;
 import org.springframework.stereotype.Service;
 
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.Year;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Locale;
@@ -20,6 +26,8 @@ import java.util.Locale;
 @RequiredArgsConstructor
 public class DecaissementPdfService {
 
+    private final MongoTemplate mongoTemplate;
+
     private static final DateTimeFormatter DATE_FR =
             DateTimeFormatter.ofPattern("dd MMMM yyyy", Locale.FRENCH);
 
@@ -28,6 +36,8 @@ public class DecaissementPdfService {
     // ══════════════════════════════════════════════════════════════════
     public byte[] genererDecaissement(Mandatement mandatement) {
         try {
+            attribuerNumero(mandatement);
+
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             Document doc = new Document(PageSize.A4, 70, 70, 60, 60);
             PdfWriter writer = PdfWriter.getInstance(doc, baos);
@@ -48,7 +58,22 @@ public class DecaissementPdfService {
             // EN-TÊTE : République / drapeau / devise / Ministère — lieu et date sont
             // désormais près de la signature, en bas du document, avec "LE DIRECTEUR,".
             // ══════════════════════
-            doc.add(new Paragraph("REPUBLIQUE DU SENEGAL", fBold11));
+            // Ligne du haut : "REPUBLIQUE DU SENEGAL" à gauche, N° à droite — même position que
+            // le "N° ..." de l'en-tête du PDF d'autorisation d'absence.
+            PdfPTable ligneHaut = new PdfPTable(new float[]{50f, 50f});
+            ligneHaut.setWidthPercentage(100);
+            PdfPCell republique = new PdfPCell(new Paragraph("REPUBLIQUE DU SENEGAL", fBold11));
+            republique.setBorder(0);
+            republique.setPadding(0);
+            ligneHaut.addCell(republique);
+            Paragraph numeroPara = new Paragraph("N° " + mandatement.getNumeroDecaissement(), fNorm11);
+            numeroPara.setAlignment(Element.ALIGN_RIGHT);
+            PdfPCell numeroCell = new PdfPCell(numeroPara);
+            numeroCell.setBorder(0);
+            numeroCell.setPadding(0);
+            numeroCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+            ligneHaut.addCell(numeroCell);
+            doc.add(ligneHaut);
             // Trait sous République, en texte (pas une bordure de cellule)
             doc.add(new Paragraph("====================", fBold11));
             try {
@@ -178,6 +203,33 @@ public class DecaissementPdfService {
             log.error("Erreur génération PDF décaissement", e);
             throw new RuntimeException("Erreur génération PDF décaissement", e);
         }
+    }
+
+    // ── Numéro DEC_<année>_<NN> : compteur par année (2026_01, 02… puis 2027_01, 02…), incrémenté
+    //    atomiquement en base ($inc) donc jamais deux fois le même numéro, même en concurrence.
+    //    Attribué une seule fois par décaissement (même numéro à chaque téléchargement) : si deux
+    //    téléchargements simultanés tentent l'attribution, un seul gagne (condition "numéro absent")
+    //    et l'autre relit le numéro gagnant (au pire un numéro du compteur reste inutilisé). ──
+    private void attribuerNumero(Mandatement m) {
+        if (m.getNumeroDecaissement() != null) return;
+
+        int annee = Year.now().getValue();
+        org.bson.Document compteur = mongoTemplate.findAndModify(
+                Query.query(Criteria.where("_id").is("decaissement_" + annee)),
+                new Update().inc("seq", 1),
+                FindAndModifyOptions.options().returnNew(true).upsert(true),
+                org.bson.Document.class, "sequences");
+        String numero = "DEC_" + annee + "_" + String.format("%02d", compteur.getInteger("seq"));
+
+        Mandatement attribue = mongoTemplate.findAndModify(
+                Query.query(Criteria.where("_id").is(m.getId()).and("numeroDecaissement").is(null)),
+                Update.update("numeroDecaissement", numero),
+                FindAndModifyOptions.options().returnNew(true),
+                Mandatement.class);
+        if (attribue == null) {
+            attribue = mongoTemplate.findById(m.getId(), Mandatement.class);
+        }
+        m.setNumeroDecaissement(attribue != null ? attribue.getNumeroDecaissement() : numero);
     }
 
     // Pied de page (coordonnées de l'Office), répété en bas de chaque page du document.

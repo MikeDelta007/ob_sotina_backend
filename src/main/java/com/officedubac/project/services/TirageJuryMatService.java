@@ -524,10 +524,46 @@ public class TirageJuryMatService
         }
     }
 
+    public static final String TOUTES_LES_MATIERES = "TOUTES_LES_MATIERES";
+
     public List<Map<String, Object>> getJurySummaryAllAcademies(String codeMatiere, String groupeChoisi)
     {
+        if (!TOUTES_LES_MATIERES.equalsIgnoreCase(codeMatiere))
+        {
+            return getJurySummaryAllAcademiesPourMatiere(
+                    codeMatiere, groupeChoisi, fusionRepartitionTirageRepository.findAll());
+        }
+
+        // La collection est chargée UNE seule fois pour toutes les matières : la relire
+        // à chaque matière (findAll) était ce qui rendait l'export très long.
+        List<FusionRepartitionTirage> tousLesTirages = fusionRepartitionTirageRepository.findAll();
+
+        // Même ordre que le ZIP des étiquettes : matières du groupe demandé, triées sur
+        // l'intitulé (Collator FRENCH : "ÉCONOMIE" se classe avec les E).
+        java.text.Collator collator = java.text.Collator.getInstance(Locale.FRENCH);
+        collator.setStrength(java.text.Collator.PRIMARY);
+
+        List<Map<String, Object>> result = new ArrayList<>();
+
+        regleMatiereRepository.findAll().stream()
+                .filter(r -> r != null && r.getCode() != null && !r.getCode().trim().isEmpty())
+                .filter(r -> r.concerneGroupe(groupeChoisi))
+                .sorted(Comparator.comparing(RegleMatiere::libelle, collator))
+                .forEach(regle -> {
+                    String code = regle.getCode().trim();
+                    List<Map<String, Object>> lignes = getJurySummaryAllAcademiesPourMatiere(code, groupeChoisi, tousLesTirages);
+                    lignes.forEach(ligne -> ligne.put("libelle", regle.libelle()));
+                    result.addAll(lignes);
+                });
+
+        return result;
+    }
+
+    private List<Map<String, Object>> getJurySummaryAllAcademiesPourMatiere(
+            String codeMatiere, String groupeChoisi, List<FusionRepartitionTirage> tousLesTirages)
+    {
         // Récupérer toutes les tirages qui contiennent la matière
-        List<FusionRepartitionTirage> tirages = fusionRepartitionTirageRepository.findAll().stream()
+        List<FusionRepartitionTirage> tirages = tousLesTirages.stream()
                 .filter(f -> f.getMatieres() != null && f.getMatieres().containsKey(codeMatiere))
                 .toList();
 
@@ -550,21 +586,24 @@ public class TirageJuryMatService
             // Transformer chaque tirage en map avec les infos et la valeur du groupe choisi
             List<Map<String, Object>> rows = tiragesAcademia.stream().map(f -> {
                         GroupeMatiere gm = f.getMatieres().get(codeMatiere);
-                        double valeur = 0.0;
-                        valeur = gm.getPremierGroupe();
+                        double premier = Optional.ofNullable(gm.getPremierGroupe()).orElse(0.0);
+                        double second = Optional.ofNullable(gm.getSecondGroupe()).orElse(0.0);
 
-//                        if (gm != null) {
-//                            if ("1ER".equalsIgnoreCase(groupeChoisi)) {
-//                                valeur = gm.getPremierGroupe();
-//                            } else if ("2ND".equalsIgnoreCase(groupeChoisi)) {
-//                                valeur = gm.getSecondGroupe();
-//                            }
-//                        }
+                        // Épreuve du 2nd groupe uniquement : aucun effectif au 1er groupe
+                        // (premierGroupe = 0), seul secondGroupe est renseigné. Ne pas
+                        // regarder premierGroupe ferait disparaître l'épreuve de l'export.
+                        boolean secondSeul = "2ND".equalsIgnoreCase(groupeChoisi) && premier <= 0 && second > 0;
+
+                        // Pour les autres épreuves on garde l'effectif du 1er groupe (base du calcul NT)
+                        double valeur = secondSeul ? second : premier;
 
                         // On ignore les valeurs nulles ou <= 0
                         if (valeur <= 0) return null;
 
-                        double ntValue = calculerNtValue(groupeChoisi, valeur);
+                        // secondGroupe compte déjà 0,5 par candidat : on ne le divise pas une 2e fois
+                        double ntValue = secondSeul
+                                ? Math.round(second) + 1
+                                : calculerNtValue(groupeChoisi, valeur);
 
                         Map<String, Object> map = new HashMap<>();
                         map.put("matiere", codeMatiere);
@@ -759,6 +798,10 @@ public class TirageJuryMatService
 
             repository.saveAll(documentsToUpdate);
 
+            // La fusion (fusion_repartition_tirage) est une copie figée de CEP/CES :
+            // on la régénère pour que les clés importées soient immédiatement visibles (étiquettes, etc.)
+            unionCollections();
+
         } catch (Exception e) {
             throw new RuntimeException("Erreur lors de l'import du fichier Excel", e);
         }
@@ -802,6 +845,10 @@ public class TirageJuryMatService
             }
 
             repository2.saveAll(documentsToUpdate);
+
+            // La fusion (fusion_repartition_tirage) est une copie figée de CEP/CES :
+            // on la régénère pour que les clés importées soient immédiatement visibles (étiquettes, etc.)
+            unionCollections();
 
         } catch (Exception e) {
             throw new RuntimeException("Erreur lors de l'import du fichier Excel", e);

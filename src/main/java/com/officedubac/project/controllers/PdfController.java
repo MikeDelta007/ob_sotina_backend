@@ -15,6 +15,7 @@ import com.officedubac.project.repository.*;
 import com.officedubac.project.services.*;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.annotation.PreDestroy;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -30,20 +31,33 @@ import org.springframework.web.bind.annotation.*;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Year;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.text.Collator;
 import java.text.DecimalFormat;
+import java.util.zip.Deflater;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 
 @CrossOrigin("*")
@@ -100,11 +114,149 @@ public class PdfController
         }
     }
 
+    // ============================================================
+    // RESSOURCES PARTAGEES : logo reduit, cache des QR codes, pool de generation
+    // ============================================================
+
+    /**
+     * Taille maximale (px) du logo embarque dans les PDF. Le logo source fait 1920x1280 px
+     * pour un affichage a 70 pt : le decoder puis le recompresser pour CHAQUE PDF coutait
+     * ~0,4 s et ~30 Ko par fichier. 400 px = ~400 dpi a 70 pt, visuellement identique.
+     */
+    private static final int LOGO_TAILLE_MAX_PX = 400;
+
+    /** PDF generes en parallele : on laisse un coeur a Tomcat et MongoDB. */
+    private static final int NB_THREADS_PDF =
+            Math.max(2, Math.min(Runtime.getRuntime().availableProcessors() - 1, 8));
+
+    /** Matieres generees a l'avance : borne la memoire (PDF en attente d'ecriture dans le ZIP). */
+    private static final int FENETRE_PDF = NB_THREADS_PDF * 2;
+
+    private static final AtomicInteger COMPTEUR_THREADS_PDF = new AtomicInteger();
+
+    private static final ExecutorService POOL_PDF = Executors.newFixedThreadPool(NB_THREADS_PDF, r -> {
+        Thread t = new Thread(r, "pdf-etiquettes-" + COMPTEUR_THREADS_PDF.incrementAndGet());
+        t.setDaemon(true);
+        return t;
+    });
+
+    /**
+     * QR codes deja encodes (PNG). Le contenu ne depend que du centre : il est identique pour
+     * toutes les matieres, donc on ne l'encode (ZXing + PNG) qu'une seule fois.
+     */
+    private static final Map<String, QrBits> CACHE_QR = new ConcurrentHashMap<>();
+    private static final int CACHE_QR_TAILLE_MAX = 10_000;
+
+    /** QR encode : dimensions et pixels a 1 bit (DeviceGray : 0 = noir, 1 = blanc). */
+    private record QrBits(int largeur, int hauteur, byte[] bits) {}
+
+    /**
+     * BitMatrix ZXing -> pixels bruts 1 bit, lignes alignees sur l'octet, exactement les memes
+     * pixels que MatrixToImageWriter (module sombre = noir, le reste = blanc).
+     */
+    private static byte[] versBitsGris(BitMatrix matrice) {
+        int largeur = matrice.getWidth();
+        int hauteur = matrice.getHeight();
+        int octetsParLigne = (largeur + 7) / 8;
+        byte[] bits = new byte[octetsParLigne * hauteur];
+        Arrays.fill(bits, (byte) 0xFF); // tout blanc (y compris les bits de bourrage de fin de ligne)
+
+        for (int y = 0; y < hauteur; y++) {
+            for (int x = 0; x < largeur; x++) {
+                if (matrice.get(x, y)) {
+                    bits[y * octetsParLigne + (x >> 3)] &= (byte) ~(0x80 >> (x & 7)); // noir
+                }
+            }
+        }
+        return bits;
+    }
+
+    // ================= LOGO EN CACHE (charge et reduit une seule fois) =================
+    private final byte[] logoBytes;
+
+    public PdfController(/* vos autres dépendances injectées */) throws IOException {
+        byte[] logoOriginal = new ClassPathResource("images/sn.png").getContentAsByteArray();
+        this.logoBytes = reduireLogo(logoOriginal, LOGO_TAILLE_MAX_PX);
+        prechaufferPolices();
+    }
+
+    @PreDestroy
+    public void fermerPoolPdf() {
+        POOL_PDF.shutdownNow();
+    }
+
+    /**
+     * Cree une fois les polices standard : OpenPDF les met dans un cache statique non
+     * synchronise a la premiere utilisation, ce qui n'est pas sur si plusieurs threads
+     * s'y prennent en meme temps. Ensuite le cache n'est plus qu'en lecture.
+     */
+    private static void prechaufferPolices() {
+        try {
+            BaseFont.createFont(BaseFont.HELVETICA, BaseFont.WINANSI, false);
+            BaseFont.createFont(BaseFont.HELVETICA_BOLD, BaseFont.WINANSI, false);
+        } catch (Exception e) {
+            log.warn("Préchauffage des polices impossible : {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Reduit l'image de sorte que sa plus grande dimension ne depasse pas tailleMax.
+     * Reduction par paliers de /2 max (bien meilleure qualite qu'un seul passage).
+     * L'image d'origine est renvoyee telle quelle si elle est deja assez petite.
+     */
+    private static byte[] reduireLogo(byte[] source, int tailleMax) throws IOException {
+        BufferedImage src = ImageIO.read(new java.io.ByteArrayInputStream(source));
+        if (src == null || Math.max(src.getWidth(), src.getHeight()) <= tailleMax) {
+            return source;
+        }
+
+        double ratio = (double) tailleMax / Math.max(src.getWidth(), src.getHeight());
+        int largeurCible = Math.max(1, (int) Math.round(src.getWidth() * ratio));
+        int hauteurCible = Math.max(1, (int) Math.round(src.getHeight() * ratio));
+        int type = src.getColorModel().hasAlpha() ? BufferedImage.TYPE_INT_ARGB : BufferedImage.TYPE_INT_RGB;
+
+        BufferedImage courante = src;
+        int largeur = src.getWidth();
+        int hauteur = src.getHeight();
+        while (largeur > largeurCible || hauteur > hauteurCible) {
+            largeur = Math.max(largeurCible, largeur / 2);
+            hauteur = Math.max(hauteurCible, hauteur / 2);
+
+            BufferedImage etape = new BufferedImage(largeur, hauteur, type);
+            java.awt.Graphics2D g = etape.createGraphics();
+            g.setRenderingHint(java.awt.RenderingHints.KEY_INTERPOLATION,
+                    java.awt.RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g.setRenderingHint(java.awt.RenderingHints.KEY_RENDERING,
+                    java.awt.RenderingHints.VALUE_RENDER_QUALITY);
+            g.drawImage(courante, 0, 0, largeur, hauteur, null);
+            g.dispose();
+            courante = etape;
+        }
+
+        ByteArrayOutputStream sortie = new ByteArrayOutputStream();
+        ImageIO.write(courante, "png", sortie);
+        log.info("Logo des étiquettes réduit : {}x{} ({} Ko) -> {}x{} ({} Ko)",
+                src.getWidth(), src.getHeight(), source.length / 1024,
+                largeurCible, hauteurCible, sortie.size() / 1024);
+        return sortie.toByteArray();
+    }
+
+    private List<FusionRepartitionTirage> centresTriesParAcademie() {
+        return repository.findAll()
+                .stream()
+                .sorted(Comparator.comparing(
+                        FusionRepartitionTirage::getAcademia,
+                        Comparator.nullsLast(String::compareTo)
+                ))
+                .toList();
+    }
+
     @Operation(summary = "Génération de l'étiquette de table - Format A4 Paysage")
     @GetMapping("/generate-etiquette-paysage")
     public void generateEtiquettes(
             @RequestParam(value = "matiere") String matiere,
             @RequestParam(value = "groupe", required = false) String groupe,
+            @RequestParam(value = "session", required = false, defaultValue = "0") int session,
             HttpServletResponse response) throws IOException, DocumentException {
 
         // ================= NORMALISATION MATIERE =================
@@ -113,36 +265,115 @@ public class PdfController
             return;
         }
 
-        //log.info("MATIERE DEMANDEE = {}", matiere);
+        if ("TOUTES_LES_MATIERES".equalsIgnoreCase(matiere)) {
+            generateToutesLesMatieres(groupe, session, response);
+            return;
+        }
 
-        List<FusionRepartitionTirage> sortedList = repository.findAll()
-                .stream()
-                .sorted(Comparator.comparing(FusionRepartitionTirage::getAcademia))
-                .toList();
+        List<FusionRepartitionTirage> sortedList = centresTriesParAcademie();
 
-        if (sortedList.isEmpty())
-        {
+        if (sortedList.isEmpty()) {
             response.setStatus(HttpServletResponse.SC_NO_CONTENT);
             return;
         }
 
-        // ================= REGLES =================
-        List<RegleMatiere> regles = repo.findAll();
-        Map<String, RegleMatiere> regleParCode = regles.stream()
-                .collect(Collectors.toMap(
-                        r -> r.getCode().toUpperCase(),
-                        r -> r,
-                        (r1, r2) -> r1
-                ));
+        // ================= REGLE =================
+        RegleMatiere regle = repo.findAll().stream()
+                .filter(r -> r.getCode() != null && r.getCode().equalsIgnoreCase(matiere))
+                .findFirst()
+                .orElse(null);
+
+        if (regle == null) {
+            log.warn("Aucune règle trouvée pour {}", matiere);
+            response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+            return;
+        }
+
+        // Meme routine que pour le ZIP : une seule implementation a maintenir
+        byte[] pdfBytes = generatePdfPourMatiere(matiere, groupe, session, sortedList, regle);
+
+        if (pdfBytes.length == 0) {
+            response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+            return;
+        }
 
         response.setContentType("application/pdf");
         response.setHeader("Content-Disposition", "inline; filename=etiquettes_bac.pdf");
+        response.setContentLength(pdfBytes.length);
+        response.getOutputStream().write(pdfBytes);
+        response.getOutputStream().flush();
+    }
+
+    /** Un centre a imprimer pour une matiere, avec l'effectif du groupe demande. */
+    private record CentreAImprimer(FusionRepartitionTirage data, double effectif) {}
+
+    // ============================================================
+    // GENERATION D'UN PDF POUR UNE MATIERE (endpoint matiere + zip)
+    // Thread-safe : n'utilise que ses parametres et des ressources en lecture seule.
+    // ============================================================
+    private byte[] generatePdfPourMatiere(
+            String matiere,
+            String groupe,
+            int session,
+            List<FusionRepartitionTirage> sortedList,
+            RegleMatiere regle
+    ) throws IOException, DocumentException {
+
+        // Le groupe, la date et l'horaire ne dependent que de la regle : calcules une fois
+        // (et non a chaque centre, comme avant, avec un log par centre si groupe invalide)
+        final boolean secondGroupe;
+        final String grp;
+        final String date;
+        final String horaire;
+
+        if ("1ER".equalsIgnoreCase(groupe)) {
+            secondGroupe = false;
+            grp = "PREMIER GROUPE";
+            date = Optional.ofNullable(regle.getDate1()).orElse("");
+            horaire = Optional.ofNullable(regle.getHeure1()).orElse("");
+        } else if ("2ND".equalsIgnoreCase(groupe)) {
+            secondGroupe = true;
+            grp = "SECOND GROUPE";
+            date = Optional.ofNullable(regle.getDate2()).orElse("");
+            horaire = Optional.ofNullable(regle.getHeure2()).orElse("");
+        } else {
+            log.warn("Groupe non reconnu pour {} : {}", matiere, groupe);
+            return new byte[0];
+        }
+
+        // Premiere passe : quels centres ont des candidats ? Si aucun, on ne cree meme pas
+        // le document (pas de logo a decoder, pas de PdfWriter) et on renvoie vide.
+        List<CentreAImprimer> aImprimer = new ArrayList<>();
+        for (FusionRepartitionTirage data : sortedList) {
+            if (data.getMatieres() == null) {
+                continue;
+            }
+
+            GroupeMatiere gm = data.getMatieres().get(matiere);
+            if (gm == null) {
+                continue;
+            }
+
+            Double effectif = secondGroupe ? gm.getSecondGroupe() : gm.getPremierGroupe();
+            if (effectif == null || effectif <= 0) {
+                continue;
+            }
+
+            aImprimer.add(new CentreAImprimer(data, effectif));
+        }
+
+        // Ne JAMAIS close() un document sans page : OpenPDF leve "The document has no pages"
+        if (aImprimer.isEmpty()) {
+            return new byte[0];
+        }
+
+        // Taille estimee (~2,2 Ko par page + entete) : evite les recopies successives du tampon
+        ByteArrayOutputStream output = new ByteArrayOutputStream(50_000 + aImprimer.size() * 2_200);
 
         Document document = new Document(PageSize.A4.rotate(), 36f, 36f, 10f, 10f);
-        PdfWriter.getInstance(document, response.getOutputStream());
+        PdfWriter.getInstance(document, output);
         document.open();
 
-        // ================= POLICES =================
         Font helv10 = FontFactory.getFont(FontFactory.HELVETICA, 10, Font.NORMAL);
         Font helv12Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 60);
         Font helv14 = FontFactory.getFont(FontFactory.HELVETICA, 17, Font.BOLD);
@@ -152,90 +383,35 @@ public class PdfController
         Font helv16 = FontFactory.getFont(FontFactory.HELVETICA, 16);
         Font helv26Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 30);
 
-        Image logo = Image.getInstance(
-                new ClassPathResource("images/sn.png")
-                        .getInputStream().readAllBytes());
+        Image logo = Image.getInstance(logoBytes); // logo deja reduit, pas de lecture disque
         logo.scaleToFit(70f, 70f);
 
-        // ================= PARCOURS OPTIMISÉ =================
-        for (FusionRepartitionTirage data : sortedList) {
+        String series = (regle.getSeries() != null && !regle.getSeries().isEmpty())
+                ? String.join(" - ", regle.getSeries())
+                : "";
 
-            if (data.getMatieres() == null) {
-                continue;
+        String libelleNormalise = Optional.ofNullable(regle.getValeur()).orElse(matiere);
+
+        boolean premierePage = true;
+
+        for (CentreAImprimer centre : aImprimer) {
+
+            Image qrCode = generateQRCode(buildQRCodeContent__(centre.data()), 120, 120);
+
+            if (!premierePage) {
+                document.newPage();
             }
 
-            // ✅ ACCÈS DIRECT À LA MATIÈRE (ULTRA IMPORTANT)
-            GroupeMatiere gm = data.getMatieres().get(matiere);
-
-            if (gm == null) {
-                continue;
-            }
-
-            // ================= EFFECTIF =================
-            Double effectif = 0.0;
-            Double effT2ndG = 0.0;
-            String grp = null;
-            String date = "";
-            String horaire = "";
-
-            // ================= REGLE =================
-            RegleMatiere regle = regleParCode.get(matiere);
-            if (regle == null)
-            {
-                log.warn("Aucune règle trouvée pour {}", matiere);
-                continue;
-            }
-
-            String series = (regle.getSeries() != null && !regle.getSeries().isEmpty())
-                    ? String.join(" - ", regle.getSeries())
-                    : "";
-
-
-            effectif = gm.getPremierGroupe();
-            if ("1ER".equalsIgnoreCase(groupe))
-            {
-                grp = "PREMIER GROUPE";
-                date = Optional.ofNullable(regle.getDate1()).orElse("");
-                horaire = Optional.ofNullable(regle.getHeure1()).orElse("");
-            }
-            else if ("2ND".equalsIgnoreCase(groupe))
-            {
-                effT2ndG = gm.getSecondGroupe();
-                grp = "SECOND GROUPE";
-                date = Optional.ofNullable(regle.getDate2()).orElse("");
-                horaire = Optional.ofNullable(regle.getHeure2()).orElse("");
-            }
-
-            // System.out.println(effectif + " " + effT2ndG);
-
-
-            if (effectif == null || effectif <= 0)
-            {
-                continue;
-            }
-
-            RegleMatiere regle_ = repo.findByCode(matiere);
-
-            String libelleNormalise = Optional.ofNullable(regle_)
-                    .map(RegleMatiere::getValeur)
-                    .orElse(matiere);
-
-            log.info("ICI" + matiere + " - " + libelleNormalise);
-
-            String qrContent = buildQRCodeContent__(data);
-            Image qrCode = generateQRCode(qrContent, 120, 120);
-
-            // ================= GENERATION =================
-            assert regle_ != null;
             generateEtiquettePage(
-                    regle_.getChamp(),
-                    effT2ndG,
+                    session,
+                    regle.getChamp(),
+                    secondGroupe ? centre.effectif() : 0.0,
                     document,
                     logo,
-                    data,
+                    centre.data(),
                     libelleNormalise,
                     series,
-                    effectif,
+                    centre.effectif(),
                     grp,
                     date,
                     horaire,
@@ -243,15 +419,219 @@ public class PdfController
                     helv24Bold, helv16Bold, helv26Bold, helv16, qrCode
             );
 
-            document.newPage();
+            premierePage = false;
         }
 
-        document.close();
+        document.close(); // une seule fois
+        return output.toByteArray();
+    }
+
+    // ============================================================
+    // GENERATION DU ZIP - PDF produits en parallele, ecrits dans l'ordre alphabetique
+    // ============================================================
+    private void generateToutesLesMatieres(
+            String groupe,
+            int session,
+            HttpServletResponse response
+    ) throws IOException, DocumentException {
+
+        // Le groupe est indispensable : sans lui aucune matière ne produit d'étiquette
+        // et on renverrait un zip vide en 200, indiagnosticable côté front.
+        if (!"1ER".equalsIgnoreCase(groupe) && !"2ND".equalsIgnoreCase(groupe)) {
+            log.warn("Groupe non reconnu pour TOUTES_LES_MATIERES : {}", groupe);
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            return;
+        }
+
+        List<FusionRepartitionTirage> sortedList = centresTriesParAcademie();
+
+        if (sortedList.isEmpty()) {
+            response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+            return;
+        }
+
+        List<RegleMatiere> toutesLesRegles = repo.findAll();
+        if (toutesLesRegles == null || toutesLesRegles.isEmpty()) {
+            response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+            return;
+        }
+
+        // On écarte d'entrée les matières qui ne concernent pas le groupe demandé
+        // (une matière 2NDGRP n'a rien à faire dans l'export du 1er groupe) puis on
+        // trie sur l'intitulé pour que les répertoires du ZIP sortent dans l'ordre
+        // alphabétique. Collator FRENCH : "ÉCONOMIE" se classe bien avec les E.
+        Collator collator = Collator.getInstance(Locale.FRENCH);
+        collator.setStrength(Collator.PRIMARY);
+
+        List<RegleMatiere> regles = toutesLesRegles.stream()
+                .filter(r -> r != null && r.getCode() != null && !r.getCode().trim().isEmpty())
+                .filter(r -> matiereConcerneeParGroupe(r, groupe))
+                .sorted(Comparator.comparing(PdfController::libelleMatiere, collator))
+                .toList();
+
+        if (regles.isEmpty()) {
+            log.warn("Aucune matière ne concerne le groupe {}", groupe);
+            response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+            return;
+        }
+
+        // Le ZIP est d'abord ecrit dans un fichier temporaire, puis envoye avec son Content-Length.
+        // Sans taille annoncee (Transfer-Encoding: chunked), Chrome coupe un XHR/axios en blob a
+        // 10 Mio (net::ERR_FAILED, "Code HTTP : undefined") : mesure avec Chrome 153, la meme
+        // reponse avec Content-Length est telechargee en entier.
+        // Bonus : aucun en-tete n'est envoye avant la fin de la generation, donc on peut encore
+        // repondre 204 (rien a generer) ou 500 (vraie erreur) au lieu d'une archive vide.
+        long debut = System.nanoTime();
+        int nombrePdf = 0;
+        Set<String> cheminsUtilises = new HashSet<>();
+
+        // Une tache par matiere. On n'en garde que FENETRE_PDF d'avance sur l'ecriture :
+        // tous les coeurs travaillent, mais les PDF en attente restent en nombre borne.
+        List<Future<byte[]>> taches = new ArrayList<>(regles.size());
+        int aSoumettre = 0;
+
+        Path fichierZip = Files.createTempFile("etiquettes_", ".zip");
+
+        try {
+            try (ZipOutputStream zip = new ZipOutputStream(
+                    new BufferedOutputStream(Files.newOutputStream(fichierZip)))) {
+
+                // Les PDF sont deja compresses (flux Flate) : inutile de dépenser du CPU
+                // a recompresser au maximum.
+                zip.setLevel(Deflater.BEST_SPEED);
+
+                for (int i = 0; i < regles.size(); i++) {
+
+                    while (aSoumettre < regles.size() && aSoumettre < i + FENETRE_PDF) {
+                        RegleMatiere aGenerer = regles.get(aSoumettre++);
+                        taches.add(POOL_PDF.submit(() -> generatePdfPourMatiere(
+                                aGenerer.getCode().trim(), groupe, session, sortedList, aGenerer)));
+                    }
+
+                    RegleMatiere regle = regles.get(i);
+                    String codeMatiere = regle.getCode().trim();
+                    String libelleMatiere = libelleMatiere(regle);
+
+                    byte[] pdfBytes;
+                    try {
+                        pdfBytes = taches.get(i).get();
+                    } catch (ExecutionException e) {
+                        Throwable cause = e.getCause() != null ? e.getCause() : e;
+                        log.error("Échec de génération PDF pour la matière {} ({}) : {}",
+                                codeMatiere, libelleMatiere, cause.getMessage(), cause);
+                        continue;
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        log.warn("Génération du ZIP interrompue après {} PDF", nombrePdf);
+                        response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);
+                        return;
+                    } finally {
+                        taches.set(i, null); // libere le PDF des qu'il est consomme
+                    }
+
+                    if (pdfBytes == null || pdfBytes.length == 0) {
+                        log.info("Aucune étiquette générée pour la matière {} ({})", codeMatiere, libelleMatiere);
+                        continue;
+                    }
+
+                    String repertoire = sanitizeFileName(libelleMatiere);
+                    String nomPdf = sanitizeFileName(codeMatiere)
+                            + "_" + groupe.toUpperCase() + "_groupe.pdf";
+                    String cheminZip = repertoire + "/" + nomPdf;
+
+                    // Deux règles peuvent porter le même code/libellé : sans ce garde-fou
+                    // putNextEntry lève une ZipException.
+                    if (!cheminsUtilises.add(cheminZip)) {
+                        String base = cheminZip.substring(0, cheminZip.length() - 4);
+                        int suffixe = 2;
+                        while (!cheminsUtilises.add(base + "_" + suffixe + ".pdf")) {
+                            suffixe++;
+                        }
+                        cheminZip = base + "_" + suffixe + ".pdf";
+                    }
+
+                    zip.putNextEntry(new ZipEntry(cheminZip));
+                    zip.write(pdfBytes);
+                    zip.closeEntry();
+
+                    nombrePdf++;
+                    log.info("PDF ajouté au ZIP : {}", cheminZip);
+                }
+            } finally {
+                // Erreur ou interruption : on arrête les matières encore en cours ou en attente
+                for (Future<byte[]> tache : taches) {
+                    if (tache != null) {
+                        tache.cancel(true);
+                    }
+                }
+            }
+
+            if (nombrePdf == 0) {
+                log.warn("Aucune étiquette n'a été générée pour toutes les matières");
+                response.setStatus(HttpServletResponse.SC_NO_CONTENT);
+                return;
+            }
+
+            long tailleZip = Files.size(fichierZip);
+
+            log.info("ZIP des étiquettes ({}) : {} PDF, {} Ko, généré en {} ms ({} threads)",
+                    groupe, nombrePdf, tailleZip / 1024,
+                    (System.nanoTime() - debut) / 1_000_000, NB_THREADS_PDF);
+
+            response.setContentType("application/zip");
+            response.setHeader("Content-Disposition",
+                    "attachment; filename=etiquettes_toutes_matieres_"
+                            + groupe.toUpperCase() + "_groupe.zip");
+            response.setContentLengthLong(tailleZip);
+
+            try (InputStream source = Files.newInputStream(fichierZip)) {
+                source.transferTo(response.getOutputStream());
+                response.flushBuffer();
+            } catch (IOException e) {
+                // Le client a coupé la connexion (onglet fermé, rechargement...). Inutile de
+                // remonter l'exception : le RestExceptionHandler tenterait d'écrire du JSON dans
+                // une réponse déjà typée application/zip et ajouterait une 2e erreur au log.
+                log.warn("Téléchargement du ZIP interrompu par le client : {}", e.getMessage());
+            }
+        } finally {
+            Files.deleteIfExists(fichierZip);
+        }
+    }
+
+    /**
+     * Intitulé de la matière : la valeur de la règle, à défaut son code.
+     */
+    private static String libelleMatiere(RegleMatiere regle) {
+        return Optional
+                .ofNullable(regle.getValeur())
+                .filter(v -> !v.isBlank())
+                .orElse(regle.getCode().trim());
+    }
+
+    /**
+     * Le champ groupe de RegleMatiere vaut 1ERGRP, 2NDGRP ou 1ER2NDGRP.
+     * Inutile de générer une matière du 2nd groupe quand on exporte le 1er (et
+     * inversement). Une règle sans groupe est traitée comme du 1er groupe,
+     * cohérent avec le calcul des effectifs dans TirageJuryMatService.
+     */
+    private static boolean matiereConcerneeParGroupe(RegleMatiere regle, String groupe) {
+        return regle.concerneGroupe(groupe);
+    }
+
+    private String sanitizeFileName(String name) {
+        if (name == null || name.trim().isEmpty()) {
+            return "sans_nom";
+        }
+        return name.trim()
+                .replaceAll("[\\\\/:*?\"<>|]", "_")
+                .replaceAll("\\s+", " ");
     }
 
     @Operation(summary = "Génération de l'étiquette de table - Format A4 Paysage")
     @GetMapping("/generate-etiquetteCantine-paysage")
-    public void generateEtiquettesCantine(HttpServletResponse response) throws IOException, DocumentException
+    public void generateEtiquettesCantine(
+            HttpServletResponse response,
+            @RequestParam(value = "session", required = false, defaultValue = "1") int session) throws IOException, DocumentException
     {
 
         List<FusionRepartitionTirage> sortedList = repository.findAll()
@@ -283,9 +663,7 @@ public class PdfController
         Font helv16 = FontFactory.getFont(FontFactory.HELVETICA, 16);
         Font helv26Bold = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 30);
 
-        Image logo = Image.getInstance(
-                new ClassPathResource("images/sn.png")
-                        .getInputStream().readAllBytes());
+        Image logo = Image.getInstance(logoBytes); // logo déjà réduit et en cache
         logo.scaleToFit(70f, 70f);
 
         // ================= PARCOURS OPTIMISÉ =================
@@ -311,6 +689,7 @@ public class PdfController
 
             // ================= GENERATION =================
             generateEtiquetteCantinePage(
+                    session,
                     effT2ndG,
                     document,
                     logo,
@@ -368,8 +747,8 @@ public class PdfController
         PdfWriter.getInstance(document, response.getOutputStream());
         document.open();
 
-        // 🔹 Logo
-        Image logo = Image.getInstance(new ClassPathResource("images/sn.png").getInputStream().readAllBytes());
+        // 🔹 Logo (déjà réduit et en cache)
+        Image logo = Image.getInstance(logoBytes);
         logo.scaleToFit(70f, 70f);
 
         // 🔹 Parcours optimisé : pour chaque centre et discipline
@@ -435,7 +814,7 @@ public class PdfController
     }
 
 
-    private void generateEtiquettePage(String type_lv, double effT2ndG, Document document, Image logo, FusionRepartitionTirage data,
+    private void generateEtiquettePage(int session_, String type_lv, double effT2ndG, Document document, Image logo, FusionRepartitionTirage data,
                                        String libelleMatiere, String serie, double effectif, String grp, String date, String horaire,
                                        Font f10, Font f12Bold, Font f14, Font f22, Font f22Bold, Font f16Bold, Font f26Bold, Font f16, Image qrCode) throws DocumentException {
         // --- 1. EN-TÊTE ---
@@ -511,13 +890,41 @@ public class PdfController
         // --- 2. TITRES CENTRAUX ---
         Paragraph office = new Paragraph("OFFICE DU BACCALAUREAT", f16Bold);
         office.setAlignment(Element.ALIGN_CENTER);
-        office.setSpacingBefore(2.5f);
+        office.setSpacingBefore(1f);
         document.add(office);
 
-        Paragraph session = new Paragraph("BACCALAUREAT SESSION NORMALE " + data.getSession(), f22Bold);
+        Paragraph session = null;
+        Paragraph groupe = null;
+
+        if (session_ == 1)
+        {
+            session = new Paragraph("BACCALAUREAT SESSION NORMALE " + data.getSession(), f22Bold);
+        }
+
+        if (session_ == 2)
+        {
+            session = new Paragraph("BACCALAUREAT SESSION DE REMPLACEMENT " + data.getSession(), f22Bold);
+        }
+
+        if ("PREMIER GROUPE".equals(grp))
+        {
+            groupe = new Paragraph("[EPREUVE DU PREMIER GROUPE]", f22Bold);
+        }
+
+        if ("SECOND GROUPE".equals(grp))
+        {
+            groupe = new Paragraph("[EPREUVE DU SECOND GROUPE]", f22Bold);
+        }
+
+        assert session != null;
         session.setAlignment(Element.ALIGN_CENTER);
-        session.setSpacingAfter(20f);
+        session.setSpacingAfter(1f);
         document.add(session);
+
+        assert groupe != null;
+        groupe.setAlignment(Element.ALIGN_CENTER);
+        groupe.setSpacingAfter(10f);
+        document.add(groupe);
 
         // --- 3. TABLEAU DES INFORMATIONS ---
         PdfPTable info = new PdfPTable(2);
@@ -528,7 +935,7 @@ public class PdfController
         addInfoRow(info, "CENTRE :", data.getCentreEcrit(), f14, f22);
         addInfoRow(info, "JURY :", Boolean.TRUE.equals(data.getCs()) ? "CS" : String.valueOf(data.getJury()), f14, f22);
         addInfoRow(info, "SERIE (S) :", serie, f14, f22); // à affiner si plusieurs séries possibles
-        System.out.println("OK" + grp);
+        // System.out.println("OK" + grp);
         String ntValue;
         if ("PREMIER GROUPE".equals(grp))
         {
@@ -562,9 +969,7 @@ public class PdfController
         Font bold = new Font(Font.HELVETICA, 16, Font.BOLD);
 
         Paragraph epreuveTitle = new Paragraph();
-        epreuveTitle.add(new Chunk("EPREUVE [", normal));
-        epreuveTitle.add(new Chunk(grp, bold));
-        epreuveTitle.add(new Chunk("]", normal));
+        epreuveTitle.add(new Chunk("EPREUVE DE", normal));
         epreuveTitle.setAlignment(Element.ALIGN_CENTER);
         leftCell.addElement(epreuveTitle);
 
@@ -635,7 +1040,7 @@ public class PdfController
     }
 
 
-    private void generateEtiquetteCantinePage(double effT2ndG, Document document, Image logo, FusionRepartitionTirage data, String serie, double effectif, String grp, String date, String horaire,
+    private void generateEtiquetteCantinePage(int session_, double effT2ndG, Document document, Image logo, FusionRepartitionTirage data, String serie, double effectif, String grp, String date, String horaire,
                                        Font f10, Font f12Bold, Font f14, Font f22, Font f22Bold, Font f16Bold, Font f26Bold, Font f16, Image qrCode) throws DocumentException {
         // --- 1. EN-TÊTE ---
         PdfPTable header = new PdfPTable(3);
@@ -713,7 +1118,7 @@ public class PdfController
         office.setSpacingBefore(2.5f);
         document.add(office);
 
-        Paragraph session = new Paragraph("BACCALAUREAT GENERAL SESSION NORMALE " + data.getSession(), f22Bold);
+        Paragraph session = new Paragraph("BACCALAUREAT GENERAL " + libelleSession(session_) + " " + data.getSession(), f22Bold);
         session.setAlignment(Element.ALIGN_CENTER);
         session.setSpacingAfter(20f);
         document.add(session);
@@ -725,38 +1130,111 @@ public class PdfController
         String ntValue = "DK 20";
         addInfoRow(info, "ACADEMIE :", getAcademieFullName(data.getAcademia()), f14, f22);
         addInfoRow(info, "CENTRE :", data.getCentreEcrit(), f14, f22);
-        addInfoRow(info, "JURY :", Boolean.TRUE.equals(data.getCs()) ? "CS - [CLE CC : " + data.getCC() + "]" + " / [CLE PJ : " + data.getPJ() + "]" : data.getJury() + " - [CLE CC : " + data.getCC() + "]" + " / [CLE PJ : " + data.getPJ() + "]", f14, f22);
+        addInfoRow(info, "JURY :", Boolean.TRUE.equals(data.getCs()) ? "CS - [CLE CC : " + data.getCC() + "]" + " & [CLE PJ : " + data.getPJ() + "]" : data.getJury() + " - [CLE CC : " + data.getCC() + "]" + " & [CLE PJ : " + data.getPJ() + "]", f14, f22);
         addInfoRow(info, "SERIE (S) :", serie, f14, f22);
         addInfoRow(info, "ETABLISSEMENT : ", data.getCentreEcrit(), f14, f22);
 
         document.add(info);
-        document.add(new Paragraph("\n"));
+        document.add(new Paragraph("C O U P E R   I C I _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _\n\n"));
 
         // --- 4. BAS DE PAGE : EPREUVE et CALENDRIER ---
         PdfPTable footer = new PdfPTable(1);
         footer.setWidthPercentage(100);
-        //footer.setWidths(new float[]{2.55f, 1.5f});
         footer.setSpacingBefore(5f);
 
-        // Cellule gauche
+        // Cellule principale
         PdfPCell leftCell = new PdfPCell();
         leftCell.setBorder(Rectangle.BOX);
         leftCell.setPadding(15f);
 
-        Font normal = new Font(Font.HELVETICA, 16, Font.NORMAL);
+        // =====================================================
+        // TABLEAU INTERNE : 2 COLONNES
+        // =====================================================
+
+        PdfPTable infoTable = new PdfPTable(2);
+        infoTable.setWidthPercentage(100);
+        infoTable.setWidths(new float[]{80f, 20f});
+
+        // =====================================================
+        // LIGNE 1 : GROUPE A | JURY
+        // =====================================================
+
         Font bold = new Font(Font.HELVETICA, 16, Font.BOLD);
 
+        // GROUPE A
+        PdfPCell groupeCell = new PdfPCell();
+        groupeCell.setBorder(Rectangle.NO_BORDER);
+
         Paragraph epreuveTitle = new Paragraph();
-        epreuveTitle.add(new Chunk(grp, bold));
-        epreuveTitle.setAlignment(Element.ALIGN_CENTER);
-        leftCell.addElement(epreuveTitle);
+        epreuveTitle.add(new Chunk(grp + " : ", bold));
+        epreuveTitle.setAlignment(Element.ALIGN_LEFT);
+        epreuveTitle.setLeading(0f, 1.20f);
 
-        Paragraph epreuveLibelle = new Paragraph(data.getCentreEcrit().toUpperCase(), f26Bold);
-        epreuveLibelle.setAlignment(Element.ALIGN_CENTER);
+        groupeCell.addElement(epreuveTitle);
+
+        infoTable.addCell(groupeCell);
+
+        // JURY
+        PdfPCell juryTitleCell = new PdfPCell();
+        juryTitleCell.setBorder(Rectangle.NO_BORDER);
+
+        Paragraph juryTitle = new Paragraph();
+        juryTitle.add(new Chunk("JURY : ", bold));
+        juryTitle.setAlignment(Element.ALIGN_RIGHT);
+        juryTitle.setLeading(0f, 1.20f);
+
+        juryTitleCell.addElement(juryTitle);
+
+        infoTable.addCell(juryTitleCell);
+
+        // =====================================================
+        // LIGNE 2 : CENTRE | 119
+        // =====================================================
+
+        // CENTRE D'EXAMEN
+        PdfPCell centreCell = new PdfPCell();
+        centreCell.setBorder(Rectangle.NO_BORDER);
+
+        Paragraph epreuveLibelle = new Paragraph(
+                data.getCentreEcrit().toUpperCase(),
+                f22Bold
+        );
+
+        epreuveLibelle.setAlignment(Element.ALIGN_LEFT);
         epreuveLibelle.setSpacingBefore(2f);
-        epreuveLibelle.setLeading(0f, 1.20f);  // Réduit l'espacement entre les lignes
-        leftCell.addElement(epreuveLibelle);
+        epreuveLibelle.setLeading(0f, 1.20f);
 
+        centreCell.addElement(epreuveLibelle);
+
+        infoTable.addCell(centreCell);
+
+
+        // 119
+        PdfPCell juryNumberCell = new PdfPCell();
+        juryNumberCell.setBorder(Rectangle.NO_BORDER);
+
+        Font juryFont = new Font(
+                Font.HELVETICA,
+                23,
+                Font.BOLD
+        );
+
+        Paragraph juryNumber = new Paragraph();
+        juryNumber.add(new Chunk(String.valueOf(data.getJury()), juryFont));
+        juryNumber.setAlignment(Element.ALIGN_RIGHT);
+        juryNumber.setLeading(0f, 1.20f);
+
+        juryNumberCell.addElement(juryNumber);
+
+        infoTable.addCell(juryNumberCell);
+
+        // =====================================================
+        // AJOUT DU TABLEAU INTERNE
+        // =====================================================
+
+        leftCell.addElement(infoTable);
+
+        // Ajouter la cellule au footer
         footer.addCell(leftCell);
 
         document.add(footer);
@@ -970,7 +1448,10 @@ public class PdfController
 
     @Operation(summary = "Génération du document BDR LS")
     @PostMapping("/generate-bdr")
-    public void generateBDRDocument(HttpServletResponse response, @RequestBody List<Integer> jurysExclus) throws IOException, DocumentException
+    public void generateBDRDocument(
+            HttpServletResponse response,
+            @RequestBody List<Integer> jurysExclus,
+            @RequestParam(value = "session", required = false, defaultValue = "1") int session) throws IOException, DocumentException
     {
         response.setContentType("application/pdf");
         response.setHeader("Content-Disposition", "inline; filename=BDR_LS_2025.pdf");
@@ -983,9 +1464,6 @@ public class PdfController
 
         try
         {
-            // Ajout immédiat d'un élément pour éviter le document vide
-            //document.add(new Paragraph("Génération du document en cours...", new Font(Font.HELVETICA, 12)));
-
             // Initialisation des polices
             FontConfiguration fonts = initializeFonts();
 
@@ -1029,7 +1507,7 @@ public class PdfController
                         continue;
                     }
 
-                    buildDocument(document, fonts, logo, data);
+                    buildDocument(document, fonts, logo, data, session);
 
                     if (i < allFRT.size() - 1)
                     {
@@ -1321,18 +1799,29 @@ public class PdfController
     private Image generateQRCode(String content, int width, int height) throws DocumentException
     {
         try {
-            // 1. Encoder le contenu en matrice de bits
-            BitMatrix bitMatrix = new MultiFormatWriter().encode(content, BarcodeFormat.QR_CODE, width, height);
+            // Le QR ne depend que de (contenu, taille) : on ne l'encode qu'une fois par centre,
+            // meme si ce centre apparait dans les 100+ matieres d'un export.
+            String cle = content + "|" + width + "x" + height;
+            QrBits qr = CACHE_QR.get(cle);
 
-            // 2. Convertir la matrice en BufferedImage
-            BufferedImage bufferedImage = MatrixToImageWriter.toBufferedImage(bitMatrix);
+            if (qr == null) {
+                // 1. Encoder le contenu en matrice de bits
+                BitMatrix bitMatrix = new MultiFormatWriter().encode(content, BarcodeFormat.QR_CODE, width, height);
+                qr = new QrBits(bitMatrix.getWidth(), bitMatrix.getHeight(), versBitsGris(bitMatrix));
 
-            // 3. Convertir BufferedImage en iText Image
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            ImageIO.write(bufferedImage, "png", baos);
-            Image qrCode = Image.getInstance(baos.toByteArray());
+                if (CACHE_QR.size() >= CACHE_QR_TAILLE_MAX) {
+                    CACHE_QR.clear(); // garde-fou : le cache ne peut pas grossir sans limite
+                }
+                CACHE_QR.put(cle, qr);
+            }
 
-            return qrCode;
+            // 2. Image iText brute (1 bit, niveaux de gris) : aucun PNG a encoder puis a
+            //    redecoder via ImageIO a chaque page (c'etait le principal cout par page).
+            //    Une Image neuve par appel (les Image ne se partagent pas entre threads) et une
+            //    copie du tableau, pour que le cache ne soit jamais modifie.
+            //    ImgRaw directement : Image.getInstance(w, h, 1, 1, data) convertirait en CCITT G4
+            //    avec une convention noir/blanc differente de DeviceGray.
+            return new ImgRaw(qr.largeur(), qr.hauteur(), 1, 1, qr.bits().clone());
         } catch (Exception e) {
             e.printStackTrace();
             return null;
@@ -1567,7 +2056,7 @@ public class PdfController
     /**
      * Construit l'intégralité du document
      */
-    private void buildDocument(Document document, FontConfiguration fonts, Image logo, RepartitionCompleteDTO data) throws DocumentException, UnsupportedEncodingException {
+    private void buildDocument(Document document, FontConfiguration fonts, Image logo, RepartitionCompleteDTO data, int session) throws DocumentException, UnsupportedEncodingException {
         // En-tête avec logo
 
         String qrContent = buildQRCodeContent_(data);
@@ -1577,7 +2066,7 @@ public class PdfController
         addHeader(document, fonts, logo, qrCode);
         // System.out.println("addHeader"); // LOG
         // Informations principales
-        addMainInfo(document, fonts, data, qrCode);
+        addMainInfo(document, fonts, data, qrCode, session);
         // System.out.println("addMainInfo"); // LOG
         // Tableau des disciplines
         addDisciplinesTable(document, fonts, data, qrCode);
@@ -1770,9 +2259,14 @@ public class PdfController
 
 
 
-    private void addMainInfo(Document document, FontConfiguration fonts, RepartitionCompleteDTO data, Image qrCode) throws DocumentException {
+    /** Libellé de session, même codification que les étiquettes : 1 = normale, 2 = remplacement. */
+    private static String libelleSession(int session) {
+        return session == 2 ? "SESSION DE REMPLACEMENT" : "SESSION NORMALE";
+    }
+
+    private void addMainInfo(Document document, FontConfiguration fonts, RepartitionCompleteDTO data, Image qrCode, int session) throws DocumentException {
         // Titre
-        Paragraph titre = new Paragraph("BACCALAUREAT GENERAL SESSION NORMALE " + data.getSession(), fonts.boldFont);
+        Paragraph titre = new Paragraph("BACCALAUREAT GENERAL " + libelleSession(session) + " " + data.getSession(), fonts.boldFont);
         titre.setAlignment(Element.ALIGN_CENTER);
         titre.setSpacingBefore(5f);
         titre.setSpacingAfter(10f);
@@ -2216,22 +2710,52 @@ public class PdfController
     /**
      * Ajoute la ligne TOTAL ENV
      */
-    private void addTotalRow(PdfPTable table, FontConfiguration fonts, int total1, int total2) {
-        PdfPCell totalLabel = new PdfPCell(new Phrase("TOTAL DES ENVELOPPES A LIVRER ", fonts.boldFont));
-        totalLabel.setColspan(2);
-        totalLabel.setHorizontalAlignment(Element.ALIGN_RIGHT);
-        totalLabel.setPadding(2f);
-        table.addCell(totalLabel);
+    private void addTotalRow(PdfPTable table, FontConfiguration fonts, int total1, int total2)
+    {
 
-        PdfPCell totalValue = new PdfPCell(new Phrase(String.valueOf(total1), fonts.boldFont));
-        totalValue.setHorizontalAlignment(Element.ALIGN_CENTER);
-        totalValue.setPadding(2f);
-        table.addCell(totalValue);
+        PdfPCell label1 = new PdfPCell(new Phrase("TOTAL DES ENVELOPPES A LIVRER PAR GROUPE", fonts.boldFont));
+
+        label1.setColspan(2);
+        label1.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        label1.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        label1.setPadding(2f);
+
+        table.addCell(label1);
+
+        PdfPCell totalValue1 = new PdfPCell(new Phrase(String.valueOf(total1), fonts.boldFont));
+
+        totalValue1.setHorizontalAlignment(Element.ALIGN_CENTER);
+        totalValue1.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        totalValue1.setPadding(2f);
+
+        table.addCell(totalValue1);
+
 
         PdfPCell totalValue2 = new PdfPCell(new Phrase(String.valueOf(total2), fonts.boldFont));
+
         totalValue2.setHorizontalAlignment(Element.ALIGN_CENTER);
+        totalValue2.setVerticalAlignment(Element.ALIGN_MIDDLE);
         totalValue2.setPadding(2f);
+
         table.addCell(totalValue2);
+
+        PdfPCell label2 = new PdfPCell(new Phrase("TOTAL GENERAL", fonts.boldFont));
+
+        label2.setColspan(2);
+        label2.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        label2.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        label2.setPadding(2f);
+
+        table.addCell(label2);
+
+        PdfPCell totalValue34 = new PdfPCell(new Phrase(String.valueOf(total1 + total2), fonts.boldFont));
+
+        totalValue34.setColspan(2);
+        totalValue34.setHorizontalAlignment(Element.ALIGN_CENTER);
+        totalValue34.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        totalValue34.setPadding(2f);
+
+        table.addCell(totalValue34);
     }
 
 

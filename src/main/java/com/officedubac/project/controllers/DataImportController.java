@@ -124,16 +124,19 @@ public class DataImportController
             File tempFile = File.createTempFile("data_cdt_", ".xlsx");
             file.transferTo(tempFile);
             // Appeler le service
-            boolean ok = parametrageService.importCdtByFile(tempFile.getAbsolutePath());
+            ParametrageService.ImportResult result = parametrageService.importCdtByFile(tempFile.getAbsolutePath());
             // Supprimer le fichier temporaire après import
             tempFile.delete();
-            if (ok)
+            if (result.success())
             {
-                message = "Les données ont été chargées avec succés.";
+                message = "Les données ont été chargées avec succés."
+                        + "<br><br>=== RÉSUMÉ IMPORT ==="
+                        + "<br>Lignes importées dans ce fichier: " + result.imported()
+                        + "<br>Total en base SOTINA après import: " + result.totalInDb();
             }
             else
             {
-                message = "Aucune donnée n\'a été chargée";
+                message = "Aucune donnée n\'a été chargée, erreur dans le fichier.";
             }
             return message;
         }
@@ -142,6 +145,15 @@ public class DataImportController
             e.printStackTrace();
             return "Erreur lors de l'import : " + e.getMessage();
         }
+    }
+
+    //SOTINA
+    @GetMapping("/data-candidats/last-update")
+    public ResponseEntity<Map<String, Object>> getLastUpdateDataCandidats()
+    {
+        Map<String, Object> res = new HashMap<>();
+        res.put("lastUpdated", parametrageService.getLastUpdateDataCandidats());
+        return ResponseEntity.ok(res);
     }
 
     //SOTINA

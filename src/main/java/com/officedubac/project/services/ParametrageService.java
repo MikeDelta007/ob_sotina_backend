@@ -32,6 +32,7 @@ import org.xml.sax.helpers.DefaultHandler;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.*;
@@ -96,6 +97,11 @@ public class ParametrageService
 
     @Autowired
     private final SourceCandidatCGSRepository sourceCandidatCGSRepository;
+
+    @Autowired
+    private final ImportMetaRepository importMetaRepository;
+
+    public static final String IMPORT_META_DATA_CANDIDATS = "DATA_CANDIDATS";
 
     @Autowired
     private MongoTemplate mongoTemplate;
@@ -958,7 +964,9 @@ public class ParametrageService
     }
 
     //SOTINA
-    public boolean importCdtByFile(String filePath) {
+    public record ImportResult(boolean success, int imported, long totalInDb) {}
+
+    public ImportResult importCdtByFile(String filePath) {
 
         // ✅ Suppression fiable
         mongoTemplate.dropCollection(SourceCandidat.class);
@@ -1054,14 +1062,31 @@ public class ParametrageService
             long countInDb = mongoTemplate.count(new Query(), SourceCandidat.class);
             System.out.println("=== RÉSUMÉ IMPORT ===");
             System.out.println("Lignes importées dans ce fichier: " + totalImported.get());
-            System.out.println("Total en base après import: " + countInDb);
+            System.out.println("Total en base SOTINA après import: " + countInDb);
 
-            return countInDb == totalImported.get();
+            boolean success = countInDb == totalImported.get();
+
+            if (success) {
+                importMetaRepository.save(
+                        ImportMeta.builder()
+                                .id(IMPORT_META_DATA_CANDIDATS)
+                                .lastUpdated(LocalDateTime.now())
+                                .build()
+                );
+            }
+
+            return new ImportResult(success, totalImported.get(), countInDb);
 
         } catch (Exception e) {
             e.printStackTrace();
-            return false;
+            return new ImportResult(false, totalImported.get(), 0);
         }
+    }
+
+    public LocalDateTime getLastUpdateDataCandidats() {
+        return importMetaRepository.findById(IMPORT_META_DATA_CANDIDATS)
+                .map(ImportMeta::getLastUpdated)
+                .orElse(null);
     }
 
 
