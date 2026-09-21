@@ -26,6 +26,9 @@ public class DemandeAbsenceService {
     public DemandeAbsence creer(DemandeAbsenceRequest req) {
         User demandeur = currentUser();
 
+        if (req.getDateDebut().isBefore(java.time.LocalDate.now())) {
+            throw new RuntimeException("La date de début ne peut pas être antérieure à aujourd'hui");
+        }
         if (req.getDateFin().isBefore(req.getDateDebut())) {
             throw new RuntimeException("La date de fin ne peut pas précéder la date de début");
         }
