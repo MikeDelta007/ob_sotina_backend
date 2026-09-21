@@ -58,7 +58,22 @@ public class DecaissementPdfService {
             // EN-TÊTE : République / drapeau / devise / Ministère — lieu et date sont
             // désormais près de la signature, en bas du document, avec "LE DIRECTEUR,".
             // ══════════════════════
-            doc.add(new Paragraph("REPUBLIQUE DU SENEGAL", fBold11));
+            // Ligne du haut : "REPUBLIQUE DU SENEGAL" à gauche, N° à droite — même position que
+            // le "N° ..." de l'en-tête du PDF d'autorisation d'absence.
+            PdfPTable ligneHaut = new PdfPTable(new float[]{50f, 50f});
+            ligneHaut.setWidthPercentage(100);
+            PdfPCell republique = new PdfPCell(new Paragraph("REPUBLIQUE DU SENEGAL", fBold11));
+            republique.setBorder(0);
+            republique.setPadding(0);
+            ligneHaut.addCell(republique);
+            Paragraph numeroPara = new Paragraph("N° " + mandatement.getNumeroDecaissement(), fNorm11);
+            numeroPara.setAlignment(Element.ALIGN_RIGHT);
+            PdfPCell numeroCell = new PdfPCell(numeroPara);
+            numeroCell.setBorder(0);
+            numeroCell.setPadding(0);
+            numeroCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+            ligneHaut.addCell(numeroCell);
+            doc.add(ligneHaut);
             // Trait sous République, en texte (pas une bordure de cellule)
             doc.add(new Paragraph("====================", fBold11));
             try {
@@ -98,9 +113,6 @@ public class DecaissementPdfService {
             titre.setAlignment(Element.ALIGN_CENTER);
 
             doc.add(new Paragraph(" ", fNorm11));
-            Paragraph numeroPara = new Paragraph("N° " + mandatement.getNumeroDecaissement(), fBold11);
-            numeroPara.setAlignment(Element.ALIGN_CENTER);
-            doc.add(numeroPara);
             doc.add(new Paragraph(" ", fNorm11));
 
             // ══════════════════════
