@@ -19,7 +19,7 @@ import java.util.Optional;
 @RestController
 @RequestMapping("/api/v1/banques")
 @RequiredArgsConstructor
-@PreAuthorize("hasRole('ROLE_PLANIFICATION')")
+@PreAuthorize("hasAnyAuthority('ADMIN')")
 public class BanqueResource {
     private final BanqueService service;
     @GetMapping("/all")

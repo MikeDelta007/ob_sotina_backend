@@ -191,6 +191,7 @@ public class DemandeAbsenceService {
                 demande.setValidationChef(valide);
                 demande.setRejetChef(!valide);
                 demande.setValidateurChef(caller.getLogin());
+                demande.setValidateurChefNom(nomComplet(caller));
                 demande.setMotifRejetChef(valide ? null : motif);
                 demande.setDateTraitementChef(now);
                 demande.setStatut(StatutAbsence.EN_ATTENTE_CSA);
@@ -202,6 +203,7 @@ public class DemandeAbsenceService {
                 demande.setValidationCsa(valide);
                 demande.setRejetCsa(!valide);
                 demande.setValidateurCsa(caller.getLogin());
+                demande.setValidateurCsaNom(nomComplet(caller));
                 demande.setMotifRejetCsa(valide ? null : motif);
                 demande.setDateTraitementCsa(now);
                 demande.setStatut(StatutAbsence.EN_ATTENTE_DIRECTEUR);
@@ -212,6 +214,7 @@ public class DemandeAbsenceService {
                 }
                 demande.setValidationDirecteur(valide);
                 demande.setValidateurDirecteur(caller.getLogin());
+                demande.setValidateurDirecteurNom(nomComplet(caller));
                 demande.setDateValidationDirecteur(now);
                 if (valide) {
                     demande.setStatut(StatutAbsence.VALIDEE);
@@ -224,6 +227,7 @@ public class DemandeAbsenceService {
                     demande.setStatut(StatutAbsence.REJETEE);
                     demande.setMotifRejet(motif);
                     demande.setRejetePar(caller.getLogin());
+                    demande.setRejeteParNom(nomComplet(caller));
                     demande.setDateRejet(now);
                 }
             }
@@ -266,6 +270,12 @@ public class DemandeAbsenceService {
     private User currentUser() {
         String login = SecurityContextHolder.getContext().getAuthentication().getName();
         return userRepository.findByLogin(login).orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+    }
+
+    private String nomComplet(User u) {
+        if (u.getPersonnel() == null) return u.getLogin();
+        String nom = (u.getPersonnel().getFirstname() + " " + u.getPersonnel().getLastname()).trim();
+        return nom.isEmpty() ? u.getLogin() : nom;
     }
 
     private boolean hasAuthority(String authority) {

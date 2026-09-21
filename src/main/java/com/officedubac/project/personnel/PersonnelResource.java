@@ -240,6 +240,11 @@ public class PersonnelResource {
         personnel.setEmail(req.getEmail());
         personnel.setMatricule(sansEspaces(req.getMatricule()));
         personnel.setCivilite(req.getCivilite());
+        personnel.setBank(req.getBank());
+        personnel.setCode_bank(req.getCode_bank());
+        personnel.setCode_agc(req.getCode_agc());
+        personnel.setNum_compte(req.getNum_compte());
+        personnel.setKey_rib(req.getKey_rib());
         personnel.setDivision(req.getDivision());
         personnel.setFonction(req.getFonction());
         personnel.setTypePersonnel(req.getTypePersonnel());

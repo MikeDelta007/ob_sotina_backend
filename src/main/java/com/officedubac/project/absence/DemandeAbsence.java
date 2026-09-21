@@ -39,6 +39,8 @@ public class DemandeAbsence {
     private boolean validationChef;
     private boolean rejetChef;
     private String validateurChef;
+    // Nom complet snapshotté au moment de l'action (affiché à la place du login)
+    private String validateurChefNom;
     private String motifRejetChef;
     private LocalDateTime dateTraitementChef;
 
@@ -46,16 +48,19 @@ public class DemandeAbsence {
     private boolean validationCsa;
     private boolean rejetCsa;
     private String validateurCsa;
+    private String validateurCsaNom;
     private String motifRejetCsa;
     private LocalDateTime dateTraitementCsa;
 
     // Étape Directeur : seule décision finale — valide (VALIDEE) ou rejette (REJETEE) pour de bon
     private boolean validationDirecteur;
     private String validateurDirecteur;
+    private String validateurDirecteurNom;
     private LocalDateTime dateValidationDirecteur;
 
     private String motifRejet;
     private String rejetePar;
+    private String rejeteParNom;
     private LocalDateTime dateRejet;
 
     private String creePar;
