@@ -8,4 +8,5 @@ public interface TicketRestaurantRepository extends MongoRepository<TicketRestau
     List<TicketRestaurant> findByCreeParOrderByDateCreationDesc(String creePar);
     List<TicketRestaurant> findByStatutOrderByDateCreationDesc(TicketRestaurant.Statut statut);
     List<TicketRestaurant> findAllByOrderByDateCreationDesc();
+    List<TicketRestaurant> findByStatutNot(TicketRestaurant.Statut statut);
 }

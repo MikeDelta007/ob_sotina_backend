@@ -13,7 +13,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 // Liste des agents concernés par une demande de tickets restaurant validée, avec le nombre de
-// jours, le montant total et la signature du Directeur — même gabarit que le PDF d'autorisation
+// jours, le montant total et le nom du demandeur (cachet et signature à apposer) — même gabarit que le PDF d'autorisation
 // d'absence (en-tête Université/logo, pied de page, signature).
 @Slf4j
 @Service
@@ -74,12 +74,10 @@ public class TicketRestaurantPdfService {
             doc.add(titre);
             doc.add(new Paragraph(" ", fNorm11));
 
-            String jours = joursCoches(ticket);
+            List<LocalDate> dates = ticket.getDates() != null ? ticket.getDates() : new ArrayList<>();
             Paragraph periode = new Paragraph(
-                    "Période : du " + ticket.getDateDebut().format(DATE_COURTE)
-                            + " au " + ticket.getDateFin().format(DATE_COURTE)
-                            + "  —  Jours concernés : " + jours
-                            + "  —  " + ticket.getNombreJours() + " jour(s)",
+                    "Dates concernées (" + ticket.getNombreJours() + " jour(s)) : "
+                            + dates.stream().map(d -> d.format(DATE_COURTE)).collect(java.util.stream.Collectors.joining(", ")),
                     fNorm10);
             doc.add(periode);
             doc.add(new Paragraph(" ", fNorm11));
@@ -87,16 +85,21 @@ public class TicketRestaurantPdfService {
             // ══════════════════════
             // TABLEAU DES AGENTS
             // ══════════════════════
-            PdfPTable table = new PdfPTable(new float[]{10f, 90f});
+            PdfPTable table = new PdfPTable(new float[]{8f, 50f, 42f});
             table.setWidthPercentage(100);
             table.setSpacingBefore(6f);
+            table.setHeaderRows(1);
             addEntete(table, "N°", fBold11);
-            addEntete(table, "Agent", fBold11);
+            addEntete(table, "Prénom et nom", fBold11);
+            addEntete(table, "Service / Division", fBold11);
 
             List<String> noms = ticket.getAgentNoms() != null ? ticket.getAgentNoms() : new ArrayList<>();
+            List<String> services = ticket.getAgentServices();
             for (int i = 0; i < noms.size(); i++) {
                 addCellule(table, String.valueOf(i + 1), fNorm11, Element.ALIGN_CENTER);
                 addCellule(table, noms.get(i), fNorm11, Element.ALIGN_LEFT);
+                String service = services != null && i < services.size() && services.get(i) != null ? services.get(i) : "—";
+                addCellule(table, service, fNorm11, Element.ALIGN_LEFT);
             }
             doc.add(table);
 
@@ -109,46 +112,30 @@ public class TicketRestaurantPdfService {
 
             doc.add(new Paragraph(" ", fNorm11));
             doc.add(new Paragraph(" ", fNorm11));
-            doc.add(new Paragraph(" ", fNorm11));
 
             // ══════════════════════
-            // SIGNATURE
+            // SIGNATURE : bloc unique (table non sécable, alignée à droite) pour que la date,
+            // la signature et le nom restent ensemble et passent à la page suivante si besoin.
             // ══════════════════════
-            Paragraph faitA = new Paragraph("Fait à Dakar, le "
-                    + (ticket.getDateValidationDirecteur() != null
-                        ? ticket.getDateValidationDirecteur().toLocalDate().format(DATE_COURTE)
-                        : LocalDate.now().format(DATE_COURTE)),
-                    fNorm11);
-            faitA.setAlignment(Element.ALIGN_RIGHT);
-            doc.add(faitA);
+            PdfPTable sig = new PdfPTable(1);
+            sig.setWidthPercentage(40);
+            sig.setHorizontalAlignment(Element.ALIGN_RIGHT);
+            sig.setKeepTogether(true);
+            sig.setSplitLate(true);
 
-            Paragraph directeurLabel = new Paragraph("Le Directeur", fBold11);
-            directeurLabel.setAlignment(Element.ALIGN_RIGHT);
-            directeurLabel.setIndentationRight(40f);
-            doc.add(directeurLabel);
-
-            try {
-                ClassPathResource sigFile = new ClassPathResource("images/signature.png");
-                if (sigFile.exists()) {
-                    Image signature = Image.getInstance(sigFile.getInputStream().readAllBytes());
-                    signature.scaleToFit(90f, 90f);
-                    signature.setAlignment(Image.ALIGN_RIGHT);
-                    doc.setMargins(60, 120, 50, 50);
-                    doc.add(signature);
-                    doc.setMargins(60, 60, 50, 50);
-                } else {
-                    log.warn("Signature non trouvée (images/signature.png)");
-                }
-            } catch (Exception e) {
-                log.warn("Erreur chargement de la signature pour le PDF de tickets restaurant", e);
-            }
-
-            Paragraph directeurNom = new Paragraph(
-                    ticket.getValidateurDirecteurNom() != null ? ticket.getValidateurDirecteurNom() : "Cheikh Ahmadou Bamba GUEYE",
-                    fBold11);
-            directeurNom.setAlignment(Element.ALIGN_RIGHT);
-            directeurNom.setSpacingBefore(-15f);
-            doc.add(directeurNom);
+            String dateTexte = ticket.getDateCreation() != null
+                    ? ticket.getDateCreation().toLocalDate().format(DATE_COURTE)
+                    : LocalDate.now().format(DATE_COURTE);
+            addCelluleSignature(sig, new Paragraph("Fait à Dakar, le " + dateTexte, fNorm11));
+            addCelluleSignature(sig, new Paragraph("Le demandeur", fBold11));
+            addCelluleSignature(sig, new Paragraph(
+                    ticket.getCreeParNom() != null ? ticket.getCreeParNom() : ticket.getCreePar(), fBold11));
+            // Espace laissé libre pour le cachet et la signature du demandeur
+            PdfPCell espace = new PdfPCell(new Phrase(" ", fNorm11));
+            espace.setBorder(0);
+            espace.setFixedHeight(90f);
+            sig.addCell(espace);
+            doc.add(sig);
 
             doc.close();
             return baos.toByteArray();
@@ -159,14 +146,11 @@ public class TicketRestaurantPdfService {
         }
     }
 
-    private String joursCoches(TicketRestaurant t) {
-        List<String> jours = new ArrayList<>();
-        if (t.isLundi()) jours.add("Lundi");
-        if (t.isMardi()) jours.add("Mardi");
-        if (t.isMercredi()) jours.add("Mercredi");
-        if (t.isJeudi()) jours.add("Jeudi");
-        if (t.isVendredi()) jours.add("Vendredi");
-        return String.join(", ", jours);
+    private void addCelluleSignature(PdfPTable table, Paragraph contenu) {
+        PdfPCell cell = new PdfPCell();
+        cell.setBorder(0);
+        cell.addElement(contenu);
+        table.addCell(cell);
     }
 
     private String fmt(java.math.BigDecimal n) {

@@ -23,20 +23,18 @@ public class TicketRestaurant {
     @Id
     private String id;
 
+    // Dates cochées (jours ouvrés) : elles seules définissent la demande, pas de période. Un agent
+    // ne peut figurer sur deux demandes non rejetées partageant la même date.
+    private List<LocalDate> dates;
+    // Première et dernière date cochée (dérivées, pour l'affichage)
     private LocalDate dateDebut;
     private LocalDate dateFin;
 
-    // Jours de la semaine cochés
-    private boolean lundi;
-    private boolean mardi;
-    private boolean mercredi;
-    private boolean jeudi;
-    private boolean vendredi;
-
     private List<String> agentIds;
     private List<String> agentNoms;   // snapshot, pour affichage/PDF
+    private List<String> agentServices; // snapshot du service/division de chaque agent (même ordre)
 
-    // Nombre de jours ouvrés cochés effectivement compris dans [dateDebut, dateFin]
+    // Nombre de dates cochées
     private int nombreJours;
     private static final BigDecimal MONTANT_PAR_JOUR = BigDecimal.valueOf(1500);
     private BigDecimal montantTotal;

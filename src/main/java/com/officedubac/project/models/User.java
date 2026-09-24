@@ -41,6 +41,9 @@ public class User implements UserDetails
     // Personnel autonome (voir com.officedubac.project.personnel.PersonnelRepository).
     private Personnel personnel;
 
+    // Fiche Personnel d'origine de ce compte (une personne = un seul compte)
+    private String personnelId;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         List<GrantedAuthority> authorities = new java.util.ArrayList<>();

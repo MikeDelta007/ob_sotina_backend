@@ -112,6 +112,9 @@ public class ParametrageService
     @Autowired
     private PersonnelRepository personnelRepository;
 
+    @Autowired
+    private com.officedubac.project.personnel.PersonnelCompteService personnelCompteService;
+
     public String getCellValue(Cell cell) {
         if (cell == null) {
             return null;
@@ -668,6 +671,9 @@ public class ParametrageService
         log.info(String.valueOf(send_access_smtp));
         Map<String, Object> variables = new HashMap<>();
         Profil prf = profilRepository.findByName(userDTO.getProfil().getName().name());
+        if (prf == null) {
+            throw new BusinessResourceException("profil-introuvable", "Le rôle " + userDTO.getProfil().getName().name() + " n'existe pas en base", HttpStatus.BAD_REQUEST);
+        }
         Personnel personnel = Personnel.builder()
                 .firstname(userDTO.getFirstname())
                 .lastname(userDTO.getLastname())
@@ -765,6 +771,9 @@ public class ParametrageService
         }
 
         Profil prf = profilRepository.findByName(dto.getProfil().getName().name());
+        if (prf == null) {
+            throw new BusinessResourceException("profil-introuvable", "Le rôle " + dto.getProfil().getName().name() + " n'existe pas en base", HttpStatus.BAD_REQUEST);
+        }
         Personnel personnel = Personnel.builder()
                 .firstname(source.getFirstname())
                 .lastname(source.getLastname())
@@ -823,10 +832,16 @@ public class ParametrageService
             }
         }
 
-        User saved = userRepository.save(user);
+        // Une personne n'a qu'un seul compte
+        if (personnelCompteService.aUnCompte(source)) {
+            throw new BusinessResourceException(
+                    "personnel-deja-compte", "Cette personne a déjà un compte", HttpStatus.CONFLICT);
+        }
+        user.setPersonnelId(source.getId());
 
-        // Un agent ne peut avoir deux comptes : on retire la fiche autonome désormais rattachée à un compte
-        personnelRepository.deleteById(source.getId());
+        // La fiche Personnel est conservée : le compte s'y rattache (personnelId), et elle
+        // n'apparaît plus dans la liste des personnes sans compte.
+        User saved = userRepository.save(user);
 
         if (send_access_smtp)
         {
@@ -835,7 +850,13 @@ public class ParametrageService
             variables.put("message", "Merci de vous être inscrit, le compte est activé avec succés.");
             variables.put("login", dto.getLogin());
             variables.put("password", dto.getPassword());
-            emailservice.sendEmailAccountCreated(personnel.getEmail(), "[Office du Baccalauréat / PortailBAC] Création officielle de compte", variables);
+            // Le compte est déjà créé et la fiche consommée : un échec d'envoi d'e-mail ne doit pas
+            // faire apparaître la création comme ratée (l'utilisateur réessaierait pour rien).
+            try {
+                emailservice.sendEmailAccountCreated(personnel.getEmail(), "[Office du Baccalauréat / PortailBAC] Création officielle de compte", variables);
+            } catch (Exception e) {
+                log.warn("Compte {} créé, mais l'e-mail d'accès n'a pas pu être envoyé : {}", dto.getLogin(), e.getMessage());
+            }
         }
 
         return saved;
@@ -1313,6 +1334,9 @@ public class ParametrageService
     public User updateUser(String idUsr, UserDTO userDTO)
     {
         Profil prf = profilRepository.findByName(userDTO.getProfil().getName().name());
+        if (prf == null) {
+            throw new BusinessResourceException("profil-introuvable", "Le rôle " + userDTO.getProfil().getName().name() + " n'existe pas en base", HttpStatus.BAD_REQUEST);
+        }
         User update_usr = userRepository.findById(idUsr).orElse(null);
 
         if (update_usr != null)
@@ -1380,6 +1404,17 @@ public class ParametrageService
             update_usr.setActeur(userDTO.getActeur());
             update_usr.setProfil(prf);
             update_usr.setState_account(userDTO.isState_account());
+            // Changement d'agent : rattache le compte à une autre fiche (qui ne doit pas avoir déjà un autre compte)
+            if (userDTO.getPersonnelId() != null && !userDTO.getPersonnelId().equals(update_usr.getPersonnelId())) {
+                Personnel nouvelleFiche = personnelRepository.findById(userDTO.getPersonnelId())
+                        .orElseThrow(() -> new BusinessResourceException(
+                                "personnel-introuvable", "Agent introuvable", HttpStatus.NOT_FOUND));
+                if (personnelCompteService.aUnAutreCompte(nouvelleFiche, update_usr.getId())) {
+                    throw new BusinessResourceException(
+                            "personnel-deja-compte", "Cette personne a déjà un compte", HttpStatus.CONFLICT);
+                }
+                update_usr.setPersonnelId(nouvelleFiche.getId());
+            }
             if (userDTO.getDroitsSupplementaires() != null) {
                 update_usr.setDroitsSupplementaires(filtrerDroits(userDTO.getDroitsSupplementaires()));
             }

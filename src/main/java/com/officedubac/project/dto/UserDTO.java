@@ -26,6 +26,8 @@ public class UserDTO {
     private boolean state_account;
     private Profil profil;
     private Acteurs acteur;
+    // Fiche Personnel à rattacher au compte (changement d'agent à l'édition) ; null = inchangé
+    private String personnelId;
     // null = inchangé
     private java.util.List<String> droitsSupplementaires;
 

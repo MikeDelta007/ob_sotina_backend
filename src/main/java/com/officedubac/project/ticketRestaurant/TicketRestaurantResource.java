@@ -43,7 +43,7 @@ public class TicketRestaurantResource {
         return ResponseEntity.ok(ticketService.getAValider());
     }
 
-    @PreAuthorize(ROLES)
+    @PreAuthorize("hasAuthority('DIRECTEUR')")
     @GetMapping("/toutes")
     public ResponseEntity<List<TicketRestaurant>> getToutes() {
         return ResponseEntity.ok(ticketService.getToutes());
@@ -67,6 +67,13 @@ public class TicketRestaurantResource {
         TicketRestaurant ticket = ticketService.getById(id);
         if (ticket.getStatut() != TicketRestaurant.Statut.VALIDEE) {
             throw new RuntimeException("Cette demande n'est pas encore validée");
+        }
+        // Seul le Directeur voit toutes les demandes ; les autres uniquement les leurs
+        String appelant = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName();
+        boolean directeur = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication()
+                .getAuthorities().stream().anyMatch(a -> "DIRECTEUR".equals(a.getAuthority()));
+        if (!directeur && !appelant.equals(ticket.getCreePar())) {
+            throw new org.springframework.security.access.AccessDeniedException("Cette demande ne vous appartient pas");
         }
 
         byte[] pdf = pdfService.genererListe(ticket);

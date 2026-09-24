@@ -21,13 +21,11 @@ public class ProfilDataInitializer implements CommandLineRunner {
 
     private final ProfilRepository profilRepo;
 
-    private static final Role[] ROLES_EB = {
-        Role.CHEF_SERVICE, Role.CSA, Role.DIRECTEUR, Role.CHEF_COMPTABLE, Role.AGENT_COMPTABLE, Role.AGENT
-    };
-
     @Override
     public void run(String... args) {
-        for (Role role : ROLES_EB) {
+        // Tous les rôles de l'enum (y compris PEDAGOGIE et PLANIFICATION) : sans Profil en base,
+        // un compte créé avec ce rôle se retrouverait sans rôle du tout.
+        for (Role role : Role.values()) {
             if (profilRepo.findByName(role.name()) == null) {
                 profilRepo.save(Profil.builder().name(role).build());
                 log.info("✅ Profil créé pour le rôle {}", role);

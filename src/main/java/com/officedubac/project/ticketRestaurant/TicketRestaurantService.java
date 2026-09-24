@@ -21,6 +21,8 @@ import java.util.List;
 @RequiredArgsConstructor
 public class TicketRestaurantService {
 
+    private static final java.time.format.DateTimeFormatter FORMAT_DATE = java.time.format.DateTimeFormatter.ofPattern("dd/MM/yyyy");
+
     private final TicketRestaurantRepository ticketRepo;
     private final UserRepository userRepository;
     private final PersonnelRepository personnelRepository;
@@ -30,42 +32,51 @@ public class TicketRestaurantService {
     // CRÉATION (chef de service / Directeur / Admin)
     // ═══════════════════════════════════════════════════════════════
     public TicketRestaurant creer(TicketRestaurantRequest req) {
-        if (req.getDateDebut().isBefore(LocalDate.now())) {
-            throw new RuntimeException("La date de début ne peut pas être antérieure à aujourd'hui");
-        }
-        if (req.getDateFin().isBefore(req.getDateDebut())) {
-            throw new RuntimeException("La date de fin ne peut pas précéder la date de début");
-        }
-        if (!req.isLundi() && !req.isMardi() && !req.isMercredi() && !req.isJeudi() && !req.isVendredi()) {
-            throw new RuntimeException("Au moins un jour de la semaine doit être coché");
+        List<LocalDate> dates = req.getDates().stream().distinct().sorted().collect(java.util.stream.Collectors.toList());
+
+        // Seuls les jours restants de la semaine en cours sont possibles (le week-end : la semaine
+        // suivante). Dates passées et semaines à venir sont refusées.
+        LocalDate premier = LocalDate.now();
+        if (premier.getDayOfWeek() == DayOfWeek.SATURDAY) premier = premier.plusDays(2);
+        else if (premier.getDayOfWeek() == DayOfWeek.SUNDAY) premier = premier.plusDays(1);
+        LocalDate dernier = premier.plusDays(DayOfWeek.FRIDAY.getValue() - premier.getDayOfWeek().getValue());
+        for (LocalDate d : dates) {
+            if (d.getDayOfWeek() == DayOfWeek.SATURDAY || d.getDayOfWeek() == DayOfWeek.SUNDAY) {
+                throw new RuntimeException("Seuls les jours ouvrés (lundi à vendredi) sont possibles : " + d.format(FORMAT_DATE));
+            }
+            if (d.isBefore(premier) || d.isAfter(dernier)) {
+                throw new RuntimeException("Date non autorisée (" + d.format(FORMAT_DATE) + ") : seuls les jours du "
+                        + premier.format(FORMAT_DATE) + " au " + dernier.format(FORMAT_DATE) + " (semaine en cours) peuvent être demandés");
+            }
         }
 
         User createur = userRepository.findByLogin(getUsername())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 
-        // Un agent sélectionné peut être un agent avec compte (User) ou un agent externe sans
-        // compte (Personnel) — même logique de résolution que le bénéficiaire d'une expression
-        // de besoin, la liste provenant de /personnel/mes-agents qui mélange les deux.
+        // Un agent sélectionné peut être un agent avec compte (User) ou sans compte (Personnel),
+        // la liste proposée couvrant tout le personnel.
+        List<String> agentIds = req.getAgentIds().stream().distinct().collect(java.util.stream.Collectors.toList());
         List<String> agentNoms = new ArrayList<>();
-        for (String agentId : req.getAgentIds()) {
+        List<String> agentServices = new ArrayList<>();
+        for (String agentId : agentIds) {
             agentNoms.add(resoudreNomAgent(agentId));
+            agentServices.add(resoudreServiceAgent(agentId));
         }
 
-        int nombreJours = compterJours(req.getDateDebut(), req.getDateFin(), req);
+        verifierAucunDoublon(agentIds, agentNoms, dates);
+
+        int nombreJours = dates.size();
         BigDecimal montantTotal = TicketRestaurant.montantParJour()
                 .multiply(BigDecimal.valueOf(nombreJours))
-                .multiply(BigDecimal.valueOf(req.getAgentIds().size()));
+                .multiply(BigDecimal.valueOf(agentIds.size()));
 
         TicketRestaurant ticket = TicketRestaurant.builder()
-                .dateDebut(req.getDateDebut())
-                .dateFin(req.getDateFin())
-                .lundi(req.isLundi())
-                .mardi(req.isMardi())
-                .mercredi(req.isMercredi())
-                .jeudi(req.isJeudi())
-                .vendredi(req.isVendredi())
-                .agentIds(req.getAgentIds())
+                .dates(dates)
+                .dateDebut(dates.get(0))
+                .dateFin(dates.get(dates.size() - 1))
+                .agentIds(agentIds)
                 .agentNoms(agentNoms)
+                .agentServices(agentServices)
                 .nombreJours(nombreJours)
                 .montantTotal(montantTotal)
                 .statut(TicketRestaurant.Statut.EN_ATTENTE)
@@ -77,24 +88,21 @@ public class TicketRestaurantService {
         return ticketRepo.save(ticket);
     }
 
-    // Compte, dans [dateDebut, dateFin] inclus, les jours dont le jour de la semaine est coché.
-    private int compterJours(LocalDate debut, LocalDate fin, TicketRestaurantRequest req) {
-        int n = 0;
-        for (LocalDate d = debut; !d.isAfter(fin); d = d.plusDays(1)) {
-            if (jourCoche(d.getDayOfWeek(), req)) n++;
+    // Aucun agent ne peut avoir deux tickets le même jour : refuse si une date cochée figure déjà
+    // sur une demande non rejetée (en attente ou validée) concernant l'un des agents choisis.
+    private void verifierAucunDoublon(List<String> agentIds, List<String> agentNoms, List<LocalDate> dates) {
+        for (TicketRestaurant existant : ticketRepo.findByStatutNot(TicketRestaurant.Statut.REJETEE)) {
+            if (existant.getDates() == null || existant.getAgentIds() == null) continue;
+            for (int i = 0; i < agentIds.size(); i++) {
+                if (!existant.getAgentIds().contains(agentIds.get(i))) continue;
+                for (LocalDate d : dates) {
+                    if (existant.getDates().contains(d)) {
+                        throw new RuntimeException(agentNoms.get(i) + " a déjà un ticket restaurant le "
+                                + d.format(FORMAT_DATE) + " (demande de " + existant.getCreeParNom() + ")");
+                    }
+                }
+            }
         }
-        return n;
-    }
-
-    private boolean jourCoche(DayOfWeek jour, TicketRestaurantRequest req) {
-        return switch (jour) {
-            case MONDAY -> req.isLundi();
-            case TUESDAY -> req.isMardi();
-            case WEDNESDAY -> req.isMercredi();
-            case THURSDAY -> req.isJeudi();
-            case FRIDAY -> req.isVendredi();
-            default -> false;
-        };
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -186,6 +194,14 @@ public class TicketRestaurantService {
         String nom = ((personnel.getFirstname() != null ? personnel.getFirstname() : "") + " "
                 + (personnel.getLastname() != null ? personnel.getLastname() : "")).trim();
         return nom.isEmpty() ? "—" : nom;
+    }
+
+    private String resoudreServiceAgent(String agentId) {
+        Personnel p = userRepository.findById(agentId)
+                .map(User::getPersonnel)
+                .orElseGet(() -> personnelRepository.findById(agentId).orElse(null));
+        if (p == null || p.getDivision() == null || p.getDivision().getLibelle() == null) return "—";
+        return p.getDivision().getLibelle();
     }
 
     private String nomComplet(User u) {

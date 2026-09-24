@@ -29,6 +29,7 @@ public class PersonnelResource {
     private final VoitureRepository voitureRepo;
     private final PersonnelRepository personnelRepo;
     private final UserRepository userRepository;
+    private final PersonnelCompteService personnelCompteService;
 
     // ── Divisions ──
     @GetMapping("/divisions")
@@ -175,6 +176,26 @@ public class PersonnelResource {
     // est chef de service — utilisé par l'écran des demandes d'autorisation d'absence pour
     // lister l'équipe d'un chef. On s'appuie sur Personnel (le référentiel du personnel), pas
     // sur User, pour couvrir aussi les agents sans compte.
+    // Tout le personnel proposable (liste des agents d'un ticket restaurant, etc.) : les comptes
+    // (id = User) puis les fiches Personnel qui n'ont pas de compte (id = Personnel).
+    @GetMapping("/tous-agents")
+    public ResponseEntity<List<Personnel>> tousLesAgents() {
+        List<User> comptes = personnelCompteService.comptes();
+        List<Personnel> agents = new ArrayList<>();
+        for (User u : comptes) {
+            Personnel p = u.getPersonnel();
+            if (p != null && p.getFirstname() != null && u.isState_account()) {
+                p.setId(u.getId());
+                agents.add(p);
+            }
+        }
+        personnelRepo.findByActifTrue().stream()
+                .filter(p -> !personnelCompteService.aUnCompte(p, comptes))
+                .forEach(agents::add);
+        agents.sort(java.util.Comparator.comparing(a -> ((a.getLastname() != null ? a.getLastname() : "") + " " + (a.getFirstname() != null ? a.getFirstname() : "")).toUpperCase()));
+        return ResponseEntity.ok(agents);
+    }
+
     @GetMapping("/mes-agents")
     public ResponseEntity<List<Personnel>> mesAgents() {
         String login = SecurityContextHolder.getContext().getAuthentication().getName();
@@ -190,7 +211,10 @@ public class PersonnelResource {
         }
 
         // Agents externes (fiche Personnel autonome, sans compte)
-        List<Personnel> agents = new ArrayList<>(personnelRepo.findByDivision_IdInAndActifTrue(divisionsDontJeSuisChef));
+        List<User> comptes = personnelCompteService.comptes();
+        List<Personnel> agents = personnelRepo.findByDivision_IdInAndActifTrue(divisionsDontJeSuisChef).stream()
+                .filter(p -> !personnelCompteService.aUnCompte(p, comptes))
+                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
 
         // Agents internes (avec compte applicatif) de ces mêmes divisions — l'id renvoyé
         // est alors celui du User, pour que cet agent puisse ensuite retrouver ce qui le
@@ -210,9 +234,14 @@ public class PersonnelResource {
 
     // ── Personnels (identité + fonction, généralement externes — sans compte utilisateur).
     // Un chauffeur n'est pas un type à part : c'est un Personnel dont la fonction est "Chauffeur". ──
+    // Fiches actives SANS compte (liste de création d'un compte) — une fiche déjà rattachée à un
+    // compte n'y apparaît plus, mais reste dans /personnels/all (gestion du personnel).
     @GetMapping("/personnels")
     public ResponseEntity<List<Personnel>> getPersonnels() {
-        return ResponseEntity.ok(personnelRepo.findByActifTrue());
+        List<User> comptes = personnelCompteService.comptes();
+        return ResponseEntity.ok(personnelRepo.findByActifTrue().stream()
+                .filter(p -> !personnelCompteService.aUnCompte(p, comptes))
+                .collect(java.util.stream.Collectors.toList()));
     }
 
     @GetMapping("/personnels/all")
