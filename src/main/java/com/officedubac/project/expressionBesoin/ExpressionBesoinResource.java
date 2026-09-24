@@ -16,6 +16,7 @@ import java.util.List;
 public class ExpressionBesoinResource {
 
     private final ExpressionBesoinService expressionBesoinService;
+    private final DechargePdfService dechargePdfService;
 
     // ── Agent / Chef de service / CSA / Directeur / Chef comptable / Agent comptable ──
     @PreAuthorize("hasAnyAuthority('CHEF_SERVICE','CSA','DIRECTEUR','CHEF_COMPTABLE','AGENT_COMPTABLE')")
@@ -105,6 +106,20 @@ public class ExpressionBesoinResource {
     @PutMapping("/{id}/traiter")
     public ResponseEntity<ExpressionBesoin> traiter(@PathVariable String id, @Valid @RequestBody TraiterRequest req) {
         return ResponseEntity.ok(expressionBesoinService.traiter(id, req));
+    }
+
+    // Décharge à faire signer par l'agent une fois l'expression traitée
+    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE')")
+    @GetMapping("/{id}/decharge.pdf")
+    public ResponseEntity<byte[]> decharge(@PathVariable String id) {
+        ExpressionBesoin eb = expressionBesoinService.getById(id);
+        if (eb.getStatut() != ExpressionBesoin.Statut.TRAITEE)
+            throw new RuntimeException("La décharge n'est disponible qu'une fois l'expression traitée");
+        byte[] pdf = dechargePdfService.generer(eb);
+        return ResponseEntity.ok()
+                .header("Content-Disposition", "attachment; filename=\"decharge_" + id + ".pdf\"")
+                .contentType(MediaType.APPLICATION_PDF)
+                .body(pdf);
     }
 
     @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','ADMIN')")
