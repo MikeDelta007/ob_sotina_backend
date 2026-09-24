@@ -40,7 +40,19 @@ public class PersonnelResource {
     // Toutes les divisions (actives et inactives) — pour l'écran de gestion
     @GetMapping("/divisions/all")
     public ResponseEntity<List<Division>> getAllDivisions() {
-        return ResponseEntity.ok(divisionRepo.findAll());
+        List<Division> divisions = divisionRepo.findAll();
+        divisions.forEach(d -> {
+            if (d.getChefServiceId() != null) {
+                userRepository.findById(d.getChefServiceId()).ifPresent(u -> {
+                    String nom = u.getPersonnel() != null
+                            ? ((u.getPersonnel().getFirstname() != null ? u.getPersonnel().getFirstname() : "") + " "
+                               + (u.getPersonnel().getLastname() != null ? u.getPersonnel().getLastname() : "")).trim()
+                            : "";
+                    d.setChefServiceNom(nom.isEmpty() ? u.getLogin() : nom);
+                });
+            }
+        });
+        return ResponseEntity.ok(divisions);
     }
 
     @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR')")

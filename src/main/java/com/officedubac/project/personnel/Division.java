@@ -25,6 +25,10 @@ public class Division {
 
     private boolean actif = true;
 
+    // Nom du chef, calculé à la lecture (non stocké) pour l'affichage de la liste des divisions
+    @org.springframework.data.annotation.Transient
+    private String chefServiceNom;
+
     @CreatedDate
     private LocalDateTime dateCreation;
     @LastModifiedDate
