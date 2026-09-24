@@ -137,6 +137,7 @@ public class AuthenticationServiceImpl implements AuthenticationService {
             usergoToFront.setState_account(users.isState_account());
             usergoToFront.setFirst_connexion(users.isFirst_connexion());
             usergoToFront.setId(users.getId());
+            usergoToFront.setDroitsSupplementaires(users.getDroitsSupplementaires());
 
             Profil profils = profilRepository.findById(users.getProfil().getId()).orElse(null);
             usergoToFront.setProfil(profils);

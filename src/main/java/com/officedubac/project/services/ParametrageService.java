@@ -655,6 +655,14 @@ public class ParametrageService
         return profilRepository.save(prf);
     }
 
+    // Ne garde que des noms de rôle valides, sans doublon.
+    private List<String> filtrerDroits(List<String> droits) {
+        java.util.Set<String> valides = new java.util.HashSet<>();
+        for (Role r : Role.values()) valides.add(r.name());
+        valides.add("TICKET_RESTAURANT"); // droit d'accès au module Ticket restaurant
+        return droits.stream().filter(valides::contains).distinct().collect(Collectors.toList());
+    }
+
     public User createUser(UserDTO userDTO, boolean send_access_smtp) throws MessagingException
     {
         log.info(String.valueOf(send_access_smtp));
@@ -688,6 +696,7 @@ public class ParametrageService
                 .acteur(userDTO.getActeur())
                 .profil(prf)
                 .state_account(userDTO.isState_account())
+                .droitsSupplementaires(userDTO.getDroitsSupplementaires() != null ? filtrerDroits(userDTO.getDroitsSupplementaires()) : null)
                 .personnel(personnel)
                 .build();
 
@@ -783,6 +792,7 @@ public class ParametrageService
                 .acteur(dto.getActeur())
                 .profil(prf)
                 .state_account(dto.isState_account())
+                .droitsSupplementaires(dto.getDroitsSupplementaires() != null ? filtrerDroits(dto.getDroitsSupplementaires()) : null)
                 .personnel(personnel)
                 .build();
 
@@ -1370,6 +1380,9 @@ public class ParametrageService
             update_usr.setActeur(userDTO.getActeur());
             update_usr.setProfil(prf);
             update_usr.setState_account(userDTO.isState_account());
+            if (userDTO.getDroitsSupplementaires() != null) {
+                update_usr.setDroitsSupplementaires(filtrerDroits(userDTO.getDroitsSupplementaires()));
+            }
             update_usr.setPersonnel(personnel);
             return userRepository.save(update_usr);
         }

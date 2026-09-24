@@ -22,4 +22,5 @@ public class UserGoToFrontDTO
     private Profil profil;
     private Acteurs acteur;
     private Personnel personnel;
+    private java.util.List<String> droitsSupplementaires;
 }

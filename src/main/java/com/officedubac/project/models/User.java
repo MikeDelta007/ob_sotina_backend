@@ -30,6 +30,12 @@ public class User implements UserDetails
     private Acteurs acteur;
     private Profil profil;
 
+    // Rôles supplémentaires, en plus du rôle principal (profil) : un même agent peut cumuler
+    // plusieurs rôles (ex. agent informatique ET ADMIN, chef de la pédagogie ET PEDAGOGIE +
+    // CHEF_SERVICE). Ils donnent accès aux menus/pages/API de ces rôles ; le rôle principal
+    // reste celui affiché et utilisé pour le circuit de départ des demandes de congé.
+    private List<String> droitsSupplementaires;
+
     // Identité + informations personnel/RH, portées par Personnel (embarqué, pas de @DBRef —
     // même convention qu'acteur). Permet à un chauffeur externe sans compte d'exister comme un
     // Personnel autonome (voir com.officedubac.project.personnel.PersonnelRepository).
@@ -37,7 +43,14 @@ public class User implements UserDetails
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority(profil.getName().name()));
+        List<GrantedAuthority> authorities = new java.util.ArrayList<>();
+        authorities.add(new SimpleGrantedAuthority(profil.getName().name()));
+        if (droitsSupplementaires != null) {
+            droitsSupplementaires.stream().distinct()
+                    .filter(d -> !d.equals(profil.getName().name()))
+                    .forEach(d -> authorities.add(new SimpleGrantedAuthority(d)));
+        }
+        return authorities;
     }
 
     @Override

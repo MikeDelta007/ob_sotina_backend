@@ -26,6 +26,8 @@ public class UserDTO {
     private boolean state_account;
     private Profil profil;
     private Acteurs acteur;
+    // null = inchangé
+    private java.util.List<String> droitsSupplementaires;
 
     // ── Informations personnel/RH ──
     private String bank;

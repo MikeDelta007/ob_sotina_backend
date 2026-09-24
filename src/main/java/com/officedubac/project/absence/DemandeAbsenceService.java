@@ -70,7 +70,10 @@ public class DemandeAbsenceService {
 
     private StatutAbsence statutDepart(User demandeur) {
         Role role = demandeur.getProfil() != null ? demandeur.getProfil().getName() : null;
-        if (role == Role.CSA || role == Role.DIRECTEUR || role == Role.ADMIN) {
+        // Seuls CSA/Directeur démarrent directement au CSA. Un agent ADMIN (ex. service
+        // informatique) suit son chef de division comme tout autre agent — s'il n'a pas de chef,
+        // le contrôle ci-dessous l'envoie de toute façon au CSA.
+        if (role == Role.CSA || role == Role.DIRECTEUR) {
             return StatutAbsence.EN_ATTENTE_CSA;
         }
         Division division = demandeur.getPersonnel().getDivision() != null
@@ -83,6 +86,11 @@ public class DemandeAbsenceService {
             return StatutAbsence.EN_ATTENTE_CSA;
         }
         return StatutAbsence.EN_ATTENTE_CHEF;
+    }
+
+    // Vrai si l'utilisateur est chef d'au moins une division active (indépendamment de son rôle).
+    private boolean estChefDeDivision(User user) {
+        return divisionRepo.findByActifTrue().stream().anyMatch(d -> user.getId().equals(d.getChefServiceId()));
     }
 
     public List<DemandeAbsence> mesDemandes(TypeAbsence type) {
@@ -100,7 +108,7 @@ public class DemandeAbsenceService {
         if (role == Role.DIRECTEUR) {
             return demandeRepo.findByStatutAndTypeOrderByDateCreationDesc(StatutAbsence.EN_ATTENTE_DIRECTEUR, type);
         }
-        if (role == Role.ADMIN) {
+        if (role == Role.ADMIN && !estChefDeDivision(user)) {
             return demandeRepo.findByTypeOrderByDateCreationDesc(type).stream()
                     .filter(d -> d.getStatut() == StatutAbsence.EN_ATTENTE_CHEF
                             || d.getStatut() == StatutAbsence.EN_ATTENTE_CSA
@@ -148,7 +156,7 @@ public class DemandeAbsenceService {
                     .filter(d -> d.isValidationCsa() || d.isRejetCsa())
                     .collect(Collectors.toList());
         }
-        if (role == Role.DIRECTEUR || role == Role.ADMIN) {
+        if (role == Role.DIRECTEUR || (role == Role.ADMIN && !estChefDeDivision(user))) {
             return demandeRepo.findByTypeOrderByDateCreationDesc(type).stream()
                     .filter(d -> d.getStatut() == StatutAbsence.VALIDEE || d.getStatut() == StatutAbsence.REJETEE)
                     .collect(Collectors.toList());

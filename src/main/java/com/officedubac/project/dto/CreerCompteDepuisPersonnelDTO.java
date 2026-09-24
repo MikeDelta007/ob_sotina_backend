@@ -21,4 +21,5 @@ public class CreerCompteDepuisPersonnelDTO {
     private boolean state_account;
     private Profil profil;
     private Acteurs acteur;
+    private java.util.List<String> droitsSupplementaires;
 }
