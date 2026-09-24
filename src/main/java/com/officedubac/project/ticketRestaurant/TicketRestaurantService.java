@@ -27,6 +27,7 @@ public class TicketRestaurantService {
     private final UserRepository userRepository;
     private final PersonnelRepository personnelRepository;
     private final ExpressionBesoinRepository expressionBesoinRepo;
+    private final com.officedubac.project.caisseAvance.MotifRepository motifRepository;
 
     // ═══════════════════════════════════════════════════════════════
     // CRÉATION (chef de service / Directeur / Admin)
@@ -126,6 +127,7 @@ public class TicketRestaurantService {
         // validée (la validation du Directeur ici en tient lieu), prête pour le traitement
         // comptable puis le mandatement/décaissement — comme n'importe quelle autre dépense.
         ExpressionBesoin eb = ExpressionBesoin.builder()
+                .motifId(motifTicketRestaurant().getId())
                 .motifLibelle("Ticket restaurant")
                 .montantInitial(ticket.getMontantTotal())
                 .prixUnitaire(TicketRestaurant.montantParJour())
@@ -185,23 +187,28 @@ public class TicketRestaurantService {
     }
 
     // ── Utilitaires ──
-    private String resoudreNomAgent(String agentId) {
-        User user = userRepository.findById(agentId).orElse(null);
-        if (user != null) return nomComplet(user);
-
-        Personnel personnel = personnelRepository.findById(agentId)
+    private Personnel resoudrePersonnel(String agentId) {
+        return personnelRepository.findById(agentId)
                 .orElseThrow(() -> new RuntimeException("Agent introuvable : " + agentId));
-        String nom = ((personnel.getFirstname() != null ? personnel.getFirstname() : "") + " "
-                + (personnel.getLastname() != null ? personnel.getLastname() : "")).trim();
+    }
+
+    private String resoudreNomAgent(String agentId) {
+        Personnel p = resoudrePersonnel(agentId);
+        String nom = ((p.getFirstname() != null ? p.getFirstname() : "") + " "
+                + (p.getLastname() != null ? p.getLastname() : "")).trim();
         return nom.isEmpty() ? "—" : nom;
     }
 
     private String resoudreServiceAgent(String agentId) {
-        Personnel p = userRepository.findById(agentId)
-                .map(User::getPersonnel)
-                .orElseGet(() -> personnelRepository.findById(agentId).orElse(null));
-        if (p == null || p.getDivision() == null || p.getDivision().getLibelle() == null) return "—";
+        Personnel p = resoudrePersonnel(agentId);
+        if (p.getDivision() == null || p.getDivision().getLibelle() == null) return "—";
         return p.getDivision().getLibelle();
+    }
+
+    private com.officedubac.project.caisseAvance.Motif motifTicketRestaurant() {
+        return motifRepository.findFirstByLibelleAndSystemeTrue("Ticket restaurant")
+                .orElseGet(() -> motifRepository.save(com.officedubac.project.caisseAvance.Motif.builder()
+                        .libelle("Ticket restaurant").actif(true).systeme(true).build()));
     }
 
     private String nomComplet(User u) {

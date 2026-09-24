@@ -5,4 +5,7 @@ import java.util.List;
 
 public interface MotifRepository extends MongoRepository<Motif, String> {
     List<Motif> findByActifTrue();
+    List<Motif> findByActifTrueAndSystemeFalse();
+    List<Motif> findBySystemeFalse();
+    java.util.Optional<Motif> findFirstByLibelleAndSystemeTrue(String libelle);
 }

@@ -176,22 +176,10 @@ public class PersonnelResource {
     // est chef de service — utilisé par l'écran des demandes d'autorisation d'absence pour
     // lister l'équipe d'un chef. On s'appuie sur Personnel (le référentiel du personnel), pas
     // sur User, pour couvrir aussi les agents sans compte.
-    // Tout le personnel proposable (liste des agents d'un ticket restaurant, etc.) : les comptes
-    // (id = User) puis les fiches Personnel qui n'ont pas de compte (id = Personnel).
+    // Tout le personnel (fiches Personnel actives) : liste des agents d'un ticket restaurant.
     @GetMapping("/tous-agents")
     public ResponseEntity<List<Personnel>> tousLesAgents() {
-        List<User> comptes = personnelCompteService.comptes();
-        List<Personnel> agents = new ArrayList<>();
-        for (User u : comptes) {
-            Personnel p = u.getPersonnel();
-            if (p != null && p.getFirstname() != null && u.isState_account()) {
-                p.setId(u.getId());
-                agents.add(p);
-            }
-        }
-        personnelRepo.findByActifTrue().stream()
-                .filter(p -> !personnelCompteService.aUnCompte(p, comptes))
-                .forEach(agents::add);
+        List<Personnel> agents = new ArrayList<>(personnelRepo.findByActifTrue());
         agents.sort(java.util.Comparator.comparing(a -> ((a.getLastname() != null ? a.getLastname() : "") + " " + (a.getFirstname() != null ? a.getFirstname() : "")).toUpperCase()));
         return ResponseEntity.ok(agents);
     }
