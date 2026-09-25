@@ -16,7 +16,9 @@ import org.springframework.web.bind.annotation.RestController;
 // l'utilisateur connecté — les méthodes de service réutilisées (aValider, getAValider,
 // getATraiter) filtrent déjà selon son rôle.
 @RestController
-@RequestMapping("/api/v1/notifications")
+// Hors de /api/v1/notifications/** : ce chemin est en permitAll dans SecurityConfig (hérité), ce qui
+// ferait répondre 500 (et non 401/403) à une requête sans jeton.
+@RequestMapping("/api/v1/menu")
 @RequiredArgsConstructor
 @PreAuthorize("isAuthenticated()")
 public class NotificationCountsResource {
@@ -24,7 +26,7 @@ public class NotificationCountsResource {
     private final DemandeAbsenceService demandeAbsenceService;
     private final ExpressionBesoinService expressionBesoinService;
 
-    @GetMapping("/counts")
+    @GetMapping("/notification-counts")
     public ResponseEntity<NotificationCounts> counts() {
         int conges = demandeAbsenceService.aValider(TypeAbsence.CONGE).size();
         int absences = demandeAbsenceService.aValider(TypeAbsence.AUTORISATION).size();
