@@ -66,7 +66,7 @@ public class CaisseAvanceResource {
     // ── Motifs ──
     @GetMapping("/motifs")
     public ResponseEntity<List<Motif>> getMotifs() {
-        return ResponseEntity.ok(motifRepo.findByActifTrueAndSystemeFalse());
+        return ResponseEntity.ok(motifRepo.findByActifTrueAndSystemeNot(true));
     }
 
     // Motifs proposés au décaissement : ceux de la création, plus les motifs réservés à un module
@@ -78,7 +78,7 @@ public class CaisseAvanceResource {
     // Tous les motifs (actifs et inactifs) — pour l'écran de gestion admin
     @GetMapping("/motifs/all")
     public ResponseEntity<List<Motif>> getAllMotifs() {
-        return ResponseEntity.ok(motifRepo.findBySystemeFalse());
+        return ResponseEntity.ok(motifRepo.findBySystemeNot(true));
     }
 
     // Motifs : CRUD ouvert aux comptables ainsi qu'au CSA et au Directeur
