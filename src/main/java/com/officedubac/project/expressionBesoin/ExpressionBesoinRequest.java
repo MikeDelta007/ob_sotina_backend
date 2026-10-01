@@ -15,6 +15,9 @@ public class ExpressionBesoinRequest {
     private String motifId;
     private String motifLibelle;
 
+    // Facultative : précision libre en plus du motif
+    private String description;
+
     // Optionnelle : certaines désignations ne sont pas quantitatives
     @Positive
     private Integer quantite;

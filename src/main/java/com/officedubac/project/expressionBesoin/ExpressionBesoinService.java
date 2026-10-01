@@ -57,6 +57,7 @@ public class ExpressionBesoinService {
         ExpressionBesoin eb = ExpressionBesoin.builder()
                 .motifId(req.getMotifId())
                 .motifLibelle(req.getMotifLibelle())
+                .description(req.getDescription())
                 .quantite(req.getQuantite())
                 .prixUnitaire(req.getPrixUnitaire())
                 .montantInitial(montant)
@@ -101,6 +102,7 @@ public class ExpressionBesoinService {
 
         eb.setMotifId(req.getMotifId());
         eb.setMotifLibelle(req.getMotifLibelle());
+        eb.setDescription(req.getDescription());
         eb.setQuantite(req.getQuantite());
         eb.setPrixUnitaire(req.getPrixUnitaire());
         eb.setMontantInitial(montantLigne(req.getPrixUnitaire(), req.getQuantite()));

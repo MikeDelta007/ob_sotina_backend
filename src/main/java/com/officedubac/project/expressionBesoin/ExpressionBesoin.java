@@ -24,6 +24,8 @@ public class ExpressionBesoin {
     // Réutilise les mêmes motifs que la caisse d'avance
     private String motifId;
     private String motifLibelle;
+    // Facultative : précision libre en plus du motif (ex. "Papier A4 pour le service X")
+    private String description;
     // Optionnelle : certaines désignations ne sont pas quantitatives (ex. un forfait)
     private Integer quantite;
     private BigDecimal prixUnitaire;
