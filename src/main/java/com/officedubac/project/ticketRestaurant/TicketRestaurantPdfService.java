@@ -117,6 +117,9 @@ public class TicketRestaurantPdfService {
             doc.add(total);
             Paragraph montantAPayer = new Paragraph("Montant à payer : " + fmt(ticket.getMontantTotal()) + " FCFA", fBold11);
             doc.add(montantAPayer);
+            Paragraph montantLettrePara = new Paragraph(
+                    "Facture arrêtée à la somme de " + nombreEnLettres(ticket.getMontantTotal().longValue()), fBold11);
+            doc.add(montantLettrePara);
 
             doc.add(new Paragraph(" ", fNorm11));
             doc.add(new Paragraph(" ", fNorm11));
@@ -136,22 +139,23 @@ public class TicketRestaurantPdfService {
                     : LocalDate.now().format(DATE_COURTE);
             addCelluleSignature(sig, new Paragraph("Fait à Dakar, le " + dateTexte, fNorm11));
             addCelluleSignature(sig, new Paragraph("Le Responsable", fBold11));
-            addCelluleSignature(sig, new Paragraph(
-                    ticket.getCreeParNom() != null ? ticket.getCreeParNom() : ticket.getCreePar(), fBold11));
-            // Espace laissé libre pour le cachet et la signature du demandeur
+            // Espace vierge, assez grand pour un cachet, laissé libre pour le cachet et la
+            // signature du demandeur — sans libellé, pour ne pas gêner l'apposition du cachet.
             PdfPCell espace = new PdfPCell(new Phrase(" ", fNorm11));
             espace.setBorder(0);
-            espace.setFixedHeight(90f);
+            espace.setFixedHeight(130f);
             sig.addCell(espace);
+            addCelluleSignature(sig, new Paragraph(
+                    ticket.getCreeParNom() != null ? ticket.getCreeParNom() : ticket.getCreePar(), fBold11));
             doc.add(sig);
 
             doc.add(new Paragraph(" ", fNorm11));
             doc.add(new Paragraph(" ", fNorm11));
-            Font fItalic9 = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 9);
+            Font fBold12 = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12);
             Paragraph consigne = new Paragraph(
-                    "Cette fiche est à transmettre obligatoirement au Responsable du Restaurant de l'Amicale "
+                    "NB : Cette fiche est à transmettre obligatoirement au Responsable du Restaurant de l'Amicale "
                             + "et au Chef de service de la comptabilité.",
-                    fItalic9);
+                    fBold12);
             doc.add(consigne);
 
             doc.close();
@@ -172,6 +176,43 @@ public class TicketRestaurantPdfService {
 
     private String fmt(java.math.BigDecimal n) {
         return String.format("%,.0f", n).replace(",", " ");
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // Conversion nombre → lettres (FCFA) — même logique que DecaissementPdfService
+    // ══════════════════════════════════════════════════════════════════
+    private String nombreEnLettres(long n) {
+        if (n == 0) return "Zéro";
+        return capitaliser(convertir(n)) + " Francs CFA";
+    }
+
+    private String convertir(long n) {
+        if (n < 0)  return "moins " + convertir(-n);
+        if (n == 0) return "";
+        if (n < 17) return new String[]{
+            "","un","deux","trois","quatre","cinq","six","sept","huit",
+            "neuf","dix","onze","douze","treize","quatorze","quinze","seize"}[(int)n];
+        if (n < 20) return "dix-" + convertir(n - 10);
+        if (n < 30) return "vingt" + (n > 20 ? "-" + convertir(n - 20) : "");
+        if (n < 40) return "trente" + (n > 30 ? "-" + convertir(n - 30) : "");
+        if (n < 50) return "quarante" + (n > 40 ? "-" + convertir(n - 40) : "");
+        if (n < 60) return "cinquante" + (n > 50 ? "-" + convertir(n - 50) : "");
+        if (n < 70) return "soixante" + (n > 60 ? "-" + convertir(n - 60) : "");
+        if (n < 80) return "soixante-" + convertir(n - 60);
+        if (n < 100) return "quatre-vingt" + (n == 80 ? "s" : "-" + convertir(n - 80));
+        if (n < 200) return "cent" + (n > 100 ? " " + convertir(n - 100) : "");
+        if (n < 1_000) return convertir(n / 100) + " cent" + (n % 100 == 0 ? "s" : " " + convertir(n % 100));
+        if (n < 2_000) return "mille" + (n > 1_000 ? " " + convertir(n - 1_000) : "");
+        if (n < 1_000_000) return convertir(n / 1_000) + " mille" + (n % 1_000 != 0 ? " " + convertir(n % 1_000) : "");
+        if (n < 1_000_000_000) return convertir(n / 1_000_000) + " million" + (n / 1_000_000 > 1 ? "s" : "")
+                + (n % 1_000_000 != 0 ? " " + convertir(n % 1_000_000) : "");
+        return convertir(n / 1_000_000_000) + " milliard" + (n / 1_000_000_000 > 1 ? "s" : "")
+                + (n % 1_000_000_000 != 0 ? " " + convertir(n % 1_000_000_000) : "");
+    }
+
+    private String capitaliser(String s) {
+        if (s == null || s.isEmpty()) return s;
+        return Character.toUpperCase(s.charAt(0)) + s.substring(1);
     }
 
     private void addEntete(PdfPTable table, String texte, Font font) {

@@ -77,6 +77,13 @@ public class ExpressionBesoinResource {
         return ResponseEntity.ok(expressionBesoinService.getRejetees());
     }
 
+    // Vue consolidée (tous statuts) des EB ≤ seuil, qui ne relèvent jamais du Directeur
+    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR','ASSISTANTE_DIRECTEUR')")
+    @GetMapping("/montant-reduit")
+    public ResponseEntity<List<ExpressionBesoin>> getMontantReduit() {
+        return ResponseEntity.ok(expressionBesoinService.getMontantReduit());
+    }
+
     @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR','ASSISTANTE_DIRECTEUR')")
     @PutMapping("/{id}/valider")
     public ResponseEntity<ExpressionBesoin> valider(@PathVariable String id, @RequestBody(required = false) ValiderRequest req) {

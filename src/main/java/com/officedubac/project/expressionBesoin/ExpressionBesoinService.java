@@ -401,6 +401,15 @@ public class ExpressionBesoinService {
                 .toList();
     }
 
+    // Vue consolidée, tous statuts confondus, des EB qui ne relèvent jamais du Directeur
+    // (montant ≤ seuil) — pratique pour les distinguer d'un coup d'œil de celles qu'il valide.
+    public List<ExpressionBesoin> getMontantReduit() {
+        return expressionBesoinRepo.findAll().stream()
+                .filter(eb -> eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) <= 0)
+                .sorted(java.util.Comparator.comparing(ExpressionBesoin::getDateCreation).reversed())
+                .toList();
+    }
+
     public List<ExpressionBesoin> getATraiter() {
         return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.VALIDEE);
     }
