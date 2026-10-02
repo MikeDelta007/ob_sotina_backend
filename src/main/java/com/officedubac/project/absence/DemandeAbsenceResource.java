@@ -31,23 +31,23 @@ public class DemandeAbsenceResource {
     // ── Motifs d'absence (liste prédéfinie pour une AUTORISATION) ──
     @GetMapping("/motifs")
     public ResponseEntity<List<MotifAbsence>> getMotifs() {
-        return ResponseEntity.ok(motifAbsenceRepo.findByActifTrue());
+        return ResponseEntity.ok(motifAbsenceRepo.findByActifTrueOrderByLibelleAsc());
     }
 
     // Tous les motifs (actifs et inactifs) — pour l'écran de gestion
     @GetMapping("/motifs/all")
     public ResponseEntity<List<MotifAbsence>> getAllMotifs() {
-        return ResponseEntity.ok(motifAbsenceRepo.findAll());
+        return ResponseEntity.ok(motifAbsenceRepo.findByOrderByLibelleAsc());
     }
 
-    @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR','CHEF_COMPTABLE')")
     @PostMapping("/motifs")
     public ResponseEntity<MotifAbsence> creerMotif(@RequestBody MotifAbsence motif) {
         motif.setActif(true);
         return ResponseEntity.ok(motifAbsenceRepo.save(motif));
     }
 
-    @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR','CHEF_COMPTABLE')")
     @PutMapping("/motifs/{id}")
     public ResponseEntity<MotifAbsence> modifierMotif(@PathVariable String id, @RequestBody MotifAbsence req) {
         MotifAbsence motif = motifAbsenceRepo.findById(id)
@@ -57,7 +57,7 @@ public class DemandeAbsenceResource {
         return ResponseEntity.ok(motifAbsenceRepo.save(motif));
     }
 
-    @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR','CHEF_COMPTABLE')")
     @DeleteMapping("/motifs/{id}")
     public ResponseEntity<Void> supprimerMotif(@PathVariable String id) {
         motifAbsenceRepo.findById(id).ifPresent(m -> { m.setActif(false); motifAbsenceRepo.save(m); });
@@ -97,7 +97,7 @@ public class DemandeAbsenceResource {
     }
 
     // Télécharger le PDF d'une autorisation d'absence validée
-    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR','ADMIN')")
+    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR','ASSISTANTE_DIRECTEUR','ADMIN')")
     @GetMapping("/{id}/autorisation.pdf")
     public void telechargerAutorisation(@PathVariable String id, HttpServletResponse response) throws IOException {
         DemandeAbsence demande = demandeAbsenceRepository.findById(id)

@@ -4,5 +4,6 @@ import org.springframework.data.mongodb.repository.MongoRepository;
 import java.util.List;
 
 public interface MotifAbsenceRepository extends MongoRepository<MotifAbsence, String> {
-    List<MotifAbsence> findByActifTrue();
+    List<MotifAbsence> findByActifTrueOrderByLibelleAsc();
+    List<MotifAbsence> findByOrderByLibelleAsc();
 }

@@ -198,6 +198,15 @@ public class PersonnelResource {
 
     @GetMapping("/mes-agents")
     public ResponseEntity<List<Personnel>> mesAgents() {
+        // Le CSA, le Directeur et l'Assistante Directeur supervisent l'ensemble du personnel, pas
+        // seulement l'équipe d'une division dont ils seraient chef : ils voient donc tout le personnel ici.
+        boolean estCsaOuDirecteur = SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                .anyMatch(a -> "CSA".equals(a.getAuthority()) || "DIRECTEUR".equals(a.getAuthority())
+                        || "ASSISTANTE_DIRECTEUR".equals(a.getAuthority()));
+        if (estCsaOuDirecteur) {
+            return tousLesAgents();
+        }
+
         String login = SecurityContextHolder.getContext().getAuthentication().getName();
         User chef = userRepository.findByLogin(login).orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
 

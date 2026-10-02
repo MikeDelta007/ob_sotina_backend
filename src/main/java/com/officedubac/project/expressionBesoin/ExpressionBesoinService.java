@@ -37,6 +37,9 @@ public class ExpressionBesoinService {
 
     // Au-delà de ce montant, la validation du Directeur est requise en plus de celle du CSA
     private static final BigDecimal SEUIL_VALIDATION_DIRECTEUR = BigDecimal.valueOf(20_000);
+    // En dessous de ce montant, le paiement se fait en espèces depuis la caisse d'avance
+    // (au-delà, par chèque — cf. MandatementService.SEUIL_CHEQUE)
+    private static final BigDecimal SEUIL_PAIEMENT_ESPECES = BigDecimal.valueOf(100_000);
 
     // ═══════════════════════════════════════════════════════════════
     // CRÉATION / MODIFICATION (chef de service)
@@ -169,6 +172,8 @@ public class ExpressionBesoinService {
         if (eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) > 0) {
             userRepository.findByProfilName(Role.DIRECTEUR)
                     .forEach(u -> whatsAppService.envoyerNotificationValidation(u.getPersonnel().getPhone()));
+            userRepository.findByProfilName(Role.ASSISTANTE_DIRECTEUR)
+                    .forEach(u -> whatsAppService.envoyerNotificationValidation(u.getPersonnel().getPhone()));
         }
     }
 
@@ -181,15 +186,10 @@ public class ExpressionBesoinService {
         if (eb.getStatut() != ExpressionBesoin.Statut.EN_ATTENTE)
             throw new RuntimeException("Cette expression de besoin n'est plus en attente de validation");
 
-        // Le montant initial ne doit jamais dépasser le solde disponible de la caisse
-        if (!caisseService.soldeSuffisant(eb.getMontantInitial()))
-            throw new RuntimeException("Le montant initial (" + eb.getMontantInitial()
-                    + ") dépasse le solde de la caisse. Validation impossible tant que la caisse n'est pas approvisionnée.");
-
         User validateur = userRepository.findByLogin(getUsername())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         boolean estCsa = hasAuthority("CSA");
-        boolean estDirecteur = hasAuthority("DIRECTEUR");
+        boolean estDirecteur = hasAuthority("DIRECTEUR") || hasAuthority("ASSISTANTE_DIRECTEUR");
         if (!estCsa && !estDirecteur)
             throw new RuntimeException("Rôle non autorisé à valider une expression de besoin");
 
@@ -202,6 +202,14 @@ public class ExpressionBesoinService {
             if (estDirecteur) eb.setQuantiteAccordeeDirecteur(req.getQuantiteAccordee());
         }
         recalculerMontant(eb);
+
+        // Un montant sous le seuil chèque (100 000) se paie en espèces, directement depuis
+        // la caisse d'avance : son solde doit donc pouvoir le couvrir. Au-delà, le paiement
+        // se fait par chèque et ne touche pas la caisse — aucune vérification nécessaire.
+        if (eb.getMontantInitial().compareTo(SEUIL_PAIEMENT_ESPECES) < 0
+                && !caisseService.soldeSuffisant(eb.getMontantInitial()))
+            throw new RuntimeException("Le montant (" + eb.getMontantInitial()
+                    + ") dépasse le solde de la caisse. Validation impossible tant que la caisse n'est pas approvisionnée.");
 
         if (estCsa) {
             eb.setValidationCsa(true);
@@ -252,7 +260,7 @@ public class ExpressionBesoinService {
         User rejetant = userRepository.findByLogin(getUsername())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
         boolean estCsa = hasAuthority("CSA");
-        boolean estDirecteur = hasAuthority("DIRECTEUR");
+        boolean estDirecteur = hasAuthority("DIRECTEUR") || hasAuthority("ASSISTANTE_DIRECTEUR");
         if (!estCsa && !estDirecteur)
             throw new RuntimeException("Rôle non autorisé à rejeter une expression de besoin");
 
@@ -360,7 +368,7 @@ public class ExpressionBesoinService {
     // un CSA qui a déjà validé un dossier (encore EN_ATTENTE du Directeur) ne doit plus le voir ici.
     public List<ExpressionBesoin> getAValider() {
         boolean estCsa = hasAuthority("CSA");
-        boolean estDirecteur = hasAuthority("DIRECTEUR");
+        boolean estDirecteur = hasAuthority("DIRECTEUR") || hasAuthority("ASSISTANTE_DIRECTEUR");
         return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.EN_ATTENTE).stream()
                 .filter(eb -> {
                     boolean directeurRequis = eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) > 0;
@@ -380,7 +388,7 @@ public class ExpressionBesoinService {
     // soient définitivement validés, ou déjà traités par la comptabilité).
     public List<ExpressionBesoin> getValidees() {
         boolean estCsa = hasAuthority("CSA");
-        boolean estDirecteur = hasAuthority("DIRECTEUR");
+        boolean estDirecteur = hasAuthority("DIRECTEUR") || hasAuthority("ASSISTANTE_DIRECTEUR");
         return expressionBesoinRepo.findAll().stream()
                 .filter(eb -> eb.getStatut() != ExpressionBesoin.Statut.REJETEE)
                 .filter(eb -> (estCsa && eb.isValidationCsa()) || (estDirecteur && eb.isValidationDirecteur()))

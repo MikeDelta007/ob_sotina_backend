@@ -663,6 +663,8 @@ public class ParametrageService
         java.util.Set<String> valides = new java.util.HashSet<>();
         for (Role r : Role.values()) valides.add(r.name());
         valides.add("TICKET_RESTAURANT"); // droit d'accès au module Ticket restaurant
+        valides.add("TICKET_CARBURANT"); // droit d'accès au module Ticket carburant (seul rôle habilité à demander)
+        valides.add("CHEF_SERVICE_DIPLOME"); // tag utilisé pour filtrer les motifs de ticket restaurant
         return droits.stream().filter(valides::contains).distinct().collect(Collectors.toList());
     }
 

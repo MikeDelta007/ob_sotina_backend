@@ -69,22 +69,29 @@ public class TicketRestaurantPdfService {
             // ══════════════════════
             // TITRE
             // ══════════════════════
-            Paragraph titre = new Paragraph("LISTE TICKETS RESTAURANT", fBold16);
+            Paragraph titre = new Paragraph("GESTION TICKETS RESTAURANT", fBold16);
             titre.setAlignment(Element.ALIGN_CENTER);
             doc.add(titre);
             doc.add(new Paragraph(" ", fNorm11));
 
-            List<LocalDate> dates = ticket.getDates() != null ? ticket.getDates() : new ArrayList<>();
-            Paragraph periode = new Paragraph(
-                    "Dates concernées (" + ticket.getNombreJours() + " jour(s)) : "
-                            + dates.stream().map(d -> d.format(DATE_COURTE)).collect(java.util.stream.Collectors.joining(", ")),
-                    fNorm10);
-            doc.add(periode);
+            Paragraph motifLigne = new Paragraph();
+            motifLigne.add(new Chunk("Motif : ", fBold11));
+            motifLigne.add(new Chunk(ticket.getMotifLibelle() != null ? ticket.getMotifLibelle() : "—", fNorm11));
+            doc.add(motifLigne);
+
+            String dateTicket = ticket.getDateDebut() != null ? ticket.getDateDebut().format(DATE_COURTE) : "—";
+            Paragraph jourLigne = new Paragraph();
+            jourLigne.add(new Chunk("Jour : ", fBold11));
+            jourLigne.add(new Chunk(dateTicket, fNorm11));
+            doc.add(jourLigne);
             doc.add(new Paragraph(" ", fNorm11));
 
             // ══════════════════════
             // TABLEAU DES AGENTS
             // ══════════════════════
+            Paragraph listeTitre = new Paragraph("Liste des concernés", fBold11);
+            doc.add(listeTitre);
+
             PdfPTable table = new PdfPTable(new float[]{8f, 50f, 42f});
             table.setWidthPercentage(100);
             table.setSpacingBefore(6f);
@@ -105,10 +112,11 @@ public class TicketRestaurantPdfService {
 
             doc.add(new Paragraph(" ", fNorm11));
             Paragraph total = new Paragraph(
-                    "Total : " + noms.size() + " agent(s) × " + ticket.getNombreJours()
-                            + " jour(s) × 1500 FCFA = " + fmt(ticket.getMontantTotal()) + " FCFA",
+                    "Total : " + noms.size() + " agent(s) × 1500 FCFA = " + fmt(ticket.getMontantTotal()) + " FCFA",
                     fBold11);
             doc.add(total);
+            Paragraph montantAPayer = new Paragraph("Montant à payer : " + fmt(ticket.getMontantTotal()) + " FCFA", fBold11);
+            doc.add(montantAPayer);
 
             doc.add(new Paragraph(" ", fNorm11));
             doc.add(new Paragraph(" ", fNorm11));
@@ -127,7 +135,7 @@ public class TicketRestaurantPdfService {
                     ? ticket.getDateCreation().toLocalDate().format(DATE_COURTE)
                     : LocalDate.now().format(DATE_COURTE);
             addCelluleSignature(sig, new Paragraph("Fait à Dakar, le " + dateTexte, fNorm11));
-            addCelluleSignature(sig, new Paragraph("Le demandeur", fBold11));
+            addCelluleSignature(sig, new Paragraph("Le Responsable", fBold11));
             addCelluleSignature(sig, new Paragraph(
                     ticket.getCreeParNom() != null ? ticket.getCreeParNom() : ticket.getCreePar(), fBold11));
             // Espace laissé libre pour le cachet et la signature du demandeur
@@ -136,6 +144,15 @@ public class TicketRestaurantPdfService {
             espace.setFixedHeight(90f);
             sig.addCell(espace);
             doc.add(sig);
+
+            doc.add(new Paragraph(" ", fNorm11));
+            doc.add(new Paragraph(" ", fNorm11));
+            Font fItalic9 = FontFactory.getFont(FontFactory.HELVETICA_OBLIQUE, 9);
+            Paragraph consigne = new Paragraph(
+                    "Cette fiche est à transmettre obligatoirement au Responsable du Restaurant de l'Amicale "
+                            + "et au Chef de service de la comptabilité.",
+                    fItalic9);
+            doc.add(consigne);
 
             doc.close();
             return baos.toByteArray();

@@ -66,23 +66,23 @@ public class CaisseAvanceResource {
     // ── Motifs ──
     @GetMapping("/motifs")
     public ResponseEntity<List<Motif>> getMotifs() {
-        return ResponseEntity.ok(motifRepo.findByActifTrueAndSystemeNot(true));
+        return ResponseEntity.ok(motifRepo.findByActifTrueAndSystemeNotOrderByLibelleAsc(true));
     }
 
     // Motifs proposés au décaissement : ceux de la création, plus les motifs réservés à un module
     @GetMapping("/motifs/decaissement")
     public ResponseEntity<List<Motif>> getMotifsDecaissement() {
-        return ResponseEntity.ok(motifRepo.findByActifTrue());
+        return ResponseEntity.ok(motifRepo.findByActifTrueOrderByLibelleAsc());
     }
 
     // Tous les motifs (actifs et inactifs) — pour l'écran de gestion admin
     @GetMapping("/motifs/all")
     public ResponseEntity<List<Motif>> getAllMotifs() {
-        return ResponseEntity.ok(motifRepo.findBySystemeNot(true));
+        return ResponseEntity.ok(motifRepo.findBySystemeNotOrderByLibelleAsc(true));
     }
 
     // Motifs : CRUD ouvert aux comptables ainsi qu'au CSA et au Directeur
-    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','ADMIN','CSA','DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR','CHEF_COMPTABLE')")
     @PostMapping("/motifs")
     public ResponseEntity<Motif> creerMotif(@RequestBody Motif motif) {
         motif.setActif(true);
@@ -90,7 +90,7 @@ public class CaisseAvanceResource {
     }
 
     // Motifs : CRUD ouvert aux comptables ainsi qu'au CSA et au Directeur
-    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','ADMIN','CSA','DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR','CHEF_COMPTABLE')")
     @PutMapping("/motifs/{id}")
     public ResponseEntity<Motif> modifierMotif(@PathVariable String id, @RequestBody Motif req) {
         Motif motif = motifRepo.findById(id)
@@ -102,7 +102,7 @@ public class CaisseAvanceResource {
     }
 
     // Motifs : CRUD ouvert aux comptables ainsi qu'au CSA et au Directeur
-    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','ADMIN','CSA','DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR','CHEF_COMPTABLE')")
     @DeleteMapping("/motifs/{id}")
     public ResponseEntity<Void> supprimerMotif(@PathVariable String id) {
         motifRepo.findById(id).ifPresent(m -> { m.setActif(false); motifRepo.save(m); });

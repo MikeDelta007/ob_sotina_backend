@@ -28,28 +28,20 @@ public class TicketRestaurantService {
     private final PersonnelRepository personnelRepository;
     private final ExpressionBesoinRepository expressionBesoinRepo;
     private final com.officedubac.project.caisseAvance.MotifRepository motifRepository;
+    private final MotifTicketRestaurantRepository motifTicketRestaurantRepository;
 
     // ═══════════════════════════════════════════════════════════════
     // CRÉATION (chef de service / Directeur / Admin)
     // ═══════════════════════════════════════════════════════════════
     public TicketRestaurant creer(TicketRestaurantRequest req) {
-        List<LocalDate> dates = req.getDates().stream().distinct().sorted().collect(java.util.stream.Collectors.toList());
-
-        // Seuls les jours restants de la semaine en cours sont possibles (le week-end : la semaine
-        // suivante). Dates passées et semaines à venir sont refusées.
-        LocalDate premier = LocalDate.now();
-        if (premier.getDayOfWeek() == DayOfWeek.SATURDAY) premier = premier.plusDays(2);
-        else if (premier.getDayOfWeek() == DayOfWeek.SUNDAY) premier = premier.plusDays(1);
-        LocalDate dernier = premier.plusDays(DayOfWeek.FRIDAY.getValue() - premier.getDayOfWeek().getValue());
-        for (LocalDate d : dates) {
-            if (d.getDayOfWeek() == DayOfWeek.SATURDAY || d.getDayOfWeek() == DayOfWeek.SUNDAY) {
-                throw new RuntimeException("Seuls les jours ouvrés (lundi à vendredi) sont possibles : " + d.format(FORMAT_DATE));
-            }
-            if (d.isBefore(premier) || d.isAfter(dernier)) {
-                throw new RuntimeException("Date non autorisée (" + d.format(FORMAT_DATE) + ") : seuls les jours du "
-                        + premier.format(FORMAT_DATE) + " au " + dernier.format(FORMAT_DATE) + " (semaine en cours) peuvent être demandés");
-            }
+        // Un ticket restaurant couvre toujours la journée en cours, jamais une autre date.
+        LocalDate date = LocalDate.now();
+        if (date.getDayOfWeek() == DayOfWeek.SATURDAY || date.getDayOfWeek() == DayOfWeek.SUNDAY) {
+            throw new RuntimeException("Aucune demande de ticket restaurant n'est possible le week-end");
         }
+
+        MotifTicketRestaurant motif = motifTicketRestaurantRepository.findById(req.getMotifId())
+                .orElseThrow(() -> new RuntimeException("Motif introuvable"));
 
         User createur = userRepository.findByLogin(getUsername())
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
@@ -64,21 +56,22 @@ public class TicketRestaurantService {
             agentServices.add(resoudreServiceAgent(agentId));
         }
 
+        List<LocalDate> dates = List.of(date);
         verifierAucunDoublon(agentIds, agentNoms, dates);
 
-        int nombreJours = dates.size();
         BigDecimal montantTotal = TicketRestaurant.montantParJour()
-                .multiply(BigDecimal.valueOf(nombreJours))
                 .multiply(BigDecimal.valueOf(agentIds.size()));
 
         TicketRestaurant ticket = TicketRestaurant.builder()
+                .motifId(motif.getId())
+                .motifLibelle(motif.getLibelle())
                 .dates(dates)
-                .dateDebut(dates.get(0))
-                .dateFin(dates.get(dates.size() - 1))
+                .dateDebut(date)
+                .dateFin(date)
                 .agentIds(agentIds)
                 .agentNoms(agentNoms)
                 .agentServices(agentServices)
-                .nombreJours(nombreJours)
+                .nombreJours(1)
                 .montantTotal(montantTotal)
                 .statut(TicketRestaurant.Statut.EN_ATTENTE)
                 .creePar(createur.getLogin())
@@ -186,6 +179,46 @@ public class TicketRestaurantService {
         return ticketRepo.findAllByOrderByDateCreationDesc();
     }
 
+    // ═══════════════════════════════════════════════════════════════
+    // MOTIFS (liste déroulante à la création) — liste propre au ticket restaurant
+    // ═══════════════════════════════════════════════════════════════
+    // Un compte ne voit, à la création, que les motifs sans rôle assigné (visibles de tous) ou
+    // dont l'un des rôles correspond à son profil/droits supplémentaires — sauf Admin/Directeur,
+    // qui supervisent l'ensemble et voient toujours tout.
+    public List<MotifTicketRestaurant> getMotifs() {
+        if (hasAuthority("ADMIN") || hasAuthority("DIRECTEUR") || hasAuthority("ASSISTANTE_DIRECTEUR")) {
+            return motifTicketRestaurantRepository.findByActifTrueOrderByLibelleAsc();
+        }
+        java.util.Set<String> mesRoles = SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                .map(a -> a.getAuthority())
+                .collect(java.util.stream.Collectors.toSet());
+        return motifTicketRestaurantRepository.findByActifTrueOrderByLibelleAsc().stream()
+                .filter(m -> m.getRoles() == null || m.getRoles().isEmpty()
+                        || m.getRoles().stream().anyMatch(mesRoles::contains))
+                .toList();
+    }
+
+    public List<MotifTicketRestaurant> getAllMotifs() {
+        return motifTicketRestaurantRepository.findByOrderByLibelleAsc();
+    }
+
+    public MotifTicketRestaurant creerMotif(String libelle, List<String> roles) {
+        return motifTicketRestaurantRepository.save(MotifTicketRestaurant.builder().libelle(libelle).roles(roles).actif(true).build());
+    }
+
+    public MotifTicketRestaurant modifierMotif(String id, String libelle, boolean actif, List<String> roles) {
+        MotifTicketRestaurant motif = motifTicketRestaurantRepository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Motif introuvable"));
+        motif.setLibelle(libelle);
+        motif.setActif(actif);
+        motif.setRoles(roles);
+        return motifTicketRestaurantRepository.save(motif);
+    }
+
+    public void supprimerMotif(String id) {
+        motifTicketRestaurantRepository.findById(id).ifPresent(m -> { m.setActif(false); motifTicketRestaurantRepository.save(m); });
+    }
+
     // ── Utilitaires ──
     private Personnel resoudrePersonnel(String agentId) {
         return personnelRepository.findById(agentId)
@@ -215,6 +248,11 @@ public class TicketRestaurantService {
         if (u.getPersonnel() == null) return u.getLogin();
         String nom = (u.getPersonnel().getFirstname() + " " + u.getPersonnel().getLastname()).trim();
         return nom.isEmpty() ? u.getLogin() : nom;
+    }
+
+    private boolean hasAuthority(String authority) {
+        return SecurityContextHolder.getContext().getAuthentication().getAuthorities().stream()
+                .anyMatch(a -> a.getAuthority().equals(authority));
     }
 
     private String getUsername() {

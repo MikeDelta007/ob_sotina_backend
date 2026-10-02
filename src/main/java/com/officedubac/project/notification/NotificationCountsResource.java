@@ -3,6 +3,8 @@ package com.officedubac.project.notification;
 import com.officedubac.project.absence.DemandeAbsenceService;
 import com.officedubac.project.absence.TypeAbsence;
 import com.officedubac.project.expressionBesoin.ExpressionBesoinService;
+import com.officedubac.project.ticketCarburant.TicketCarburantService;
+import com.officedubac.project.ticketRestaurant.TicketRestaurantService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -25,6 +27,8 @@ public class NotificationCountsResource {
 
     private final DemandeAbsenceService demandeAbsenceService;
     private final ExpressionBesoinService expressionBesoinService;
+    private final TicketRestaurantService ticketRestaurantService;
+    private final TicketCarburantService ticketCarburantService;
 
     @GetMapping("/notification-counts")
     public ResponseEntity<NotificationCounts> counts() {
@@ -32,13 +36,23 @@ public class NotificationCountsResource {
         int absences = demandeAbsenceService.aValider(TypeAbsence.AUTORISATION).size();
 
         int expressionBesoin = 0;
-        if (hasAuthority("CSA") || hasAuthority("DIRECTEUR")) {
+        if (hasAuthority("CSA") || hasAuthority("DIRECTEUR") || hasAuthority("ASSISTANTE_DIRECTEUR")) {
             expressionBesoin = expressionBesoinService.getAValider().size();
         } else if (hasAuthority("CHEF_COMPTABLE") || hasAuthority("AGENT_COMPTABLE")) {
             expressionBesoin = expressionBesoinService.getATraiter().size();
         }
 
-        return ResponseEntity.ok(new NotificationCounts(conges, absences, expressionBesoin));
+        int ticketRestaurant = 0;
+        if (hasAuthority("DIRECTEUR") || hasAuthority("ASSISTANTE_DIRECTEUR")) {
+            ticketRestaurant = ticketRestaurantService.getAValider().size();
+        }
+
+        int ticketCarburant = 0;
+        if (hasAuthority("CSA") || hasAuthority("DIRECTEUR") || hasAuthority("ASSISTANTE_DIRECTEUR")) {
+            ticketCarburant = ticketCarburantService.getAValider().size();
+        }
+
+        return ResponseEntity.ok(new NotificationCounts(conges, absences, expressionBesoin, ticketRestaurant, ticketCarburant));
     }
 
     private boolean hasAuthority(String authority) {

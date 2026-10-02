@@ -13,4 +13,6 @@ public class NotificationCounts {
     private int conges;
     private int absences;
     private int expressionBesoin;
+    private int ticketRestaurant;
+    private int ticketCarburant;
 }

@@ -73,7 +73,7 @@ public class DemandeAbsenceService {
         // Seuls CSA/Directeur démarrent directement au CSA. Un agent ADMIN (ex. service
         // informatique) suit son chef de division comme tout autre agent — s'il n'a pas de chef,
         // le contrôle ci-dessous l'envoie de toute façon au CSA.
-        if (role == Role.CSA || role == Role.DIRECTEUR) {
+        if (role == Role.CSA || role == Role.DIRECTEUR || role == Role.ASSISTANTE_DIRECTEUR) {
             return StatutAbsence.EN_ATTENTE_CSA;
         }
         Division division = demandeur.getPersonnel().getDivision() != null
@@ -105,7 +105,7 @@ public class DemandeAbsenceService {
         if (role == Role.CSA) {
             return demandeRepo.findByStatutAndTypeOrderByDateCreationDesc(StatutAbsence.EN_ATTENTE_CSA, type);
         }
-        if (role == Role.DIRECTEUR) {
+        if (role == Role.DIRECTEUR || role == Role.ASSISTANTE_DIRECTEUR) {
             return demandeRepo.findByStatutAndTypeOrderByDateCreationDesc(StatutAbsence.EN_ATTENTE_DIRECTEUR, type);
         }
         if (role == Role.ADMIN && !estChefDeDivision(user)) {
@@ -156,7 +156,7 @@ public class DemandeAbsenceService {
                     .filter(d -> d.isValidationCsa() || d.isRejetCsa())
                     .collect(Collectors.toList());
         }
-        if (role == Role.DIRECTEUR || (role == Role.ADMIN && !estChefDeDivision(user))) {
+        if (role == Role.DIRECTEUR || role == Role.ASSISTANTE_DIRECTEUR || (role == Role.ADMIN && !estChefDeDivision(user))) {
             return demandeRepo.findByTypeOrderByDateCreationDesc(type).stream()
                     .filter(d -> d.getStatut() == StatutAbsence.VALIDEE || d.getStatut() == StatutAbsence.REJETEE)
                     .collect(Collectors.toList());
@@ -220,7 +220,7 @@ public class DemandeAbsenceService {
                 demande.setStatut(StatutAbsence.EN_ATTENTE_DIRECTEUR);
             }
             case EN_ATTENTE_DIRECTEUR -> {
-                if (!hasAuthority("DIRECTEUR")) {
+                if (!hasAuthority("DIRECTEUR") && !hasAuthority("ASSISTANTE_DIRECTEUR")) {
                     throw new RuntimeException("Seul le Directeur peut valider cette demande à cette étape");
                 }
                 demande.setValidationDirecteur(valide);

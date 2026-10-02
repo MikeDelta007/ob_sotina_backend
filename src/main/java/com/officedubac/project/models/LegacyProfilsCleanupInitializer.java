@@ -22,8 +22,10 @@ public class LegacyProfilsCleanupInitializer implements CommandLineRunner {
 
     private final MongoTemplate mongoTemplate;
 
+    // "SCOLARITE" retiré de cette liste : réintroduit dans l'enum Role (Division Scolarité, comme
+    // PEDAGOGIE/PLANIFICATION) — ne plus jamais l'y remettre, ce nettoyage supprimerait les comptes.
     private static final List<String> ROLES_LEGACY = List.of(
-            "FINANCE_COMPTA", "AGENT_DE_SAISIE", "RECEPTIONNISTE", "SCOLARITE", "DEMSG", "INSPECTEUR_ACADEMIE"
+            "FINANCE_COMPTA", "AGENT_DE_SAISIE", "RECEPTIONNISTE", "DEMSG", "INSPECTEUR_ACADEMIE"
     );
 
     @Override

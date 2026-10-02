@@ -22,8 +22,9 @@ public class TicketRestaurantResource {
 
     // Accès réservé aux comptes ayant le droit spécifique "Gère Ticket Restaurant" (accordé au
     // cas par cas par un admin, indépendamment du rôle : plusieurs agents/chefs sont aussi ADMIN,
-    // PEDAGOGIE ou PLANIFICATION, le rôle seul ne permet pas de les distinguer), plus le Directeur.
-    private static final String ROLES = "hasAnyAuthority('TICKET_RESTAURANT','DIRECTEUR')";
+    // PEDAGOGIE ou PLANIFICATION, le rôle seul ne permet pas de les distinguer), plus le Directeur
+    // et l'Assistante Directeur (suppléance permanente du Directeur).
+    private static final String ROLES = "hasAnyAuthority('TICKET_RESTAURANT','DIRECTEUR','ASSISTANTE_DIRECTEUR')";
 
     @PreAuthorize(ROLES)
     @PostMapping
@@ -37,25 +38,25 @@ public class TicketRestaurantResource {
         return ResponseEntity.ok(ticketService.getMesTickets());
     }
 
-    @PreAuthorize("hasAuthority('DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('DIRECTEUR','ASSISTANTE_DIRECTEUR')")
     @GetMapping("/a-valider")
     public ResponseEntity<List<TicketRestaurant>> getAValider() {
         return ResponseEntity.ok(ticketService.getAValider());
     }
 
-    @PreAuthorize("hasAuthority('DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('DIRECTEUR','ASSISTANTE_DIRECTEUR')")
     @GetMapping("/toutes")
     public ResponseEntity<List<TicketRestaurant>> getToutes() {
         return ResponseEntity.ok(ticketService.getToutes());
     }
 
-    @PreAuthorize("hasAuthority('DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('DIRECTEUR','ASSISTANTE_DIRECTEUR')")
     @PutMapping("/{id}/valider")
     public ResponseEntity<TicketRestaurant> valider(@PathVariable String id) {
         return ResponseEntity.ok(ticketService.valider(id));
     }
 
-    @PreAuthorize("hasAuthority('DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('DIRECTEUR','ASSISTANTE_DIRECTEUR')")
     @PutMapping("/{id}/rejeter")
     public ResponseEntity<TicketRestaurant> rejeter(@PathVariable String id, @Valid @RequestBody RejeterTicketRequest req) {
         return ResponseEntity.ok(ticketService.rejeter(id, req.getMotif()));
@@ -71,7 +72,7 @@ public class TicketRestaurantResource {
         // Seul le Directeur voit toutes les demandes ; les autres uniquement les leurs
         String appelant = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication().getName();
         boolean directeur = org.springframework.security.core.context.SecurityContextHolder.getContext().getAuthentication()
-                .getAuthorities().stream().anyMatch(a -> "DIRECTEUR".equals(a.getAuthority()));
+                .getAuthorities().stream().anyMatch(a -> "DIRECTEUR".equals(a.getAuthority()) || "ASSISTANTE_DIRECTEUR".equals(a.getAuthority()));
         if (!directeur && !appelant.equals(ticket.getCreePar())) {
             throw new org.springframework.security.access.AccessDeniedException("Cette demande ne vous appartient pas");
         }
@@ -85,5 +86,38 @@ public class TicketRestaurantResource {
                 + URLEncoder.encode(filename, StandardCharsets.UTF_8).replace("+", "%20"));
         response.setContentLength(pdf.length);
         response.getOutputStream().write(pdf);
+    }
+
+    // ── Motifs (liste déroulante à la création) — liste propre au ticket restaurant ──
+    @PreAuthorize(ROLES)
+    @GetMapping("/motifs")
+    public ResponseEntity<List<MotifTicketRestaurant>> getMotifs() {
+        return ResponseEntity.ok(ticketService.getMotifs());
+    }
+
+    // Tous les motifs (actifs et inactifs) — pour l'écran de gestion
+    @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR','CHEF_COMPTABLE')")
+    @GetMapping("/motifs/all")
+    public ResponseEntity<List<MotifTicketRestaurant>> getAllMotifs() {
+        return ResponseEntity.ok(ticketService.getAllMotifs());
+    }
+
+    @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR','CHEF_COMPTABLE')")
+    @PostMapping("/motifs")
+    public ResponseEntity<MotifTicketRestaurant> creerMotif(@RequestBody MotifTicketRestaurant motif) {
+        return ResponseEntity.ok(ticketService.creerMotif(motif.getLibelle(), motif.getRoles()));
+    }
+
+    @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR','CHEF_COMPTABLE')")
+    @PutMapping("/motifs/{id}")
+    public ResponseEntity<MotifTicketRestaurant> modifierMotif(@PathVariable String id, @RequestBody MotifTicketRestaurant motif) {
+        return ResponseEntity.ok(ticketService.modifierMotif(id, motif.getLibelle(), motif.isActif(), motif.getRoles()));
+    }
+
+    @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR','CHEF_COMPTABLE')")
+    @DeleteMapping("/motifs/{id}")
+    public ResponseEntity<Void> supprimerMotif(@PathVariable String id) {
+        ticketService.supprimerMotif(id);
+        return ResponseEntity.noContent().build();
     }
 }

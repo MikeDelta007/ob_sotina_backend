@@ -59,31 +59,31 @@ public class ExpressionBesoinResource {
     }
 
     // ── CSA / Directeur ──
-    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR','ASSISTANTE_DIRECTEUR')")
     @GetMapping("/a-valider")
     public ResponseEntity<List<ExpressionBesoin>> getAValider() {
         return ResponseEntity.ok(expressionBesoinService.getAValider());
     }
 
-    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR','ASSISTANTE_DIRECTEUR')")
     @GetMapping("/validees")
     public ResponseEntity<List<ExpressionBesoin>> getValidees() {
         return ResponseEntity.ok(expressionBesoinService.getValidees());
     }
 
-    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR','ASSISTANTE_DIRECTEUR')")
     @GetMapping("/rejetees")
     public ResponseEntity<List<ExpressionBesoin>> getRejetees() {
         return ResponseEntity.ok(expressionBesoinService.getRejetees());
     }
 
-    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR','ASSISTANTE_DIRECTEUR')")
     @PutMapping("/{id}/valider")
     public ResponseEntity<ExpressionBesoin> valider(@PathVariable String id, @RequestBody(required = false) ValiderRequest req) {
         return ResponseEntity.ok(expressionBesoinService.valider(id, req != null ? req : new ValiderRequest()));
     }
 
-    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR','ASSISTANTE_DIRECTEUR')")
     @PutMapping("/{id}/rejeter")
     public ResponseEntity<ExpressionBesoin> rejeter(@PathVariable String id, @Valid @RequestBody RejeterRequest req) {
         return ResponseEntity.ok(expressionBesoinService.rejeter(id, req.getMotif()));

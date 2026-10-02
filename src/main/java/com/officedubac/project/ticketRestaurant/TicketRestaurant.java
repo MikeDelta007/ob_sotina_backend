@@ -23,6 +23,9 @@ public class TicketRestaurant {
     @Id
     private String id;
 
+    private String motifId;
+    private String motifLibelle;
+
     // Dates cochées (jours ouvrés) : elles seules définissent la demande, pas de période. Un agent
     // ne peut figurer sur deux demandes non rejetées partageant la même date.
     private List<LocalDate> dates;
