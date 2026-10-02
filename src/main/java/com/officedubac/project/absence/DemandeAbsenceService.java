@@ -24,7 +24,28 @@ public class DemandeAbsenceService {
     private final UserRepository userRepository;
 
     public DemandeAbsence creer(DemandeAbsenceRequest req) {
-        User demandeur = currentUser();
+        User createur = currentUser();
+        User demandeur = createur;
+
+        // Comme pour les expressions de besoin : le chef de service peut créer une demande pour
+        // un agent de sa propre division, le CSA/Directeur/Assistante Directeur pour n'importe
+        // quel agent — sinon on ne peut créer que pour soi-même.
+        if (req.getBeneficiaireId() != null && !req.getBeneficiaireId().isBlank()
+                && !req.getBeneficiaireId().equals(createur.getId())) {
+            User beneficiaire = userRepository.findById(req.getBeneficiaireId())
+                    .orElseThrow(() -> new RuntimeException("Cet agent n'a pas de compte : impossible de créer une demande en son nom"));
+
+            boolean superviseurGlobal = hasAuthority("CSA") || hasAuthority("DIRECTEUR") || hasAuthority("ASSISTANTE_DIRECTEUR");
+            if (!superviseurGlobal) {
+                Division divisionBeneficiaire = beneficiaire.getPersonnel() != null && beneficiaire.getPersonnel().getDivision() != null
+                        ? divisionRepo.findById(beneficiaire.getPersonnel().getDivision().getId()).orElse(null)
+                        : null;
+                if (divisionBeneficiaire == null || !createur.getId().equals(divisionBeneficiaire.getChefServiceId())) {
+                    throw new RuntimeException("Vous ne pouvez créer une demande que pour un agent de votre division dont vous êtes le chef");
+                }
+            }
+            demandeur = beneficiaire;
+        }
 
         if (req.getDateDebut().isBefore(java.time.LocalDate.now())) {
             throw new RuntimeException("La date de début ne peut pas être antérieure à aujourd'hui");
@@ -61,7 +82,7 @@ public class DemandeAbsenceService {
                 .nombreJours(nombreJours)
                 .motif(req.getMotif())
                 .statut(statutDepart(demandeur))
-                .creePar(demandeur.getLogin())
+                .creePar(createur.getLogin())
                 .dateCreation(LocalDateTime.now())
                 .build();
 
