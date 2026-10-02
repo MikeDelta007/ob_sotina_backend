@@ -224,10 +224,15 @@ public class ExpressionBesoinService {
             eb.setDateValidationDirecteur(LocalDateTime.now());
         }
 
-        // Le Directeur est l'étape décisionnaire finale quand sa validation est requise
-        // (montant > seuil) — en dessous, il n'intervient pas du tout, le CSA seul suffit.
+        // La validation du CSA est toujours requise. Au-dessus du seuil, celle du Directeur
+        // s'ajoute à la sienne — les deux sont nécessaires, peu importe l'ordre dans lequel
+        // ils valident (sinon le Directeur validant seul en premier clôturait le dossier
+        // sans jamais attendre le CSA, qui le perdait alors de sa liste "à valider").
         boolean directeurRequis = eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) > 0;
-        if (directeurRequis ? eb.isValidationDirecteur() : eb.isValidationCsa()) {
+        boolean validationComplete = directeurRequis
+                ? (eb.isValidationCsa() && eb.isValidationDirecteur())
+                : eb.isValidationCsa();
+        if (validationComplete) {
             eb.setStatut(ExpressionBesoin.Statut.VALIDEE);
         }
 
