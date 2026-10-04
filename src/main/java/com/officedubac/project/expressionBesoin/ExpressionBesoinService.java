@@ -5,7 +5,7 @@ import com.officedubac.project.caisseAvance.Motif;
 import com.officedubac.project.caisseAvance.MotifRepository;
 import com.officedubac.project.models.Role;
 import com.officedubac.project.models.User;
-import com.officedubac.project.notification.WhatsAppService;
+import com.officedubac.project.notification.YasSmsService;
 import com.officedubac.project.personnel.Personnel;
 import com.officedubac.project.personnel.PersonnelRepository;
 import com.officedubac.project.repository.UserRepository;
@@ -32,7 +32,7 @@ public class ExpressionBesoinService {
     private final GridFsTemplate             gridFsTemplate;
     private final UserRepository             userRepository;
     private final PersonnelRepository        personnelRepository;
-    private final WhatsAppService            whatsAppService;
+    private final YasSmsService              yasSmsService;
     private final MotifRepository            motifRepository;
 
     // Au-delà de ce montant, la validation du Directeur est requise en plus de celle du CSA
@@ -167,13 +167,13 @@ public class ExpressionBesoinService {
     // initial dépasse le seuil imposant sa validation.
     private void notifierValidateurs(ExpressionBesoin eb) {
         userRepository.findByProfilName(Role.CSA)
-                .forEach(u -> whatsAppService.envoyerNotificationValidation(u.getPersonnel().getPhone()));
+                .forEach(u -> yasSmsService.envoyerNotificationValidation(u.getPersonnel().getPhone()));
 
         if (eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) > 0) {
             userRepository.findByProfilName(Role.DIRECTEUR)
-                    .forEach(u -> whatsAppService.envoyerNotificationValidation(u.getPersonnel().getPhone()));
+                    .forEach(u -> yasSmsService.envoyerNotificationValidation(u.getPersonnel().getPhone()));
             userRepository.findByProfilName(Role.ASSISTANTE_DIRECTEUR)
-                    .forEach(u -> whatsAppService.envoyerNotificationValidation(u.getPersonnel().getPhone()));
+                    .forEach(u -> yasSmsService.envoyerNotificationValidation(u.getPersonnel().getPhone()));
         }
     }
 
