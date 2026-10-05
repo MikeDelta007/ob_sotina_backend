@@ -304,6 +304,13 @@ public class PersonnelResource {
         return ResponseEntity.noContent().build();
     }
 
+    @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR')")
+    @PutMapping("/personnels/{id}/actif")
+    public ResponseEntity<Void> changerActifPersonnel(@PathVariable String id, @RequestParam boolean actif) {
+        personnelRepo.findById(id).ifPresent(p -> { p.setActif(actif); personnelRepo.save(p); });
+        return ResponseEntity.noContent().build();
+    }
+
     // Import Excel de fiches Personnel (sans compte). Les colonnes sont détectées PAR NOM D'EN-TÊTE
     // (insensible à la casse/accents/ordre), pas par position fixe — tolère les variantes réelles
     // (ex: "Prénoms", "NOM", "Contact", "Service / Division"). Colonnes reconnues : Prénom(s), Nom,
