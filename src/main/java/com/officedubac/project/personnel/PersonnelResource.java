@@ -241,6 +241,19 @@ public class PersonnelResource {
         return ResponseEntity.ok(agents);
     }
 
+    // Le statut de chef vient de la division (champ chefServiceId), jamais du rôle/droit
+    // supplémentaire CHEF_SERVICE — un compte peut être désigné chef d'une division dans l'écran
+    // Divisions sans que quiconque pense à lui accorder ce droit séparément. Utilisé par le
+    // frontend pour afficher l'onglet de validation des congés/absences même dans ce cas.
+    @GetMapping("/suis-chef-de-division")
+    public ResponseEntity<Boolean> suisChefDeDivision() {
+        String login = SecurityContextHolder.getContext().getAuthentication().getName();
+        User user = userRepository.findByLogin(login).orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
+        boolean estChef = divisionRepo.findByActifTrue().stream()
+                .anyMatch(d -> user.getId().equals(d.getChefServiceId()));
+        return ResponseEntity.ok(estChef);
+    }
+
     // ── Personnels (identité + fonction, généralement externes — sans compte utilisateur).
     // Un chauffeur n'est pas un type à part : c'est un Personnel dont la fonction est "Chauffeur". ──
     // Fiches actives SANS compte (liste de création d'un compte) — une fiche déjà rattachée à un
