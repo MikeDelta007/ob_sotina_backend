@@ -25,27 +25,7 @@ public class DemandeAbsenceService {
 
     public DemandeAbsence creer(DemandeAbsenceRequest req) {
         User createur = currentUser();
-        User demandeur = createur;
-
-        // Comme pour les expressions de besoin : le chef de service peut créer une demande pour
-        // un agent de sa propre division, le CSA/Directeur/Assistante Directeur pour n'importe
-        // quel agent — sinon on ne peut créer que pour soi-même.
-        if (req.getBeneficiaireId() != null && !req.getBeneficiaireId().isBlank()
-                && !req.getBeneficiaireId().equals(createur.getId())) {
-            User beneficiaire = userRepository.findById(req.getBeneficiaireId())
-                    .orElseThrow(() -> new RuntimeException("Cet agent n'a pas de compte : impossible de créer une demande en son nom"));
-
-            boolean superviseurGlobal = hasAuthority("CSA") || hasAuthority("DIRECTEUR") || hasAuthority("ASSISTANTE_DIRECTEUR");
-            if (!superviseurGlobal) {
-                Division divisionBeneficiaire = beneficiaire.getPersonnel() != null && beneficiaire.getPersonnel().getDivision() != null
-                        ? divisionRepo.findById(beneficiaire.getPersonnel().getDivision().getId()).orElse(null)
-                        : null;
-                if (divisionBeneficiaire == null || !createur.getId().equals(divisionBeneficiaire.getChefServiceId())) {
-                    throw new RuntimeException("Vous ne pouvez créer une demande que pour un agent de votre division dont vous êtes le chef");
-                }
-            }
-            demandeur = beneficiaire;
-        }
+        User demandeur = resoudreDemandeur(createur, req.getBeneficiaireId());
 
         if (req.getDateDebut().isBefore(java.time.LocalDate.now())) {
             throw new RuntimeException("La date de début ne peut pas être antérieure à aujourd'hui");
@@ -87,6 +67,92 @@ public class DemandeAbsenceService {
                 .build();
 
         return demandeRepo.save(demande);
+    }
+
+    // Modification/suppression réservées au créateur, et seulement tant qu'aucun validateur
+    // (chef, CSA ou Directeur) ne s'est encore prononcé — ni validé, ni rejeté — sur la demande.
+    public DemandeAbsence modifier(String id, DemandeAbsenceRequest req) {
+        DemandeAbsence demande = demandeRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Demande d'absence introuvable"));
+        User createur = currentUser();
+
+        if (!demande.getCreePar().equals(createur.getLogin()))
+            throw new RuntimeException("Vous ne pouvez modifier que vos propres demandes");
+        if (!pasEncoreTraitee(demande))
+            throw new RuntimeException("Cette demande a déjà été traitée par un validateur, elle ne peut plus être modifiée");
+
+        User demandeur = resoudreDemandeur(createur, req.getBeneficiaireId());
+
+        if (req.getDateDebut().isBefore(java.time.LocalDate.now())) {
+            throw new RuntimeException("La date de début ne peut pas être antérieure à aujourd'hui");
+        }
+        if (req.getDateFin().isBefore(req.getDateDebut())) {
+            throw new RuntimeException("La date de fin ne peut pas précéder la date de début");
+        }
+        int nombreJours = (int) (ChronoUnit.DAYS.between(req.getDateDebut(), req.getDateFin()) + 1);
+
+        if (req.getType() == TypeAbsence.AUTORISATION && (req.getMotif() == null || req.getMotif().isBlank())) {
+            throw new RuntimeException("Le motif est obligatoire pour une autorisation d'absence");
+        }
+
+        if (req.getType() == TypeAbsence.CONGE) {
+            Integer soldeDisponible = demandeur.getPersonnel().getSoldeDisponible();
+            if (soldeDisponible != null && nombreJours > soldeDisponible) {
+                throw new RuntimeException("La période demandée (" + nombreJours + " jour(s)) dépasse votre solde de congés disponible ("
+                        + soldeDisponible + " jour(s))");
+            }
+        }
+
+        demande.setDemandeurId(demandeur.getId());
+        demande.setDemandeurNom(demandeur.getPersonnel().getFirstname() + " " + demandeur.getPersonnel().getLastname());
+        demande.setDivisionId(demandeur.getPersonnel().getDivision() != null ? demandeur.getPersonnel().getDivision().getId() : null);
+        demande.setType(req.getType());
+        demande.setDateDebut(req.getDateDebut());
+        demande.setDateFin(req.getDateFin());
+        demande.setNombreJours(nombreJours);
+        demande.setMotif(req.getMotif());
+        demande.setStatut(statutDepart(demandeur));
+
+        return demandeRepo.save(demande);
+    }
+
+    public void supprimer(String id) {
+        DemandeAbsence demande = demandeRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Demande d'absence introuvable"));
+        User createur = currentUser();
+
+        if (!demande.getCreePar().equals(createur.getLogin()))
+            throw new RuntimeException("Vous ne pouvez supprimer que vos propres demandes");
+        if (!pasEncoreTraitee(demande))
+            throw new RuntimeException("Cette demande a déjà été traitée par un validateur, elle ne peut plus être supprimée");
+
+        demandeRepo.delete(demande);
+    }
+
+    private boolean pasEncoreTraitee(DemandeAbsence d) {
+        return !d.isValidationChef() && !d.isRejetChef() && !d.isValidationCsa() && !d.isRejetCsa() && !d.isValidationDirecteur();
+    }
+
+    // Comme pour les expressions de besoin : le chef de service peut agir pour un agent de sa
+    // propre division, le CSA/Directeur/Assistante Directeur pour n'importe quel agent — sinon
+    // uniquement pour soi-même.
+    private User resoudreDemandeur(User createur, String beneficiaireId) {
+        if (beneficiaireId == null || beneficiaireId.isBlank() || beneficiaireId.equals(createur.getId())) {
+            return createur;
+        }
+        User beneficiaire = userRepository.findById(beneficiaireId)
+                .orElseThrow(() -> new RuntimeException("Cet agent n'a pas de compte : impossible de créer une demande en son nom"));
+
+        boolean superviseurGlobal = hasAuthority("CSA") || hasAuthority("DIRECTEUR") || hasAuthority("ASSISTANTE_DIRECTEUR");
+        if (!superviseurGlobal) {
+            Division divisionBeneficiaire = beneficiaire.getPersonnel() != null && beneficiaire.getPersonnel().getDivision() != null
+                    ? divisionRepo.findById(beneficiaire.getPersonnel().getDivision().getId()).orElse(null)
+                    : null;
+            if (divisionBeneficiaire == null || !createur.getId().equals(divisionBeneficiaire.getChefServiceId())) {
+                throw new RuntimeException("Vous ne pouvez créer une demande que pour un agent de votre division dont vous êtes le chef");
+            }
+        }
+        return beneficiaire;
     }
 
     private StatutAbsence statutDepart(User demandeur) {

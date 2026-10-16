@@ -28,6 +28,19 @@ public class DemandeAbsenceResource {
         return ResponseEntity.ok(demandeAbsenceService.creer(req));
     }
 
+    // Modification/suppression : réservées au créateur, tant qu'aucun validateur ne s'est encore
+    // prononcé sur la demande (voir DemandeAbsenceService).
+    @PutMapping("/{id}")
+    public ResponseEntity<DemandeAbsence> modifier(@PathVariable String id, @Valid @RequestBody DemandeAbsenceRequest req) {
+        return ResponseEntity.ok(demandeAbsenceService.modifier(id, req));
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> supprimer(@PathVariable String id) {
+        demandeAbsenceService.supprimer(id);
+        return ResponseEntity.noContent().build();
+    }
+
     // ── Motifs d'absence (liste prédéfinie pour une AUTORISATION) ──
     @GetMapping("/motifs")
     public ResponseEntity<List<MotifAbsence>> getMotifs() {
