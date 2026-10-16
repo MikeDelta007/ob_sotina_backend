@@ -274,9 +274,11 @@ public class PersonnelResource {
     @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR')")
     @PostMapping("/personnels")
     public ResponseEntity<Personnel> creerPersonnel(@RequestBody Personnel personnel) {
+        verifierDoublon(null, personnel.getMatricule(), personnel.getEmail(), personnel.getPhone());
         personnel.setActif(true);
         personnel.setMatricule(sansEspaces(personnel.getMatricule()));
         personnel.setPhone(sansEspaces(personnel.getPhone()));
+        personnel.setSoldeConges(personnel.getTypePersonnel() != null ? personnel.getTypePersonnel().joursConges() : null);
         return ResponseEntity.ok(personnelRepo.save(personnel));
     }
 
@@ -285,6 +287,7 @@ public class PersonnelResource {
     public ResponseEntity<Personnel> modifierPersonnel(@PathVariable String id, @RequestBody Personnel req) {
         Personnel personnel = personnelRepo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Personnel introuvable"));
+        verifierDoublon(id, req.getMatricule(), req.getEmail(), req.getPhone());
         personnel.setFirstname(req.getFirstname());
         personnel.setLastname(req.getLastname());
         personnel.setPhone(sansEspaces(req.getPhone()));
@@ -310,6 +313,33 @@ public class PersonnelResource {
         return value == null ? null : value.replaceAll("\\s+", "");
     }
 
+    // Même contrôle que l'import Excel (matricule/email/téléphone uniques), mais appliqué à la
+    // création/modification manuelle d'une fiche — jusqu'ici absent, ce qui avait permis de
+    // créer deux fiches pour la même personne (même téléphone, email différent ou absent).
+    // idExclu : id de la fiche en cours de modification, à ignorer dans la comparaison (null à la création).
+    private void verifierDoublon(String idExclu, String matricule, String email, String phone) {
+        String matriculeCle = matricule != null && !matricule.isBlank() ? sansEspaces(matricule).toLowerCase() : null;
+        String emailCle = email != null && !email.isBlank() ? email.trim().toLowerCase() : null;
+        String phoneCle = phone != null && !phone.isBlank() ? sansEspaces(phone) : null;
+
+        for (Personnel p : personnelRepo.findAll()) {
+            if (idExclu != null && idExclu.equals(p.getId())) continue;
+            String pMatricule = p.getMatricule() != null && !p.getMatricule().isBlank() ? sansEspaces(p.getMatricule()).toLowerCase() : null;
+            String pEmail = p.getEmail() != null && !p.getEmail().isBlank() ? p.getEmail().trim().toLowerCase() : null;
+            String pPhone = p.getPhone() != null && !p.getPhone().isBlank() ? sansEspaces(p.getPhone()) : null;
+
+            String champ = null;
+            if (phoneCle != null && phoneCle.equals(pPhone)) champ = "ce téléphone";
+            else if (emailCle != null && emailCle.equals(pEmail)) champ = "cet email";
+            else if (matriculeCle != null && matriculeCle.equals(pMatricule)) champ = "ce matricule";
+
+            if (champ != null) {
+                throw new RuntimeException("Une fiche personnel existe déjà avec " + champ
+                        + " (" + p.getFirstname() + " " + p.getLastname() + ")");
+            }
+        }
+    }
+
     @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR')")
     @DeleteMapping("/personnels/{id}")
     public ResponseEntity<Void> supprimerPersonnel(@PathVariable String id) {
@@ -328,10 +358,14 @@ public class PersonnelResource {
     // (insensible à la casse/accents/ordre), pas par position fixe — tolère les variantes réelles
     // (ex: "Prénoms", "NOM", "Contact", "Service / Division"). Colonnes reconnues : Prénom(s), Nom,
     // Téléphone/Contact, Email, Matricule, Civilité, Division/Service, Fonction, Type de personnel.
-    // Obligatoires : Prénom, Nom, Téléphone, Email, Division, Fonction (présents dans un export RH
-    // classique). Optionnels : Matricule, Civilité, Type de personnel (souvent absents des exports
-    // existants). Division/Fonction sont auto-créées si leur libellé n'existe pas encore. Matricule
-    // (si renseigné), email et téléphone doivent être uniques — doublons et lignes incomplètes ignorés.
+    // Obligatoires : Prénom, Nom, Téléphone, Division, Fonction (présents dans un export RH
+    // classique). Optionnels : Matricule, Email, Civilité, Type de personnel (souvent absents des
+    // exports existants). Division/Fonction sont auto-créées si leur libellé n'existe pas encore.
+    // Le téléphone est la clé de rapprochement : une ligne dont le téléphone correspond à une
+    // fiche déjà existante MET À JOUR cette fiche (au lieu d'être ignorée comme doublon) — les
+    // champs non renseignés dans la ligne (ex: pas de colonne Type) ne sont pas écrasés. Matricule
+    // et email, eux, restent bloquants s'ils entrent en conflit avec une AUTRE fiche que celle
+    // rapprochée par téléphone.
     @PreAuthorize("hasAnyAuthority('ADMIN','CSA','DIRECTEUR')")
     @PostMapping("/personnels/import")
     public ResponseEntity<String> importerPersonnels(@RequestParam("file") MultipartFile file) {
@@ -339,17 +373,17 @@ public class PersonnelResource {
         List<Fonction> fonctions = new ArrayList<>(fonctionRepo.findByActifTrue());
 
         List<Personnel> existants = personnelRepo.findAll();
-        java.util.Set<String> matriculesVus = existants.stream().map(Personnel::getMatricule)
-                .filter(m -> m != null && !m.isBlank()).map(m -> sansEspaces(m).toLowerCase())
-                .collect(java.util.stream.Collectors.toCollection(java.util.HashSet::new));
-        java.util.Set<String> emailsVus = existants.stream().map(Personnel::getEmail)
-                .filter(m -> m != null && !m.isBlank()).map(m -> m.trim().toLowerCase())
-                .collect(java.util.stream.Collectors.toCollection(java.util.HashSet::new));
-        java.util.Set<String> phonesVus = existants.stream().map(Personnel::getPhone)
-                .filter(m -> m != null && !m.isBlank()).map(this::sansEspaces)
-                .collect(java.util.stream.Collectors.toCollection(java.util.HashSet::new));
+        java.util.Map<String, Personnel> parTelephone = new java.util.HashMap<>();
+        java.util.Map<String, Personnel> parMatricule = new java.util.HashMap<>();
+        java.util.Map<String, Personnel> parEmail = new java.util.HashMap<>();
+        for (Personnel p : existants) {
+            if (p.getPhone() != null && !p.getPhone().isBlank()) parTelephone.put(sansEspaces(p.getPhone()), p);
+            if (p.getMatricule() != null && !p.getMatricule().isBlank()) parMatricule.put(sansEspaces(p.getMatricule()).toLowerCase(), p);
+            if (p.getEmail() != null && !p.getEmail().isBlank()) parEmail.put(p.getEmail().trim().toLowerCase(), p);
+        }
 
-        List<Personnel> aImporter = new ArrayList<>();
+        List<Personnel> aCreer = new ArrayList<>();
+        List<Personnel> aMettreAJour = new ArrayList<>();
         int incompletes = 0;
         int doublons = 0;
 
@@ -375,10 +409,10 @@ public class PersonnelResource {
             Integer colFonction = colonneParAlias(colonnes, "fonction");
             Integer colType = colonneParAlias(colonnes, "type de personnel", "type personnel", "type");
 
-            if (colPrenom == null || colNom == null || colTelephone == null || colEmail == null
+            if (colPrenom == null || colNom == null || colTelephone == null
                     || colDivision == null || colFonction == null) {
                 return ResponseEntity.badRequest().body(
-                        "Colonnes obligatoires introuvables dans l'en-tête (Prénom, Nom, Téléphone, Email, Division, Fonction) — "
+                        "Colonnes obligatoires introuvables dans l'en-tête (Prénom, Nom, Téléphone, Division, Fonction) — "
                                 + "en-têtes détectés : " + String.join(", ", colonnes.keySet()));
             }
 
@@ -388,7 +422,7 @@ public class PersonnelResource {
                 String firstname = cellValue(row.getCell(colPrenom));
                 String lastname = cellValue(row.getCell(colNom));
                 String phone = sansEspaces(cellValue(row.getCell(colTelephone)));
-                String email = cellValue(row.getCell(colEmail));
+                String email = colEmail != null ? cellValue(row.getCell(colEmail)) : null;
                 String matricule = colMatricule != null ? sansEspaces(cellValue(row.getCell(colMatricule))) : null;
                 Civilite civilite = colCivilite != null ? parseCivilite(cellValue(row.getCell(colCivilite))) : null;
                 String divisionLibelle = cellValue(row.getCell(colDivision));
@@ -398,21 +432,44 @@ public class PersonnelResource {
                 boolean ligneComplete = firstname != null && !firstname.isBlank()
                         && lastname != null && !lastname.isBlank()
                         && phone != null && !phone.isBlank()
-                        && email != null && !email.isBlank()
                         && divisionLibelle != null && !divisionLibelle.isBlank()
                         && fonctionLibelle != null && !fonctionLibelle.isBlank();
                 if (!ligneComplete) { incompletes++; continue; }
 
                 String matriculeCle = matricule != null && !matricule.isBlank() ? matricule.toLowerCase() : null;
-                String emailCle = email.trim().toLowerCase();
+                String emailCle = email != null && !email.isBlank() ? email.trim().toLowerCase() : null;
                 String phoneCle = phone;
-                if ((matriculeCle != null && matriculesVus.contains(matriculeCle))
-                        || emailsVus.contains(emailCle) || phonesVus.contains(phoneCle)) {
-                    doublons++; continue;
-                }
 
                 Division division = trouverOuCreerDivision(divisions, divisionLibelle);
                 Fonction fonction = trouverOuCreerFonction(fonctions, fonctionLibelle);
+
+                Personnel existant = parTelephone.get(phoneCle);
+                if (existant != null) {
+                    // Le matricule/email de la ligne ne doit pas entrer en conflit avec une AUTRE
+                    // fiche que celle rapprochée par téléphone — sinon on les laisse inchangés sur
+                    // la fiche mise à jour plutôt que de créer une collision.
+                    Personnel autreParMatricule = matriculeCle != null ? parMatricule.get(matriculeCle) : null;
+                    Personnel autreParEmail = emailCle != null ? parEmail.get(emailCle) : null;
+
+                    existant.setFirstname(firstname);
+                    existant.setLastname(lastname);
+                    if (emailCle != null && (autreParEmail == null || autreParEmail == existant)) existant.setEmail(email.trim());
+                    if (matriculeCle != null && (autreParMatricule == null || autreParMatricule == existant)) existant.setMatricule(matricule);
+                    if (civilite != null) existant.setCivilite(civilite);
+                    existant.setDivision(division);
+                    existant.setFonction(fonction);
+                    if (type != null) { existant.setTypePersonnel(type); existant.setSoldeConges(type.joursConges()); }
+
+                    aMettreAJour.add(existant);
+                    if (matriculeCle != null) parMatricule.put(matriculeCle, existant);
+                    if (emailCle != null) parEmail.put(emailCle, existant);
+                    continue;
+                }
+
+                if ((matriculeCle != null && parMatricule.containsKey(matriculeCle))
+                        || (emailCle != null && parEmail.containsKey(emailCle))) {
+                    doublons++; continue;
+                }
 
                 Personnel personnel = Personnel.builder()
                         .firstname(firstname)
@@ -428,22 +485,26 @@ public class PersonnelResource {
                         .actif(true)
                         .build();
 
-                aImporter.add(personnel);
-                if (matriculeCle != null) matriculesVus.add(matriculeCle);
-                emailsVus.add(emailCle);
-                phonesVus.add(phoneCle);
+                aCreer.add(personnel);
+                parTelephone.put(phoneCle, personnel);
+                if (matriculeCle != null) parMatricule.put(matriculeCle, personnel);
+                if (emailCle != null) parEmail.put(emailCle, personnel);
             }
         } catch (IOException e) {
             return ResponseEntity.badRequest().body("Erreur lors de la lecture du fichier : " + e.getMessage());
         }
 
-        if (aImporter.isEmpty()) {
-            return ResponseEntity.badRequest().body("Aucune ligne valide trouvée dans le fichier (Prénom/Nom/Téléphone/Email/Division/Fonction obligatoires ; matricule/email/téléphone doivent être uniques)");
+        if (aCreer.isEmpty() && aMettreAJour.isEmpty()) {
+            return ResponseEntity.badRequest().body("Aucune ligne valide trouvée dans le fichier (Prénom/Nom/Téléphone/Division/Fonction obligatoires)");
         }
-        personnelRepo.saveAll(aImporter);
-        String message = aImporter.size() + " personnel(s) importé(s) avec succès";
+        personnelRepo.saveAll(aCreer);
+        personnelRepo.saveAll(aMettreAJour);
+        List<String> parts = new ArrayList<>();
+        if (!aCreer.isEmpty()) parts.add(aCreer.size() + " personnel(s) importé(s)");
+        if (!aMettreAJour.isEmpty()) parts.add(aMettreAJour.size() + " fiche(s) mise(s) à jour (téléphone déjà existant)");
+        String message = String.join(" — ", parts) + " avec succès";
         if (incompletes > 0) message += " — " + incompletes + " ligne(s) incomplète(s) ignorée(s)";
-        if (doublons > 0) message += " — " + doublons + " doublon(s) ignoré(s) (matricule/email/téléphone déjà utilisé)";
+        if (doublons > 0) message += " — " + doublons + " doublon(s) ignoré(s) (matricule/email déjà utilisé par une autre fiche)";
         return ResponseEntity.ok(message);
     }
 
