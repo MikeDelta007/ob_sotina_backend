@@ -18,15 +18,17 @@ public class OrdreMission {
     @Id
     private String id;
 
-    // Destination : une ou plusieurs régions
-    private List<String> regionIds;
-    private List<String> regionNoms;
+    // Destination : une ou plusieurs villes
+    private List<String> villeIds;
+    private List<String> villeNoms;
 
-    private String motif;
+    private String motifId;
+    private String motifLibelle;
     private LocalDate dateDebut;
     private LocalDate dateFin;
 
-    // Lignes façon facture : une par agent, chacune avec sa propre voiture (et éventuellement son chauffeur dédié)
+    // Lignes façon facture : une par agent, chacune avec son propre moyen de transport (véhicule
+    // personnel, véhicule du parc, ou transport en commun)
     private List<LigneMission> lignes;
 
     private String creeParId;

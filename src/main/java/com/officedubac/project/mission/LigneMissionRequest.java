@@ -10,8 +10,8 @@ public class LigneMissionRequest {
     private String agentId;
 
     @NotNull
-    private Boolean disponibiliteVoiture;
+    private MoyenTransport moyenTransport;
 
-    // Requis uniquement si disponibiliteVoiture == false (choix dans le parc de l'Office)
+    // Requis uniquement si moyenTransport == VEHICULE_PARC (choix dans le parc de l'Office)
     private String voitureId;
 }

@@ -156,10 +156,12 @@ public class PersonnelResource {
         ProprietaireVoiture type = voiture.getProprietaireType() != null ? voiture.getProprietaireType() : ProprietaireVoiture.OFFICE;
         voiture.setProprietaireType(type);
 
+        // AGENT et EXTERNE référencent tous deux une fiche Personnel (qu'elle ait un compte ou
+        // non) — les véhicules appartiennent au personnel, jamais directement à un compte User.
         if (type == ProprietaireVoiture.AGENT && voiture.getProprietaireAgentId() != null && !voiture.getProprietaireAgentId().isBlank()) {
-            User agent = userRepository.findById(voiture.getProprietaireAgentId())
+            Personnel agent = personnelRepo.findById(voiture.getProprietaireAgentId())
                     .orElseThrow(() -> new RuntimeException("Agent propriétaire introuvable"));
-            voiture.setProprietaireAgentNom(agent.getPersonnel().getFirstname() + " " + agent.getPersonnel().getLastname());
+            voiture.setProprietaireAgentNom(agent.getFirstname() + " " + agent.getLastname());
             voiture.setProprietairePersonnelId(null);
             voiture.setProprietairePersonnelNom(null);
         } else if (type == ProprietaireVoiture.EXTERNE && voiture.getProprietairePersonnelId() != null && !voiture.getProprietairePersonnelId().isBlank()) {
@@ -459,6 +461,7 @@ public class PersonnelResource {
                     existant.setDivision(division);
                     existant.setFonction(fonction);
                     if (type != null) { existant.setTypePersonnel(type); existant.setSoldeConges(type.joursConges()); }
+                    existant.setActif(true);
 
                     aMettreAJour.add(existant);
                     if (matriculeCle != null) parMatricule.put(matriculeCle, existant);

@@ -11,11 +11,11 @@ import java.util.List;
 
 @Data
 public class OrdreMissionRequest {
-    @NotEmpty(message = "Sélectionnez au moins une région de destination")
-    private List<String> regionIds;
+    @NotEmpty(message = "Sélectionnez au moins une ville de destination")
+    private List<String> villeIds;
 
-    @NotBlank
-    private String motif;
+    @NotBlank(message = "Sélectionnez un motif")
+    private String motifId;
     @NotNull
     private LocalDate dateDebut;
     @NotNull

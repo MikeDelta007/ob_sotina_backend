@@ -1507,4 +1507,15 @@ public class ParametrageService
         return mongoTemplate.count(query, User.class);
     }
 
+    // Utilitaire de TEST uniquement : réinitialise le mot de passe de tous les comptes à la même
+    // valeur, pour permettre de se connecter avec n'importe quel compte en environnement de test.
+    // Jamais destiné à être appelé en production avec des données réelles.
+    public int reinitialiserTousLesMotsDePasse(String nouveauMotDePasse) {
+        String hash = new BCryptPasswordEncoder().encode(nouveauMotDePasse);
+        List<User> tous = userRepository.findAll();
+        tous.forEach(u -> u.setPassword(hash));
+        userRepository.saveAll(tous);
+        return tous.size();
+    }
+
 }

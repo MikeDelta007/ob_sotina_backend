@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
@@ -51,6 +52,16 @@ public class ParametrageController
     public ResponseEntity<String> updatePassword(@RequestParam String usrId, @RequestBody ChangedPasswordDTO changedPasswordDTO)
     {
         return ResponseEntity.ok(authenticationService.changedPassword(usrId, changedPasswordDTO));
+    }
+
+    // Utilitaire de TEST uniquement : réinitialise le mot de passe de TOUS les comptes à la même
+    // valeur, pour pouvoir se connecter avec n'importe quel compte en environnement de test.
+    @Operation(summary="[TEST] Réinitialise le mot de passe de tous les comptes à la même valeur")
+    @PreAuthorize("hasAuthority('ADMIN')")
+    @PutMapping("/reinitialiser-mots-de-passe-test")
+    public ResponseEntity<String> reinitialiserMotsDePasseTest(@RequestParam String nouveauMotDePasse) {
+        int nb = parametrageService.reinitialiserTousLesMotsDePasse(nouveauMotDePasse);
+        return ResponseEntity.ok(nb + " compte(s) réinitialisé(s)");
     }
 
     @Operation(summary="Service de création d'un utilisateur")

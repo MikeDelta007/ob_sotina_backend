@@ -10,10 +10,11 @@ public class LigneMission {
 
     private String agentId;
     private String agentNom;
+    private String agentQualite;
 
-    // true : l'agent dispose déjà de sa propre voiture ; false : voiture choisie dans la liste (parc de l'Office)
-    private boolean disponibiliteVoiture;
+    private MoyenTransport moyenTransport;
 
+    // Renseignés seulement si moyenTransport != TRANSPORT_COMMUN
     private String voitureId;
     private String voitureImmatriculation;
 }
