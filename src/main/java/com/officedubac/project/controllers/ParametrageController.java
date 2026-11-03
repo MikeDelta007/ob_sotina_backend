@@ -56,13 +56,14 @@ public class ParametrageController
 
     // Utilitaire de TEST uniquement : réinitialise le mot de passe de TOUS les comptes à la même
     // valeur, pour pouvoir se connecter avec n'importe quel compte en environnement de test.
-    @Operation(summary="[TEST] Réinitialise le mot de passe de tous les comptes à la même valeur")
-    @PreAuthorize("hasAuthority('ADMIN')")
-    @PutMapping("/reinitialiser-mots-de-passe-test")
-    public ResponseEntity<String> reinitialiserMotsDePasseTest(@RequestParam String nouveauMotDePasse) {
-        int nb = parametrageService.reinitialiserTousLesMotsDePasse(nouveauMotDePasse);
-        return ResponseEntity.ok(nb + " compte(s) réinitialisé(s)");
-    }
+    // Désactivé (commenté) en dehors des sessions de test — ne jamais réactiver en production.
+    // @Operation(summary="[TEST] Réinitialise le mot de passe de tous les comptes à la même valeur")
+    // @PreAuthorize("hasAuthority('ADMIN')")
+    // @PutMapping("/reinitialiser-mots-de-passe-test")
+    // public ResponseEntity<String> reinitialiserMotsDePasseTest(@RequestParam String nouveauMotDePasse) {
+    //     int nb = parametrageService.reinitialiserTousLesMotsDePasse(nouveauMotDePasse);
+    //     return ResponseEntity.ok(nb + " compte(s) réinitialisé(s)");
+    // }
 
     @Operation(summary="Service de création d'un utilisateur")
     @PostMapping("/create-user")
