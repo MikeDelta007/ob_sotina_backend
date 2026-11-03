@@ -5,6 +5,8 @@ import com.officedubac.project.models.User;
 import com.officedubac.project.personnel.Division;
 import com.officedubac.project.personnel.DivisionRepository;
 import com.officedubac.project.personnel.Personnel;
+import com.officedubac.project.personnel.PersonnelCompteService;
+import com.officedubac.project.personnel.PersonnelRepository;
 import com.officedubac.project.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -13,6 +15,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 @Service
@@ -22,10 +25,12 @@ public class DemandeAbsenceService {
     private final DemandeAbsenceRepository demandeRepo;
     private final DivisionRepository divisionRepo;
     private final UserRepository userRepository;
+    private final PersonnelRepository personnelRepository;
+    private final PersonnelCompteService personnelCompteService;
 
     public DemandeAbsence creer(DemandeAbsenceRequest req) {
         User createur = currentUser();
-        User demandeur = resoudreDemandeur(createur, req.getBeneficiaireId());
+        Personnel demandeur = resoudreDemandeur(createur, req.getBeneficiaireId());
 
         if (req.getDateDebut().isBefore(java.time.LocalDate.now())) {
             throw new RuntimeException("La date de début ne peut pas être antérieure à aujourd'hui");
@@ -45,7 +50,7 @@ public class DemandeAbsenceService {
         // encore régularisées (cf. Personnel.getSoldeDisponible()) — elles ne décomptent rien
         // dans l'immédiat, mais réduisent d'autant ce qui reste posable en congé.
         if (req.getType() == TypeAbsence.CONGE) {
-            Integer soldeDisponible = demandeur.getPersonnel().getSoldeDisponible();
+            Integer soldeDisponible = demandeur.getSoldeDisponible();
             if (soldeDisponible != null && nombreJours > soldeDisponible) {
                 throw new RuntimeException("La période demandée (" + nombreJours + " jour(s)) dépasse votre solde de congés disponible ("
                         + soldeDisponible + " jour(s))");
@@ -54,8 +59,8 @@ public class DemandeAbsenceService {
 
         DemandeAbsence demande = DemandeAbsence.builder()
                 .demandeurId(demandeur.getId())
-                .demandeurNom(demandeur.getPersonnel().getFirstname() + " " + demandeur.getPersonnel().getLastname())
-                .divisionId(demandeur.getPersonnel().getDivision() != null ? demandeur.getPersonnel().getDivision().getId() : null)
+                .demandeurNom(demandeur.getFirstname() + " " + demandeur.getLastname())
+                .divisionId(demandeur.getDivision() != null ? demandeur.getDivision().getId() : null)
                 .type(req.getType())
                 .dateDebut(req.getDateDebut())
                 .dateFin(req.getDateFin())
@@ -81,7 +86,7 @@ public class DemandeAbsenceService {
         if (!pasEncoreTraitee(demande))
             throw new RuntimeException("Cette demande a déjà été traitée par un validateur, elle ne peut plus être modifiée");
 
-        User demandeur = resoudreDemandeur(createur, req.getBeneficiaireId());
+        Personnel demandeur = resoudreDemandeur(createur, req.getBeneficiaireId());
 
         if (req.getDateDebut().isBefore(java.time.LocalDate.now())) {
             throw new RuntimeException("La date de début ne peut pas être antérieure à aujourd'hui");
@@ -96,7 +101,7 @@ public class DemandeAbsenceService {
         }
 
         if (req.getType() == TypeAbsence.CONGE) {
-            Integer soldeDisponible = demandeur.getPersonnel().getSoldeDisponible();
+            Integer soldeDisponible = demandeur.getSoldeDisponible();
             if (soldeDisponible != null && nombreJours > soldeDisponible) {
                 throw new RuntimeException("La période demandée (" + nombreJours + " jour(s)) dépasse votre solde de congés disponible ("
                         + soldeDisponible + " jour(s))");
@@ -104,8 +109,8 @@ public class DemandeAbsenceService {
         }
 
         demande.setDemandeurId(demandeur.getId());
-        demande.setDemandeurNom(demandeur.getPersonnel().getFirstname() + " " + demandeur.getPersonnel().getLastname());
-        demande.setDivisionId(demandeur.getPersonnel().getDivision() != null ? demandeur.getPersonnel().getDivision().getId() : null);
+        demande.setDemandeurNom(demandeur.getFirstname() + " " + demandeur.getLastname());
+        demande.setDivisionId(demandeur.getDivision() != null ? demandeur.getDivision().getId() : null);
         demande.setType(req.getType());
         demande.setDateDebut(req.getDateDebut());
         demande.setDateFin(req.getDateFin());
@@ -133,20 +138,31 @@ public class DemandeAbsenceService {
         return !d.isValidationChef() && !d.isRejetChef() && !d.isValidationCsa() && !d.isRejetCsa() && !d.isValidationDirecteur();
     }
 
+    // La fiche Personnel du compte connecté — jamais la copie embarquée (User.personnel),
+    // potentiellement périmée, mais la fiche elle-même quand elle existe.
+    private Personnel monPersonnel(User moi) {
+        if (moi.getPersonnelId() != null) {
+            return personnelRepository.findById(moi.getPersonnelId()).orElse(moi.getPersonnel());
+        }
+        return moi.getPersonnel();
+    }
+
     // Comme pour les expressions de besoin : le chef de service peut agir pour un agent de sa
     // propre division, le CSA/Directeur/Assistante Directeur pour n'importe quel agent — sinon
-    // uniquement pour soi-même.
-    private User resoudreDemandeur(User createur, String beneficiaireId) {
-        if (beneficiaireId == null || beneficiaireId.isBlank() || beneficiaireId.equals(createur.getId())) {
-            return createur;
+    // uniquement pour soi-même. Un bénéficiaire est toujours désigné par sa fiche Personnel,
+    // avec ou sans compte applicatif.
+    private Personnel resoudreDemandeur(User createur, String beneficiaireId) {
+        Personnel moi = monPersonnel(createur);
+        if (beneficiaireId == null || beneficiaireId.isBlank() || beneficiaireId.equals(moi.getId())) {
+            return moi;
         }
-        User beneficiaire = userRepository.findById(beneficiaireId)
-                .orElseThrow(() -> new RuntimeException("Cet agent n'a pas de compte : impossible de créer une demande en son nom"));
+        Personnel beneficiaire = personnelRepository.findById(beneficiaireId)
+                .orElseThrow(() -> new RuntimeException("Agent introuvable"));
 
         boolean superviseurGlobal = hasAuthority("CSA") || hasAuthority("DIRECTEUR") || hasAuthority("ASSISTANTE_DIRECTEUR");
         if (!superviseurGlobal) {
-            Division divisionBeneficiaire = beneficiaire.getPersonnel() != null && beneficiaire.getPersonnel().getDivision() != null
-                    ? divisionRepo.findById(beneficiaire.getPersonnel().getDivision().getId()).orElse(null)
+            Division divisionBeneficiaire = beneficiaire.getDivision() != null
+                    ? divisionRepo.findById(beneficiaire.getDivision().getId()).orElse(null)
                     : null;
             if (divisionBeneficiaire == null || !createur.getId().equals(divisionBeneficiaire.getChefServiceId())) {
                 throw new RuntimeException("Vous ne pouvez créer une demande que pour un agent de votre division dont vous êtes le chef");
@@ -155,21 +171,24 @@ public class DemandeAbsenceService {
         return beneficiaire;
     }
 
-    private StatutAbsence statutDepart(User demandeur) {
-        Role role = demandeur.getProfil() != null ? demandeur.getProfil().getName() : null;
+    // Le rôle (CSA/Directeur/...) est un attribut du compte, pas de la fiche Personnel — un
+    // bénéficiaire sans compte n'a donc jamais de rôle et suit toujours le circuit standard.
+    private StatutAbsence statutDepart(Personnel demandeur) {
+        Optional<User> compte = userRepository.findByPersonnelId(demandeur.getId());
         // Seuls CSA/Directeur démarrent directement au CSA. Un agent ADMIN (ex. service
         // informatique) suit son chef de division comme tout autre agent — s'il n'a pas de chef,
         // le contrôle ci-dessous l'envoie de toute façon au CSA.
+        Role role = compte.map(User::getProfil).map(p -> p != null ? p.getName() : null).orElse(null);
         if (role == Role.CSA || role == Role.DIRECTEUR || role == Role.ASSISTANTE_DIRECTEUR) {
             return StatutAbsence.EN_ATTENTE_CSA;
         }
-        Division division = demandeur.getPersonnel().getDivision() != null
-                ? divisionRepo.findById(demandeur.getPersonnel().getDivision().getId()).orElse(null)
+        Division division = demandeur.getDivision() != null
+                ? divisionRepo.findById(demandeur.getDivision().getId()).orElse(null)
                 : null;
         if (division == null || division.getChefServiceId() == null || division.getChefServiceId().isBlank()) {
             return StatutAbsence.EN_ATTENTE_CSA;
         }
-        if (division.getChefServiceId().equals(demandeur.getId())) {
+        if (compte.isPresent() && division.getChefServiceId().equals(compte.get().getId())) {
             return StatutAbsence.EN_ATTENTE_CSA;
         }
         return StatutAbsence.EN_ATTENTE_CHEF;
@@ -180,9 +199,11 @@ public class DemandeAbsenceService {
         return divisionRepo.findByActifTrue().stream().anyMatch(d -> user.getId().equals(d.getChefServiceId()));
     }
 
+    // "Mes demandes" = uniquement celles où je suis bénéficiaire — ne doit pas se mélanger avec
+    // celles que je crée pour un agent (celles-ci se gèrent depuis "Demandes de mes agents").
     public List<DemandeAbsence> mesDemandes(TypeAbsence type) {
-        User user = currentUser();
-        return demandeRepo.findByDemandeurIdAndTypeOrderByDateCreationDesc(user.getId(), type);
+        Personnel moi = monPersonnel(currentUser());
+        return demandeRepo.findByDemandeurIdAndTypeOrderByDateCreationDesc(moi.getId(), type);
     }
 
     public List<DemandeAbsence> aValider(TypeAbsence type) {
@@ -341,28 +362,28 @@ public class DemandeAbsenceService {
     // (soustraits du solde puis remis à zéro) — le congé "absorbe" les autorisations prises
     // entretemps.
     private void decompterConges(DemandeAbsence demande) {
-        User demandeur = userRepository.findById(demande.getDemandeurId()).orElse(null);
-        if (demandeur == null || demandeur.getPersonnel() == null || demandeur.getPersonnel().getSoldeConges() == null) {
+        Personnel personnel = personnelRepository.findById(demande.getDemandeurId()).orElse(null);
+        if (personnel == null || personnel.getSoldeConges() == null) {
             return;
         }
-        Personnel personnel = demandeur.getPersonnel();
         int cumulAutorisation = personnel.getJoursAutorisationCumules() != null ? personnel.getJoursAutorisationCumules() : 0;
         personnel.setSoldeConges(Math.max(0, personnel.getSoldeConges() - demande.getNombreJours() - cumulAutorisation));
         personnel.setJoursAutorisationCumules(0);
-        userRepository.save(demandeur);
+        personnelRepository.save(personnel);
+        personnelCompteService.synchroniserCompteLie(personnel);
     }
 
     // Une AUTORISATION validée ne décompte rien dans l'immédiat, mais s'accumule pour être
     // régularisée (déduite) au prochain congé validé.
     private void cumulerAutorisation(DemandeAbsence demande) {
-        User demandeur = userRepository.findById(demande.getDemandeurId()).orElse(null);
-        if (demandeur == null || demandeur.getPersonnel() == null) {
+        Personnel personnel = personnelRepository.findById(demande.getDemandeurId()).orElse(null);
+        if (personnel == null) {
             return;
         }
-        Personnel personnel = demandeur.getPersonnel();
         int cumulActuel = personnel.getJoursAutorisationCumules() != null ? personnel.getJoursAutorisationCumules() : 0;
         personnel.setJoursAutorisationCumules(cumulActuel + demande.getNombreJours());
-        userRepository.save(demandeur);
+        personnelRepository.save(personnel);
+        personnelCompteService.synchroniserCompteLie(personnel);
     }
 
     private User currentUser() {

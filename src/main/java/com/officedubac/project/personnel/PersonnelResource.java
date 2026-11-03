@@ -221,24 +221,9 @@ public class PersonnelResource {
             return ResponseEntity.ok(List.of());
         }
 
-        // Agents externes (fiche Personnel autonome, sans compte)
-        List<User> comptes = personnelCompteService.comptes();
-        List<Personnel> agents = personnelRepo.findByDivision_IdInAndActifTrue(divisionsDontJeSuisChef).stream()
-                .filter(p -> !personnelCompteService.aUnCompte(p, comptes))
-                .collect(java.util.stream.Collectors.toCollection(ArrayList::new));
-
-        // Agents internes (avec compte applicatif) de ces mêmes divisions — l'id renvoyé
-        // est alors celui du User, pour que cet agent puisse ensuite retrouver ce qui le
-        // concerne (ex. expressions de besoin) via ses propres écrans en lecture seule.
-        userRepository.findByPersonnel_Division_IdIn(divisionsDontJeSuisChef).stream()
-                .filter(u -> !u.getId().equals(chef.getId()))
-                .forEach(u -> {
-                    Personnel p = u.getPersonnel();
-                    if (p != null) {
-                        p.setId(u.getId());
-                        agents.add(p);
-                    }
-                });
+        // Tous les agents (fiche Personnel, avec ou sans compte applicatif) de ces divisions —
+        // un agent se désigne toujours par sa fiche Personnel, jamais par son compte User.
+        List<Personnel> agents = new ArrayList<>(personnelRepo.findByDivision_IdInAndActifTrue(divisionsDontJeSuisChef));
 
         return ResponseEntity.ok(agents);
     }
@@ -306,7 +291,10 @@ public class PersonnelResource {
         personnel.setTypePersonnel(req.getTypePersonnel());
         personnel.setSoldeConges(req.getTypePersonnel() != null ? req.getTypePersonnel().joursConges() : null);
         personnel.setActif(req.isActif());
-        return ResponseEntity.ok(personnelRepo.save(personnel));
+        Personnel sauvegarde = personnelRepo.save(personnel);
+        personnelCompteService.synchroniserCompteLie(sauvegarde);
+
+        return ResponseEntity.ok(sauvegarde);
     }
 
     // Retire tous les espaces (matricule/téléphone souvent copiés-collés avec des espaces

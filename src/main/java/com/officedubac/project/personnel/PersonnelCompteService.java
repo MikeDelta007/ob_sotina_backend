@@ -49,4 +49,15 @@ public class PersonnelCompteService {
     private boolean notBlank(String s) {
         return s != null && !s.isBlank();
     }
+
+    // Un compte applicatif rattaché à une fiche Personnel garde sa propre copie embarquée
+    // (User.personnel) — à appeler après tout changement sur la fiche (division, fonction,
+    // solde de congés…) pour que cette copie ne devienne pas périmée (ex: liste "mes agents"
+    // d'un chef de service, qui lit cette copie plutôt que la fiche Personnel elle-même).
+    public void synchroniserCompteLie(Personnel personnel) {
+        userRepository.findByPersonnelId(personnel.getId()).ifPresent(compte -> {
+            compte.setPersonnel(personnel);
+            userRepository.save(compte);
+        });
+    }
 }

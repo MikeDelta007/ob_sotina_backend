@@ -3,6 +3,8 @@ package com.officedubac.project.absence;
 import com.lowagie.text.*;
 import com.lowagie.text.pdf.*;
 import com.officedubac.project.models.User;
+import com.officedubac.project.personnel.Personnel;
+import com.officedubac.project.personnel.PersonnelRepository;
 import com.officedubac.project.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -22,6 +24,7 @@ import java.time.format.DateTimeFormatter;
 public class AutorisationAbsencePdfService {
 
     private final UserRepository userRepository;
+    private final PersonnelRepository personnelRepository;
 
     private static final DateTimeFormatter DATE_COURTE = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
@@ -97,13 +100,11 @@ public class AutorisationAbsencePdfService {
             // ══════════════════════
             // CORPS encadré (barre verticale à gauche, comme le formulaire officiel)
             // ══════════════════════
-            User demandeur = userRepository.findById(demande.getDemandeurId()).orElse(null);
-            String qualiteFonction = demandeur != null && demandeur.getPersonnel() != null
-                    && demandeur.getPersonnel().getFonction() != null
-                    ? demandeur.getPersonnel().getFonction().getLibelle() : "";
-            String matricule = demandeur != null && demandeur.getPersonnel() != null
-                    && demandeur.getPersonnel().getMatricule() != null
-                    ? demandeur.getPersonnel().getMatricule() : "";
+            Personnel demandeur = personnelRepository.findById(demande.getDemandeurId()).orElse(null);
+            String qualiteFonction = demandeur != null && demandeur.getFonction() != null
+                    ? demandeur.getFonction().getLibelle() : "";
+            String matricule = demandeur != null && demandeur.getMatricule() != null
+                    ? demandeur.getMatricule() : "";
 
             PdfPTable corpsTable = new PdfPTable(1);
             corpsTable.setWidthPercentage(100);
@@ -223,9 +224,9 @@ public class AutorisationAbsencePdfService {
 
     // "Monsieur" / "Madame" / "Mademoiselle" selon la civilité du demandeur ; à défaut
     // (fiche sans civilité), on garde le libellé neutre du formulaire officiel.
-    private String libelleCivilite(User demandeur) {
-        if (demandeur != null && demandeur.getPersonnel() != null && demandeur.getPersonnel().getCivilite() != null) {
-            switch (demandeur.getPersonnel().getCivilite()) {
+    private String libelleCivilite(Personnel demandeur) {
+        if (demandeur != null && demandeur.getCivilite() != null) {
+            switch (demandeur.getCivilite()) {
                 case Mr: return "Monsieur";
                 case Mme: return "Madame";
                 case Mlle: return "Mademoiselle";
