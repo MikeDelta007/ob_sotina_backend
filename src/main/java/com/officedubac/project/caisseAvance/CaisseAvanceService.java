@@ -22,6 +22,9 @@ public class CaisseAvanceService {
     private final MandatementRepository mandatementRepo;
 
     private static final BigDecimal SEUIL_ALERTE = BigDecimal.valueOf(100_000);
+    // Réserve minimale : un décaissement en espèces qui ferait descendre la caisse sous ce
+    // seuil est refusé purement et simplement, même si le montant lui-même est couvert.
+    private static final BigDecimal SEUIL_RESERVE = BigDecimal.valueOf(50_000);
 
     // ── Récupérer la caisse courante ──
     public CaisseAvance getCaisseCourante() {
@@ -42,6 +45,7 @@ public class CaisseAvanceService {
                     .montant(soldeApres)
                     .date(date)
                     .description(description)
+                    .dateDepuisSeuilBas(soldeApres.compareTo(SEUIL_ALERTE) <= 0 ? LocalDateTime.now() : null)
                     .build());
         } else {
             mettreAJourSolde(caisse.getId(), soldeApres);
@@ -118,6 +122,13 @@ public class CaisseAvanceService {
         CaisseAvance caisse = caisseRepo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Caisse introuvable"));
         caisse.setMontant(nouveauSolde);
+        // Fixé à la première descente sous le seuil, conservé tel quel tant qu'on y reste,
+        // remis à zéro dès qu'on repasse au-dessus.
+        if (nouveauSolde.compareTo(SEUIL_ALERTE) > 0) {
+            caisse.setDateDepuisSeuilBas(null);
+        } else if (caisse.getDateDepuisSeuilBas() == null) {
+            caisse.setDateDepuisSeuilBas(LocalDateTime.now());
+        }
         caisseRepo.save(caisse);
 
         if (nouveauSolde.compareTo(BigDecimal.ZERO) == 0) {
@@ -147,6 +158,9 @@ public class CaisseAvanceService {
         BigDecimal soldeApres = soldeAvant.subtract(montant);
         if (soldeApres.compareTo(BigDecimal.ZERO) < 0)
             throw new RuntimeException("Solde insuffisant dans la caisse d'avance");
+        if (soldeApres.compareTo(SEUIL_RESERVE) < 0)
+            throw new RuntimeException("Charger la caisse : ce décaissement ferait descendre le solde en dessous de "
+                    + SEUIL_RESERVE + " FCFA");
 
         mettreAJourSolde(caisse.getId(), soldeApres);
 

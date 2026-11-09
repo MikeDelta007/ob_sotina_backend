@@ -107,8 +107,9 @@ public class DemandeAbsenceResource {
         return ResponseEntity.ok(demandeAbsenceService.congesEnCours());
     }
 
-    // Le Directeur désigne un suppléant sur un congé déjà validé
-    @PreAuthorize("hasAnyAuthority('DIRECTEUR','ADMIN')")
+    // Chaque chef de service désigne le suppléant de ses propres agents ; CSA/Directeur (et
+    // Assistante Directeur/Admin) le font pour n'importe quel agent — autorisation affinée
+    // dans le service selon la division réellement concernée.
     @PutMapping("/{id}/suppleant")
     public ResponseEntity<DemandeAbsence> definirSuppleant(@PathVariable String id, @Valid @RequestBody SuppleantRequest req) {
         return ResponseEntity.ok(demandeAbsenceService.definirSuppleant(id, req.getSuppleantId()));

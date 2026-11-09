@@ -293,9 +293,10 @@ public class DemandeAbsenceService {
                 .collect(Collectors.toList());
     }
 
-    // Le Directeur désigne un suppléant sur un congé déjà validé — un agent qui prend en charge
-    // les dossiers de l'absent. Visible ensuite par tous via congesEnCours(). suppleantId vide
-    // retire le suppléant déjà désigné.
+    // Chaque chef de service désigne le suppléant de ses propres agents (parmi les agents de sa
+    // division uniquement) ; le CSA et le Directeur (comme l'Assistante Directeur et l'Admin),
+    // supervisant tout le personnel, le font pour n'importe quel agent. Visible ensuite par tous
+    // via congesEnCours(). suppleantId vide retire le suppléant déjà désigné.
     public DemandeAbsence definirSuppleant(String id, String suppleantId) {
         DemandeAbsence demande = demandeRepo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Demande d'absence introuvable"));
@@ -303,6 +304,16 @@ public class DemandeAbsenceService {
             throw new RuntimeException("Un suppléant ne peut être désigné que pour un congé");
         if (demande.getStatut() != StatutAbsence.VALIDEE)
             throw new RuntimeException("Un suppléant ne peut être désigné que pour un congé déjà validé");
+
+        User caller = currentUser();
+        Division divisionAgent = demande.getDivisionId() != null
+                ? divisionRepo.findById(demande.getDivisionId()).orElse(null)
+                : null;
+        boolean superviseurGlobal = hasAuthority("CSA") || hasAuthority("DIRECTEUR")
+                || hasAuthority("ASSISTANTE_DIRECTEUR") || hasAuthority("ADMIN");
+        boolean chefDeCetteDivision = divisionAgent != null && caller.getId().equals(divisionAgent.getChefServiceId());
+        if (!superviseurGlobal && !chefDeCetteDivision)
+            throw new RuntimeException("Vous n'êtes pas autorisé à désigner un suppléant pour cet agent");
 
         if (suppleantId == null || suppleantId.isBlank()) {
             demande.setSuppleantId(null);
@@ -318,7 +329,23 @@ public class DemandeAbsenceService {
         if (suppleant.getId().equals(demande.getDemandeurId()))
             throw new RuntimeException("Le suppléant ne peut pas être l'agent lui-même");
 
-        User caller = currentUser();
+        // Un chef de service ne désigne un suppléant que parmi les agents de sa propre division —
+        // le CSA/Directeur, supervisant tout le personnel, n'ont pas cette contrainte.
+        if (!superviseurGlobal) {
+            String divisionSuppleantId = suppleant.getDivision() != null ? suppleant.getDivision().getId() : null;
+            if (divisionSuppleantId == null || divisionAgent == null || !divisionSuppleantId.equals(divisionAgent.getId()))
+                throw new RuntimeException("Le suppléant doit être un agent de la même division");
+        }
+
+        // Un agent lui-même en congé validé sur une période qui chevauche celle de l'absent ne
+        // peut pas le suppléer — il ne serait pas davantage disponible que lui.
+        boolean suppleantEnCongeSurPeriode = demandeRepo.findByTypeAndStatutOrderByDateDebutAsc(TypeAbsence.CONGE, StatutAbsence.VALIDEE)
+                .stream()
+                .filter(d -> d.getDemandeurId().equals(suppleant.getId()))
+                .anyMatch(d -> !(d.getDateFin().isBefore(demande.getDateDebut()) || d.getDateDebut().isAfter(demande.getDateFin())));
+        if (suppleantEnCongeSurPeriode)
+            throw new RuntimeException("Cet agent est lui-même en congé pendant cette période, il ne peut pas être désigné suppléant");
+
         demande.setSuppleantId(suppleant.getId());
         demande.setSuppleantNom((suppleant.getFirstname() + " " + suppleant.getLastname()).trim());
         demande.setSuppleantDefiniPar(caller.getLogin());

@@ -24,6 +24,10 @@ public class CaisseAvance {
     private LocalDate date;
     private String description;
 
+    // Depuis quand le solde est resté en continu ≤ au seuil d'alerte (100 000) — remis à null
+    // dès que le solde repasse au-dessus, fixé à la première descente sous le seuil sinon.
+    private LocalDateTime dateDepuisSeuilBas;
+
     @CreatedDate
     private LocalDateTime dateCreation;
     @LastModifiedDate
