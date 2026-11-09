@@ -441,6 +441,7 @@ public class ExpressionBesoinService {
         boolean estDirecteur = hasAuthority("DIRECTEUR") || hasAuthority("ASSISTANTE_DIRECTEUR");
         boolean estAdmin = hasAuthority("ADMIN");
         return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.EN_ATTENTE).stream()
+                .filter(eb -> !eb.isArchivee())
                 .filter(eb -> {
                     if (estAdmin) return true;
                     boolean directeurRequis = eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) > 0;
@@ -453,7 +454,9 @@ public class ExpressionBesoinService {
 
     // Dossiers rejetés (un rejet est définitif) — onglet dédié pour le CSA/Directeur.
     public List<ExpressionBesoin> getRejetees() {
-        return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.REJETEE);
+        return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.REJETEE).stream()
+                .filter(eb -> !eb.isArchivee())
+                .toList();
     }
 
     // Dossiers déjà validés par le rôle connecté (qu'ils attendent encore l'autre validateur,
@@ -475,6 +478,7 @@ public class ExpressionBesoinService {
     public List<ExpressionBesoin> getMontantReduit() {
         return expressionBesoinRepo.findAll().stream()
                 .filter(eb -> eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) <= 0)
+                .filter(eb -> !eb.isArchivee())
                 .sorted(java.util.Comparator.comparing(ExpressionBesoin::getDateCreation).reversed())
                 .toList();
     }
@@ -501,16 +505,15 @@ public class ExpressionBesoinService {
     }
 
     // ═══════════════════════════════════════════════════════════════
-    // ARCHIVAGE (Directeur) — une EB déjà validée (VALIDEE ou TRAITEE) jamais consommée par
-    // un mandatement peut être retirée des listes actives sans être supprimée.
+    // ARCHIVAGE (Directeur) — n'importe quelle EB, quel que soit son statut (EN_ATTENTE,
+    // VALIDEE, REJETEE, TRAITEE), peut être retirée des listes actives sans être supprimée,
+    // tant qu'elle n'est pas déjà liée à un mandatement.
     // ═══════════════════════════════════════════════════════════════
     public ExpressionBesoin archiver(String id) {
         ExpressionBesoin eb = getById(id);
 
         if (eb.isArchivee())
             throw new RuntimeException("Cette expression de besoin est déjà archivée");
-        if (eb.getStatut() != ExpressionBesoin.Statut.VALIDEE && eb.getStatut() != ExpressionBesoin.Statut.TRAITEE)
-            throw new RuntimeException("Seule une expression de besoin validée peut être archivée");
         if (eb.isUtiliseePourMandatement())
             throw new RuntimeException("Cette expression de besoin est déjà liée à un mandatement, elle ne peut pas être archivée");
 
