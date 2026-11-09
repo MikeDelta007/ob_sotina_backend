@@ -389,6 +389,21 @@ public class ExpressionBesoinService {
         return expressionBesoinRepo.save(eb);
     }
 
+    // Correction admin : permet de rectifier une EB mal renseignée (motif marqué à tort
+    // "exige satisfaction", ou confirmation oubliée/impossible à obtenir du demandeur)
+    // tant qu'elle n'est pas déjà consommée par un mandatement.
+    public ExpressionBesoin ajusterSatisfaction(String id, boolean requiertSatisfaction, boolean satisfactionConfirmee) {
+        ExpressionBesoin eb = getById(id);
+        if (eb.isUtiliseePourMandatement())
+            throw new RuntimeException("Cette expression de besoin est déjà liée à un mandatement, la satisfaction ne peut plus être ajustée");
+
+        eb.setRequiertSatisfaction(requiertSatisfaction);
+        boolean confirmee = requiertSatisfaction && satisfactionConfirmee;
+        eb.setSatisfactionConfirmee(confirmee);
+        eb.setDateSatisfaction(confirmee ? LocalDateTime.now() : null);
+        return expressionBesoinRepo.save(eb);
+    }
+
     // Appelée par MandatementService avant tout décaissement lié à cette EB.
     public void verifierSatisfactionPourDecaissement(String id) {
         ExpressionBesoin eb = getById(id);
@@ -419,11 +434,14 @@ public class ExpressionBesoinService {
 
     // Ne montre que ce qu'il reste réellement à valider pour le rôle connecté :
     // un CSA qui a déjà validé un dossier (encore EN_ATTENTE du Directeur) ne doit plus le voir ici.
+    // L'Admin, lui, voit tout ce qui est en attente (supervision globale, pas de validation à sa charge).
     public List<ExpressionBesoin> getAValider() {
         boolean estCsa = hasAuthority("CSA");
         boolean estDirecteur = hasAuthority("DIRECTEUR") || hasAuthority("ASSISTANTE_DIRECTEUR");
+        boolean estAdmin = hasAuthority("ADMIN");
         return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.EN_ATTENTE).stream()
                 .filter(eb -> {
+                    if (estAdmin) return true;
                     boolean directeurRequis = eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) > 0;
                     if (estCsa && !eb.isValidationCsa() && !eb.isRejetCsa()) return true;
                     if (estDirecteur && directeurRequis && !eb.isValidationDirecteur()) return true;
@@ -442,10 +460,11 @@ public class ExpressionBesoinService {
     public List<ExpressionBesoin> getValidees() {
         boolean estCsa = hasAuthority("CSA");
         boolean estDirecteur = hasAuthority("DIRECTEUR") || hasAuthority("ASSISTANTE_DIRECTEUR");
+        boolean estAdmin = hasAuthority("ADMIN");
         return expressionBesoinRepo.findAll().stream()
                 .filter(eb -> eb.getStatut() != ExpressionBesoin.Statut.REJETEE)
                 .filter(eb -> !eb.isArchivee())
-                .filter(eb -> (estCsa && eb.isValidationCsa()) || (estDirecteur && eb.isValidationDirecteur()))
+                .filter(eb -> estAdmin || (estCsa && eb.isValidationCsa()) || (estDirecteur && eb.isValidationDirecteur()))
                 .sorted(java.util.Comparator.comparing(ExpressionBesoin::getDateCreation).reversed())
                 .toList();
     }

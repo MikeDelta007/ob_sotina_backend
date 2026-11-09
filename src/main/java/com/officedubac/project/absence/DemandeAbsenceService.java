@@ -12,6 +12,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -280,6 +281,50 @@ public class DemandeAbsenceService {
         return demandeRepo.findByTypeAndDivisionIdInOrderByDateCreationDesc(type, divisionsDontJeSuisChef).stream()
                 .filter(d -> d.isValidationChef() || d.isRejetChef())
                 .collect(Collectors.toList());
+    }
+
+    // Vue globale, accessible à tout agent (pas seulement chef/CSA/Directeur) : qui est
+    // actuellement en congé validé, ou le sera bientôt, et son suppléant éventuel — pour pouvoir
+    // renseigner un usager sans avoir à interroger le chef de service.
+    public List<DemandeAbsence> congesEnCours() {
+        LocalDate aujourdHui = LocalDate.now();
+        return demandeRepo.findByTypeAndStatutOrderByDateDebutAsc(TypeAbsence.CONGE, StatutAbsence.VALIDEE).stream()
+                .filter(d -> !d.getDateFin().isBefore(aujourdHui))
+                .collect(Collectors.toList());
+    }
+
+    // Le Directeur désigne un suppléant sur un congé déjà validé — un agent qui prend en charge
+    // les dossiers de l'absent. Visible ensuite par tous via congesEnCours(). suppleantId vide
+    // retire le suppléant déjà désigné.
+    public DemandeAbsence definirSuppleant(String id, String suppleantId) {
+        DemandeAbsence demande = demandeRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Demande d'absence introuvable"));
+        if (demande.getType() != TypeAbsence.CONGE)
+            throw new RuntimeException("Un suppléant ne peut être désigné que pour un congé");
+        if (demande.getStatut() != StatutAbsence.VALIDEE)
+            throw new RuntimeException("Un suppléant ne peut être désigné que pour un congé déjà validé");
+
+        if (suppleantId == null || suppleantId.isBlank()) {
+            demande.setSuppleantId(null);
+            demande.setSuppleantNom(null);
+            demande.setSuppleantDefiniPar(null);
+            demande.setSuppleantDefiniParNom(null);
+            demande.setDateDefinitionSuppleant(null);
+            return demandeRepo.save(demande);
+        }
+
+        Personnel suppleant = personnelRepository.findById(suppleantId)
+                .orElseThrow(() -> new RuntimeException("Agent introuvable"));
+        if (suppleant.getId().equals(demande.getDemandeurId()))
+            throw new RuntimeException("Le suppléant ne peut pas être l'agent lui-même");
+
+        User caller = currentUser();
+        demande.setSuppleantId(suppleant.getId());
+        demande.setSuppleantNom((suppleant.getFirstname() + " " + suppleant.getLastname()).trim());
+        demande.setSuppleantDefiniPar(caller.getLogin());
+        demande.setSuppleantDefiniParNom(nomComplet(caller));
+        demande.setDateDefinitionSuppleant(LocalDateTime.now());
+        return demandeRepo.save(demande);
     }
 
     public DemandeAbsence valider(String id) {

@@ -98,6 +98,7 @@ public class CaisseAvanceResource {
         motif.setLibelle(req.getLibelle());
         motif.setActif(req.isActif());
         motif.setRequiertSatisfaction(req.isRequiertSatisfaction());
+        motif.setPaiementChequeObligatoire(req.isPaiementChequeObligatoire());
         return ResponseEntity.ok(motifRepo.save(motif));
     }
 

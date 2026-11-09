@@ -9,4 +9,5 @@ public interface DemandeAbsenceRepository extends MongoRepository<DemandeAbsence
     List<DemandeAbsence> findByStatutAndTypeAndDivisionIdInOrderByDateCreationDesc(StatutAbsence statut, TypeAbsence type, List<String> divisionIds);
     List<DemandeAbsence> findByTypeAndDivisionIdInOrderByDateCreationDesc(TypeAbsence type, List<String> divisionIds);
     List<DemandeAbsence> findByTypeOrderByDateCreationDesc(TypeAbsence type);
+    List<DemandeAbsence> findByTypeAndStatutOrderByDateDebutAsc(TypeAbsence type, StatutAbsence statut);
 }

@@ -59,26 +59,26 @@ public class ExpressionBesoinResource {
     }
 
     // ── CSA / Directeur ──
-    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR','ASSISTANTE_DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR','ASSISTANTE_DIRECTEUR','ADMIN')")
     @GetMapping("/a-valider")
     public ResponseEntity<List<ExpressionBesoin>> getAValider() {
         return ResponseEntity.ok(expressionBesoinService.getAValider());
     }
 
-    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR','ASSISTANTE_DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR','ASSISTANTE_DIRECTEUR','ADMIN')")
     @GetMapping("/validees")
     public ResponseEntity<List<ExpressionBesoin>> getValidees() {
         return ResponseEntity.ok(expressionBesoinService.getValidees());
     }
 
-    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR','ASSISTANTE_DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR','ASSISTANTE_DIRECTEUR','ADMIN')")
     @GetMapping("/rejetees")
     public ResponseEntity<List<ExpressionBesoin>> getRejetees() {
         return ResponseEntity.ok(expressionBesoinService.getRejetees());
     }
 
     // Vue consolidée (tous statuts) des EB ≤ seuil, qui ne relèvent jamais du Directeur
-    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR','ASSISTANTE_DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('CSA','DIRECTEUR','ASSISTANTE_DIRECTEUR','ADMIN')")
     @GetMapping("/montant-reduit")
     public ResponseEntity<List<ExpressionBesoin>> getMontantReduit() {
         return ResponseEntity.ok(expressionBesoinService.getMontantReduit());
@@ -103,14 +103,22 @@ public class ExpressionBesoinResource {
         return ResponseEntity.ok(expressionBesoinService.archiver(id));
     }
 
+    // Correction admin de l'exigence/confirmation de satisfaction, tant que l'EB n'est pas
+    // encore consommée par un mandatement (débloque un dossier mal renseigné avant décaissement).
+    @PreAuthorize("hasAuthority('ADMIN')")
+    @PutMapping("/{id}/ajuster-satisfaction")
+    public ResponseEntity<ExpressionBesoin> ajusterSatisfaction(@PathVariable String id, @RequestBody AjusterSatisfactionRequest req) {
+        return ResponseEntity.ok(expressionBesoinService.ajusterSatisfaction(id, req.isRequiertSatisfaction(), req.isSatisfactionConfirmee()));
+    }
+
     // ── Chef comptable / Agent comptable (lecture-écriture) + CSA / Directeur (lecture seule) ──
-    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','CSA','DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','CSA','DIRECTEUR','ADMIN')")
     @GetMapping("/a-traiter")
     public ResponseEntity<List<ExpressionBesoin>> getATraiter() {
         return ResponseEntity.ok(expressionBesoinService.getATraiter());
     }
 
-    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','CSA','DIRECTEUR')")
+    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','CSA','DIRECTEUR','ADMIN')")
     @GetMapping("/traitees")
     public ResponseEntity<List<ExpressionBesoin>> getTraitees() {
         return ResponseEntity.ok(expressionBesoinService.getTraitees());

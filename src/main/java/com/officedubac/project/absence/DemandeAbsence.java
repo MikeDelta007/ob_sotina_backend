@@ -63,6 +63,14 @@ public class DemandeAbsence {
     private String rejeteParNom;
     private LocalDateTime dateRejet;
 
+    // Suppléant désigné par le Directeur sur un congé déjà validé — pour que tout agent sache
+    // qui contacter à la place de l'agent absent (cf. DemandeAbsenceService.definirSuppleant).
+    private String suppleantId;
+    private String suppleantNom;
+    private String suppleantDefiniPar;
+    private String suppleantDefiniParNom;
+    private LocalDateTime dateDefinitionSuppleant;
+
     private String creePar;
     private LocalDateTime dateCreation;
 }

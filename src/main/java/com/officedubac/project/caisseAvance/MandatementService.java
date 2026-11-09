@@ -28,6 +28,7 @@ public class MandatementService {
     private final CaisseAvanceService      caisseService;
     private final GridFsTemplate           gridFsTemplate;
     private final ExpressionBesoinService  expressionBesoinService;
+    private final MotifRepository          motifRepo;
 
     private static final BigDecimal SEUIL_CHEQUE = BigDecimal.valueOf(100_000);
 
@@ -52,8 +53,11 @@ public class MandatementService {
 
         // Le mode est déterminé par le montant réellement décaissé maintenant (l'avance),
         // pas par le montant total de la facture — une avance de 3 000 sur une facture
-        // de 130 000 se paie en espèces, pas par chèque.
-        Mandatement.ModePaiement mode = modeAuto(avance);
+        // de 130 000 se paie en espèces, pas par chèque — sauf si le motif impose le chèque
+        // quel que soit le montant (ex. un fournisseur qui n'accepte pas les espèces).
+        Mandatement.ModePaiement mode = paiementChequeObligatoire(req.getMotifId())
+                ? Mandatement.ModePaiement.CHEQUE
+                : modeAuto(avance);
 
         // Décaissement
         CaisseAvanceService.DecaissementResult decaissement =
@@ -128,10 +132,15 @@ public class MandatementService {
                     + ") dépasse le solde de la caisse. Approvisionnez la caisse avant de continuer.");
 
         // Chaque facture peut provenir d'une EB différente exigeant sa propre confirmation
-        // de satisfaction — vérifiées toutes avant le décaissement global unique.
+        // de satisfaction — vérifiées toutes avant le décaissement global unique. Un motif à
+        // chèque obligatoire n'a en revanche pas sa place dans un cumulatif (toujours payé en
+        // espèces par construction) — à régler via un mandatement simple à la place.
         for (MandatementCumulatifRequest.Ligne ligne : req.getLignes()) {
             if (ligne.getExpressionBesoinId() != null && !ligne.getExpressionBesoinId().isBlank())
                 expressionBesoinService.verifierSatisfactionPourDecaissement(ligne.getExpressionBesoinId());
+            if (paiementChequeObligatoire(ligne.getMotifId()))
+                throw new RuntimeException("Le motif \"" + ligne.getMotifLibelle()
+                        + "\" impose un paiement par chèque : il ne peut pas être inclus dans un mandatement cumulatif (toujours réglé en espèces). Utilisez un mandatement simple.");
         }
 
         BigDecimal avanceGlobale = req.getTypePaiement() == Mandatement.TypePaiement.AVANCE
@@ -302,6 +311,10 @@ public class MandatementService {
         return caisseService.soldeSuffisant(montant)
                 ? Mandatement.ModePaiement.ESPECES
                 : Mandatement.ModePaiement.CHEQUE;
+    }
+
+    private boolean paiementChequeObligatoire(String motifId) {
+        return motifRepo.findById(motifId).map(Motif::isPaiementChequeObligatoire).orElse(false);
     }
 
     // ── Numéro : 2026-N-FAC_483920_username ──

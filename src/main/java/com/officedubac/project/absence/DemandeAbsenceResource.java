@@ -99,6 +99,21 @@ public class DemandeAbsenceResource {
         return ResponseEntity.ok(demandeAbsenceService.demandesTraitees(type));
     }
 
+    // Vue globale ouverte à tout agent : qui est actuellement en congé (ou le sera), avec son
+    // suppléant éventuel — pas de restriction de rôle, tout le monde doit pouvoir informer un
+    // usager.
+    @GetMapping("/en-cours")
+    public ResponseEntity<List<DemandeAbsence>> congesEnCours() {
+        return ResponseEntity.ok(demandeAbsenceService.congesEnCours());
+    }
+
+    // Le Directeur désigne un suppléant sur un congé déjà validé
+    @PreAuthorize("hasAnyAuthority('DIRECTEUR','ADMIN')")
+    @PutMapping("/{id}/suppleant")
+    public ResponseEntity<DemandeAbsence> definirSuppleant(@PathVariable String id, @Valid @RequestBody SuppleantRequest req) {
+        return ResponseEntity.ok(demandeAbsenceService.definirSuppleant(id, req.getSuppleantId()));
+    }
+
     @PutMapping("/{id}/valider")
     public ResponseEntity<DemandeAbsence> valider(@PathVariable String id) {
         return ResponseEntity.ok(demandeAbsenceService.valider(id));

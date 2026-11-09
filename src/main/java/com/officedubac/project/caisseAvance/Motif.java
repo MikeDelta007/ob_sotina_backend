@@ -23,6 +23,9 @@ public class Motif {
     // Si vrai, toute expression de besoin utilisant ce motif exige la confirmation de
     // satisfaction du demandeur avant tout décaissement du mandatement correspondant.
     private boolean requiertSatisfaction = false;
+    // Si vrai, le mandatement correspondant est obligatoirement réglé par chèque, même sous le
+    // seuil de 100 000 où un paiement en espèces serait normalement choisi automatiquement.
+    private boolean paiementChequeObligatoire = false;
     // Motif réservé à un module (ex. « Ticket restaurant ») : jamais proposé à la création d'une
     // expression de besoin ni dans l'écran de gestion, mais présent au décaissement.
     private boolean systeme = false;
