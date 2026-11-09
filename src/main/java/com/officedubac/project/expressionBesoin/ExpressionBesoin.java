@@ -101,6 +101,13 @@ public class ExpressionBesoin {
     private boolean satisfactionConfirmee;
     private LocalDateTime dateSatisfaction;
 
+    // ── Archivage (Directeur) — une EB déjà validée mais jamais consommée par un
+    // mandatement peut être archivée pour sortir des listes actives (disponibles pour
+    // mandatement, à traiter...), sans être supprimée. ──
+    private boolean archivee;
+    private String archiveePar;
+    private LocalDateTime dateArchivage;
+
     private String creePar;
     private String creeParNom;
 

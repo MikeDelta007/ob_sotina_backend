@@ -76,9 +76,44 @@ public class ExpressionBesoinService {
                 .creeParNom(nomComplet(createur))
                 .build();
 
+        // Le CSA et le Directeur valident de toute façon toutes les EB — inutile de leur
+        // faire créer la leur puis revenir la valider séparément : elle est auto-validée à
+        // son niveau dès la création.
+        appliquerAutoValidation(eb, beneficiaire, createur);
+
         ExpressionBesoin saved = expressionBesoinRepo.save(eb);
         notifierValidateurs(saved);
         return saved;
+    }
+
+    // Auto-valide l'étape CSA (et, si le bénéficiaire est lui-même Directeur/Assistante
+    // Directeur, l'étape Directeur aussi) quand le bénéficiaire de l'EB est ce même rôle —
+    // au-dessus du seuil, l'EB d'un CSA attend quand même une validation Directeur distincte.
+    private void appliquerAutoValidation(ExpressionBesoin eb, Beneficiaire beneficiaire, User createur) {
+        User beneficiaireUser = beneficiaire.moiMeme() ? createur : userRepository.findById(beneficiaire.id()).orElse(null);
+        if (beneficiaireUser == null || beneficiaireUser.getProfil() == null) return;
+        Role role = beneficiaireUser.getProfil().getName();
+        if (role != Role.CSA && role != Role.DIRECTEUR && role != Role.ASSISTANTE_DIRECTEUR) return;
+
+        eb.setValidationCsa(true);
+        eb.setValidateurCsa(beneficiaireUser.getLogin());
+        eb.setValidateurCsaNom(nomComplet(beneficiaireUser));
+        eb.setDateValidationCsa(LocalDateTime.now());
+
+        if (role == Role.DIRECTEUR || role == Role.ASSISTANTE_DIRECTEUR) {
+            eb.setValidationDirecteur(true);
+            eb.setValidateurDirecteur(beneficiaireUser.getLogin());
+            eb.setValidateurDirecteurNom(nomComplet(beneficiaireUser));
+            eb.setDateValidationDirecteur(LocalDateTime.now());
+        }
+
+        boolean directeurRequis = eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) > 0;
+        boolean validationComplete = directeurRequis
+                ? (eb.isValidationCsa() && eb.isValidationDirecteur())
+                : eb.isValidationCsa();
+        if (validationComplete) {
+            eb.setStatut(ExpressionBesoin.Statut.VALIDEE);
+        }
     }
 
     public ExpressionBesoin modifier(String id, ExpressionBesoinRequest req, MultipartFile pdfFactureProforma, MultipartFile pdfDeclarationHonneur) {
@@ -156,6 +191,15 @@ public class ExpressionBesoinService {
         return motifRepository.findById(motifId).map(Motif::isRequiertSatisfaction).orElse(false);
     }
 
+    // Vrai si le bénéficiaire résolu est lui-même CSA, Directeur ou Assistante Directeur —
+    // ils n'ont pas à "confirmer leur satisfaction" sur leur propre dossier.
+    private boolean beneficiaireEstCsaOuDirecteur(Beneficiaire beneficiaire, User createur) {
+        User u = beneficiaire.moiMeme() ? createur : userRepository.findById(beneficiaire.id()).orElse(null);
+        if (u == null || u.getProfil() == null) return false;
+        Role role = u.getProfil().getName();
+        return role == Role.CSA || role == Role.DIRECTEUR || role == Role.ASSISTANTE_DIRECTEUR;
+    }
+
     private void validerPieceJointe(boolean aProforma, MultipartFile pdfFactureProforma, MultipartFile pdfDeclarationHonneur) {
         if (aProforma && (pdfFactureProforma == null || pdfFactureProforma.isEmpty()))
             throw new RuntimeException("La facture proforma (PDF) est requise");
@@ -166,10 +210,14 @@ public class ExpressionBesoinService {
     // Notifie systématiquement le(s) CSA, et en plus le(s) Directeur si le montant
     // initial dépasse le seuil imposant sa validation.
     private void notifierValidateurs(ExpressionBesoin eb) {
-        userRepository.findByProfilName(Role.CSA)
-                .forEach(u -> yasSmsService.envoyerNotificationValidation(u.getPersonnel().getPhone()));
+        // Une étape déjà auto-validée (bénéficiaire CSA/Directeur, cf. appliquerAutoValidation)
+        // n'a plus besoin qu'on en notifie le validateur — il n'y a plus rien à valider là.
+        if (!eb.isValidationCsa()) {
+            userRepository.findByProfilName(Role.CSA)
+                    .forEach(u -> yasSmsService.envoyerNotificationValidation(u.getPersonnel().getPhone()));
+        }
 
-        if (eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) > 0) {
+        if (eb.getMontantInitial().compareTo(SEUIL_VALIDATION_DIRECTEUR) > 0 && !eb.isValidationDirecteur()) {
             userRepository.findByProfilName(Role.DIRECTEUR)
                     .forEach(u -> yasSmsService.envoyerNotificationValidation(u.getPersonnel().getPhone()));
             userRepository.findByProfilName(Role.ASSISTANTE_DIRECTEUR)
@@ -396,6 +444,7 @@ public class ExpressionBesoinService {
         boolean estDirecteur = hasAuthority("DIRECTEUR") || hasAuthority("ASSISTANTE_DIRECTEUR");
         return expressionBesoinRepo.findAll().stream()
                 .filter(eb -> eb.getStatut() != ExpressionBesoin.Statut.REJETEE)
+                .filter(eb -> !eb.isArchivee())
                 .filter(eb -> (estCsa && eb.isValidationCsa()) || (estDirecteur && eb.isValidationDirecteur()))
                 .sorted(java.util.Comparator.comparing(ExpressionBesoin::getDateCreation).reversed())
                 .toList();
@@ -411,7 +460,10 @@ public class ExpressionBesoinService {
     }
 
     public List<ExpressionBesoin> getATraiter() {
-        return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.VALIDEE);
+        return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.VALIDEE)
+                .stream()
+                .filter(eb -> !eb.isArchivee())
+                .toList();
     }
 
     public List<ExpressionBesoin> getTraitees() {
@@ -423,8 +475,29 @@ public class ExpressionBesoinService {
     public List<ExpressionBesoin> getDisponiblesPourMandatement() {
         return expressionBesoinRepo.findByStatutAndUtiliseePourMandatementFalseOrderByDateCreationDesc(ExpressionBesoin.Statut.TRAITEE)
                 .stream()
+                .filter(eb -> !eb.isArchivee())
                 .filter(eb -> !eb.isRequiertSatisfaction() || eb.isSatisfactionConfirmee())
                 .toList();
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ARCHIVAGE (Directeur) — une EB déjà validée (VALIDEE ou TRAITEE) jamais consommée par
+    // un mandatement peut être retirée des listes actives sans être supprimée.
+    // ═══════════════════════════════════════════════════════════════
+    public ExpressionBesoin archiver(String id) {
+        ExpressionBesoin eb = getById(id);
+
+        if (eb.isArchivee())
+            throw new RuntimeException("Cette expression de besoin est déjà archivée");
+        if (eb.getStatut() != ExpressionBesoin.Statut.VALIDEE && eb.getStatut() != ExpressionBesoin.Statut.TRAITEE)
+            throw new RuntimeException("Seule une expression de besoin validée peut être archivée");
+        if (eb.isUtiliseePourMandatement())
+            throw new RuntimeException("Cette expression de besoin est déjà liée à un mandatement, elle ne peut pas être archivée");
+
+        eb.setArchivee(true);
+        eb.setArchiveePar(getUsername());
+        eb.setDateArchivage(LocalDateTime.now());
+        return expressionBesoinRepo.save(eb);
     }
 
     // ── Utilitaires ──

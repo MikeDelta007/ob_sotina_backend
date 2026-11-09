@@ -111,8 +111,8 @@ public class DecaissementPdfService {
             fBold14Underline.setStyle(Font.BOLD | Font.UNDERLINE);
             Paragraph titre = new Paragraph("DECAISSEMENT", fBold14Underline);
             titre.setAlignment(Element.ALIGN_CENTER);
-
             doc.add(new Paragraph(" ", fNorm11));
+            doc.add(titre);
             doc.add(new Paragraph(" ", fNorm11));
 
             // ══════════════════════
@@ -179,11 +179,11 @@ public class DecaissementPdfService {
             // d'absence (lieu et date, puis le libellé, puis la signature), mais sans image
             // ici : l'espace entre "LE DIRECTEUR," et le nom est laissé vide.
             // ══════════════════════
-            Paragraph faitA = new Paragraph("Dakar, le " + LocalDate.now().format(DATE_FR), fNorm11);
+            Paragraph faitA = new Paragraph("Fait à Dakar, le " + LocalDate.now().format(DATE_FR), fNorm11);
             faitA.setAlignment(Element.ALIGN_RIGHT);
             doc.add(faitA);
 
-            Paragraph dir = new Paragraph("LE DIRECTEUR,", fNorm11);
+            Paragraph dir = new Paragraph("Le Directeur,", fNorm11);
             dir.setAlignment(Element.ALIGN_RIGHT);
             dir.setIndentationRight(40f);
             doc.add(dir);

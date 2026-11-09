@@ -71,6 +71,13 @@ public class Mandatement {
     // ── Auteur ──
     private String creePar;
 
+    // ── Annulation (Directeur uniquement) — le montant décaissé (avance + reliquat s'il a été
+    // payé en espèces) est restitué à la caisse ; le mandatement reste visible dans les listes
+    // (statut "Annulé"), mais sort des exports Excel. ──
+    private boolean annule;
+    private String annulePar;
+    private LocalDateTime dateAnnulation;
+
     @CreatedDate
     private LocalDateTime dateCreation;
     @LastModifiedDate

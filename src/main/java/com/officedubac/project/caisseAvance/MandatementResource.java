@@ -42,14 +42,24 @@ public class MandatementResource {
         return ResponseEntity.ok(mandatementService.payerReliquat(id, piecesJustificatives));
     }
 
-    // ── Exporter la liste des mandatements (Excel) ──
+    // ── Annuler un mandatement (Directeur) — restitue à la caisse ce qui en a été décaissé ──
+    @PreAuthorize("hasAnyAuthority('DIRECTEUR','ADMIN')")
+    @PutMapping("/{id}/annuler")
+    public ResponseEntity<Mandatement> annuler(@PathVariable String id) {
+        return ResponseEntity.ok(mandatementService.annuler(id));
+    }
+
+    // ── Exporter la liste des mandatements (Excel) — un mandatement annulé n'y figure plus ──
     @GetMapping("/export.xlsx")
     public void exportMandatements(
             @RequestParam(required = false) Integer annee,
             @RequestParam(required = false) Integer mois,
             @RequestParam(required = false) Integer semaine,
             HttpServletResponse response) throws IOException {
-        byte[] excel = excelService.genererListe(mandatementService.getAll(annee, mois, semaine));
+        List<Mandatement> actifs = mandatementService.getAll(annee, mois, semaine).stream()
+                .filter(m -> !m.isAnnule())
+                .toList();
+        byte[] excel = excelService.genererListe(actifs);
 
         String filename = "mandatements_caisse_avance.xlsx";
         response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");

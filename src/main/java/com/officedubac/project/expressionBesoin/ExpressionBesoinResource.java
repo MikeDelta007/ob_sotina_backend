@@ -96,6 +96,13 @@ public class ExpressionBesoinResource {
         return ResponseEntity.ok(expressionBesoinService.rejeter(id, req.getMotif()));
     }
 
+    // Archiver une EB déjà validée mais jamais consommée par un mandatement (Directeur)
+    @PreAuthorize("hasAnyAuthority('DIRECTEUR','ADMIN')")
+    @PutMapping("/{id}/archiver")
+    public ResponseEntity<ExpressionBesoin> archiver(@PathVariable String id) {
+        return ResponseEntity.ok(expressionBesoinService.archiver(id));
+    }
+
     // ── Chef comptable / Agent comptable (lecture-écriture) + CSA / Directeur (lecture seule) ──
     @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','CSA','DIRECTEUR')")
     @GetMapping("/a-traiter")

@@ -12,6 +12,7 @@ import org.springframework.web.multipart.MultipartFile;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.Year;
 import java.util.ArrayList;
@@ -246,6 +247,52 @@ public class MandatementService {
         log.info("✅ Reliquat payé — mandatement {} — montant={} mode={} solde après={}",
                 saved.getId(), saved.getMontantReliquat(), mode, decaissement.getSoldeApres());
         return saved;
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // ANNULATION (Directeur) — restitue à la caisse tout ce qui en a été décaissé pour ce
+    // mandatement (avance + reliquat si celui-ci a été payé en espèces) ; un paiement par
+    // chèque ne touchait pas la caisse, donc rien n'y est restitué dans ce cas, mais le
+    // mandatement est tout de même marqué annulé (ne compte plus, sort des exports Excel).
+    // ═══════════════════════════════════════════════════════════════
+    public Mandatement annuler(String id) {
+        Mandatement m = mandatementRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Mandatement introuvable : " + id));
+
+        if (m.isAnnule())
+            throw new RuntimeException("Ce mandatement est déjà annulé");
+
+        BigDecimal aRestituer = BigDecimal.ZERO;
+        if (m.isDecaisse() && m.getMontantDecaisse() != null) {
+            aRestituer = aRestituer.add(m.getMontantDecaisse());
+        }
+        if (m.isReliquatPaye() && m.getModePaiementReliquat() == Mandatement.ModePaiement.ESPECES
+                && m.getMontantReliquat() != null) {
+            aRestituer = aRestituer.add(m.getMontantReliquat());
+        }
+
+        if (aRestituer.compareTo(BigDecimal.ZERO) > 0) {
+            caisseService.approvisionner(aRestituer, LocalDate.now(),
+                    "Annulation du mandatement " + referenceLisible(m));
+        }
+
+        String username = getUsername();
+        m.setAnnule(true);
+        m.setAnnulePar(username);
+        m.setDateAnnulation(LocalDateTime.now());
+        Mandatement saved = mandatementRepo.save(m);
+
+        log.info("🚫 Mandatement {} annulé par {} — {} FCFA restitué(s) à la caisse",
+                m.getId(), username, aRestituer);
+        return saved;
+    }
+
+    private String referenceLisible(Mandatement m) {
+        if (m.getNumeroDecaissement() != null && !m.getNumeroDecaissement().isBlank())
+            return m.getNumeroDecaissement();
+        if (m.getFactures() != null && !m.getFactures().isEmpty())
+            return m.getFactures().get(0).getNumero();
+        return m.getId();
     }
 
     // ── Détermine le mode selon le montant, avec repli automatique sur chèque
