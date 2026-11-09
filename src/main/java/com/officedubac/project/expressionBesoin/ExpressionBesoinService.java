@@ -397,10 +397,11 @@ public class ExpressionBesoinService {
         if (eb.isUtiliseePourMandatement())
             throw new RuntimeException("Cette expression de besoin est déjà liée à un mandatement, la satisfaction ne peut plus être ajustée");
 
+        // Deux booléens indépendants : l'Admin peut confirmer la satisfaction sans toucher à
+        // l'exigence du motif, ou inversement — pas de couplage entre les deux.
         eb.setRequiertSatisfaction(requiertSatisfaction);
-        boolean confirmee = requiertSatisfaction && satisfactionConfirmee;
-        eb.setSatisfactionConfirmee(confirmee);
-        eb.setDateSatisfaction(confirmee ? LocalDateTime.now() : null);
+        eb.setSatisfactionConfirmee(satisfactionConfirmee);
+        eb.setDateSatisfaction(satisfactionConfirmee ? LocalDateTime.now() : null);
         return expressionBesoinRepo.save(eb);
     }
 
