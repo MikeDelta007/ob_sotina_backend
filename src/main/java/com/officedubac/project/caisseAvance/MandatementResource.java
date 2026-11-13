@@ -43,7 +43,7 @@ public class MandatementResource {
     }
 
     // ── Annuler un mandatement (Directeur) — restitue à la caisse ce qui en a été décaissé ──
-    @PreAuthorize("hasAnyAuthority('DIRECTEUR','ADMIN')")
+    @PreAuthorize("hasAuthority('DIRECTEUR')")
     @PutMapping("/{id}/annuler")
     public ResponseEntity<Mandatement> annuler(@PathVariable String id) {
         return ResponseEntity.ok(mandatementService.annuler(id));

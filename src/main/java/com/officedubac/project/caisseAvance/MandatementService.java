@@ -73,6 +73,7 @@ public class MandatementService {
                 .montant(montant)
                 .motifId(req.getMotifId())
                 .motifLibelle(req.getMotifLibelle())
+                .expressionBesoinId(req.getExpressionBesoinId())
                 .urlPiecesJustificatives(saveFile(piecesJustificatives, "pieces-justificatives"))
                 .build();
 

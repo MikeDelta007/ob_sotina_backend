@@ -98,7 +98,7 @@ public class ExpressionBesoinResource {
     }
 
     // Archiver une EB, quel que soit son statut, tant qu'elle n'est pas liée à un mandatement
-    @PreAuthorize("hasAnyAuthority('DIRECTEUR','ADMIN')")
+    @PreAuthorize("hasAuthority('DIRECTEUR')")
     @PutMapping("/{id}/archiver")
     public ResponseEntity<ExpressionBesoin> archiver(@PathVariable String id) {
         return ResponseEntity.ok(archiveService.archiver(id));
