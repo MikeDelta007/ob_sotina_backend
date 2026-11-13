@@ -16,6 +16,7 @@ import java.util.List;
 public class ExpressionBesoinResource {
 
     private final ExpressionBesoinService expressionBesoinService;
+    private final ExpressionBesoinArchiveService archiveService;
     private final DechargePdfService dechargePdfService;
 
     // ── Agent / Chef de service / CSA / Directeur / Chef comptable / Agent comptable ──
@@ -96,11 +97,18 @@ public class ExpressionBesoinResource {
         return ResponseEntity.ok(expressionBesoinService.rejeter(id, req.getMotif()));
     }
 
-    // Archiver une EB déjà validée mais jamais consommée par un mandatement (Directeur)
+    // Archiver une EB, quel que soit son statut, tant qu'elle n'est pas liée à un mandatement
     @PreAuthorize("hasAnyAuthority('DIRECTEUR','ADMIN')")
     @PutMapping("/{id}/archiver")
     public ResponseEntity<ExpressionBesoin> archiver(@PathVariable String id) {
-        return ResponseEntity.ok(expressionBesoinService.archiver(id));
+        return ResponseEntity.ok(archiveService.archiver(id));
+    }
+
+    // Onglet dédié aux EB archivées — plus jamais visibles dans les autres listes
+    @PreAuthorize("hasAnyAuthority('DIRECTEUR','ADMIN')")
+    @GetMapping("/archivees")
+    public ResponseEntity<List<ExpressionBesoin>> getArchivees() {
+        return ResponseEntity.ok(archiveService.getArchivees());
     }
 
     // Correction admin de l'exigence/confirmation de satisfaction, tant que l'EB n'est pas
@@ -131,7 +139,7 @@ public class ExpressionBesoinResource {
     }
 
     // Décharge à faire signer par l'agent une fois l'expression traitée
-    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE')")
+    @PreAuthorize("hasAnyAuthority('CHEF_COMPTABLE','AGENT_COMPTABLE','ADMIN')")
     @GetMapping("/{id}/decharge.pdf")
     public ResponseEntity<byte[]> decharge(@PathVariable String id) {
         ExpressionBesoin eb = expressionBesoinService.getById(id);

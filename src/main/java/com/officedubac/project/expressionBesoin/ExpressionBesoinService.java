@@ -491,9 +491,13 @@ public class ExpressionBesoinService {
     }
 
     public List<ExpressionBesoin> getTraitees() {
-        return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.TRAITEE);
+        return expressionBesoinRepo.findByStatutOrderByDateCreationDesc(ExpressionBesoin.Statut.TRAITEE).stream()
+                .filter(eb -> !eb.isArchivee())
+                .toList();
     }
 
+    // Onglet dédié (Directeur/Admin) : toutes les EB archivées, quel que soit leur statut
+    // d'origine — elles ne figurent plus jamais dans les autres listes une fois archivées.
     // Exclut les EB qui exigent une confirmation de satisfaction non encore donnée —
     // évite au comptable de sélectionner une EB dont le décaissement échouera.
     public List<ExpressionBesoin> getDisponiblesPourMandatement() {
@@ -504,24 +508,7 @@ public class ExpressionBesoinService {
                 .toList();
     }
 
-    // ═══════════════════════════════════════════════════════════════
-    // ARCHIVAGE (Directeur) — n'importe quelle EB, quel que soit son statut (EN_ATTENTE,
-    // VALIDEE, REJETEE, TRAITEE), peut être retirée des listes actives sans être supprimée,
-    // tant qu'elle n'est pas déjà liée à un mandatement.
-    // ═══════════════════════════════════════════════════════════════
-    public ExpressionBesoin archiver(String id) {
-        ExpressionBesoin eb = getById(id);
-
-        if (eb.isArchivee())
-            throw new RuntimeException("Cette expression de besoin est déjà archivée");
-        if (eb.isUtiliseePourMandatement())
-            throw new RuntimeException("Cette expression de besoin est déjà liée à un mandatement, elle ne peut pas être archivée");
-
-        eb.setArchivee(true);
-        eb.setArchiveePar(getUsername());
-        eb.setDateArchivage(LocalDateTime.now());
-        return expressionBesoinRepo.save(eb);
-    }
+    // Archivage : voir ExpressionBesoinArchiveService (classe séparée)
 
     // ── Utilitaires ──
     private String nomComplet(User u) {
