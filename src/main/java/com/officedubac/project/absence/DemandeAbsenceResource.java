@@ -82,8 +82,9 @@ public class DemandeAbsenceResource {
         return ResponseEntity.ok(demandeAbsenceService.mesDemandes(type));
     }
 
-    // Vue globale (tous agents, tous statuts) réservée à l'Admin — supervision et correction.
-    @PreAuthorize("hasAuthority('ADMIN')")
+    // Vue globale (tous agents, tous statuts) : l'Admin y supervise et corrige, le Directeur n'y
+    // vient que pour annuler une demande validée (seul lui en a le droit, cf. annuler()).
+    @PreAuthorize("hasAnyAuthority('ADMIN','DIRECTEUR')")
     @GetMapping("/toutes")
     public ResponseEntity<List<DemandeAbsence>> toutes(@RequestParam TypeAbsence type) {
         return ResponseEntity.ok(demandeAbsenceService.toutes(type));
