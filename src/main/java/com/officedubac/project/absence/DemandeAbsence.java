@@ -73,4 +73,10 @@ public class DemandeAbsence {
 
     private String creePar;
     private LocalDateTime dateCreation;
+
+    // Annulation par le Directeur d'une demande déjà validée (cf. DemandeAbsenceService.annuler)
+    // — restitue le solde décompté et bascule la demande en ANNULEE.
+    private String annuleePar;
+    private String annuleeParNom;
+    private LocalDateTime dateAnnulation;
 }

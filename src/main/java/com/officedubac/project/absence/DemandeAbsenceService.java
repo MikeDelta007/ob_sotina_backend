@@ -75,50 +75,101 @@ public class DemandeAbsenceService {
         return demandeRepo.save(demande);
     }
 
-    // Modification/suppression réservées au créateur, et seulement tant qu'aucun validateur
-    // (chef, CSA ou Directeur) ne s'est encore prononcé — ni validé, ni rejeté — sur la demande.
+    // Même règle pour tout le monde, y compris l'Admin : dès qu'un validateur (chef, CSA ou
+    // Directeur) s'est prononcé — validé, rejeté, ou la demande ensuite annulée par le Directeur
+    // — plus aucune correction n'est possible, où que ce soit dans l'application ; il faut
+    // soumettre une nouvelle demande. Tant qu'elle n'a pas été traitée, l'Admin peut en plus
+    // corriger n'importe quelle demande (pas seulement les siennes) — bénéficiaire et type
+    // inchangés, seuls dates/motif se corrigent. Une demande déjà VALIDEE doit d'abord être
+    // annulée par le Directeur (cf. annuler()), qui rétablit le solde normal.
     public DemandeAbsence modifier(String id, DemandeAbsenceRequest req) {
         DemandeAbsence demande = demandeRepo.findById(id)
                 .orElseThrow(() -> new RuntimeException("Demande d'absence introuvable"));
         User createur = currentUser();
+        boolean estAdmin = hasAuthority("ADMIN");
 
-        if (!demande.getCreePar().equals(createur.getLogin()))
-            throw new RuntimeException("Vous ne pouvez modifier que vos propres demandes");
         if (!pasEncoreTraitee(demande))
-            throw new RuntimeException("Cette demande a déjà été traitée par un validateur, elle ne peut plus être modifiée");
+            throw new RuntimeException("Cette demande a déjà été traitée (validée, rejetée ou annulée) : elle ne peut plus être corrigée, une nouvelle demande doit être soumise");
 
-        Personnel demandeur = resoudreDemandeur(createur, req.getBeneficiaireId());
+        if (!estAdmin && !demande.getCreePar().equals(createur.getLogin()))
+            throw new RuntimeException("Vous ne pouvez modifier que vos propres demandes");
 
-        if (req.getDateDebut().isBefore(java.time.LocalDate.now())) {
+        Personnel demandeur = estAdmin
+                ? personnelRepository.findById(demande.getDemandeurId())
+                        .orElseThrow(() -> new RuntimeException("Agent introuvable"))
+                : resoudreDemandeur(createur, req.getBeneficiaireId());
+
+        // L'Admin corrige dates/motif sans jamais changer le type — chaque demande garde celui
+        // qu'elle avait à sa création.
+        TypeAbsence type = estAdmin ? demande.getType() : req.getType();
+
+        if (!estAdmin && req.getDateDebut().isBefore(java.time.LocalDate.now())) {
             throw new RuntimeException("La date de début ne peut pas être antérieure à aujourd'hui");
         }
         if (req.getDateFin().isBefore(req.getDateDebut())) {
             throw new RuntimeException("La date de fin ne peut pas précéder la date de début");
         }
-        int nombreJours = (int) (ChronoUnit.DAYS.between(req.getDateDebut(), req.getDateFin()) + 1);
+        int nouveauNombreJours = (int) (ChronoUnit.DAYS.between(req.getDateDebut(), req.getDateFin()) + 1);
 
-        if (req.getType() == TypeAbsence.AUTORISATION && (req.getMotif() == null || req.getMotif().isBlank())) {
+        if (type == TypeAbsence.AUTORISATION && (req.getMotif() == null || req.getMotif().isBlank())) {
             throw new RuntimeException("Le motif est obligatoire pour une autorisation d'absence");
         }
 
-        if (req.getType() == TypeAbsence.CONGE) {
+        // Même plafond qu'à la création, sans exception pour l'Admin : le solde disponible actuel
+        // de l'agent, point final (la demande n'étant jamais encore validée ici, rien n'a encore
+        // été décompté pour elle).
+        if (type == TypeAbsence.CONGE) {
             Integer soldeDisponible = demandeur.getSoldeDisponible();
-            if (soldeDisponible != null && nombreJours > soldeDisponible) {
-                throw new RuntimeException("La période demandée (" + nombreJours + " jour(s)) dépasse votre solde de congés disponible ("
+            if (soldeDisponible != null && nouveauNombreJours > soldeDisponible) {
+                throw new RuntimeException("La période demandée (" + nouveauNombreJours + " jour(s)) dépasse le solde de congés disponible ("
                         + soldeDisponible + " jour(s))");
             }
         }
 
-        demande.setDemandeurId(demandeur.getId());
-        demande.setDemandeurNom(demandeur.getFirstname() + " " + demandeur.getLastname());
-        demande.setDivisionId(demandeur.getDivision() != null ? demandeur.getDivision().getId() : null);
-        demande.setType(req.getType());
+        if (!estAdmin) {
+            demande.setDemandeurId(demandeur.getId());
+            demande.setDemandeurNom(demandeur.getFirstname() + " " + demandeur.getLastname());
+            demande.setDivisionId(demandeur.getDivision() != null ? demandeur.getDivision().getId() : null);
+            demande.setStatut(statutDepart(demandeur));
+        }
+        demande.setType(type);
         demande.setDateDebut(req.getDateDebut());
         demande.setDateFin(req.getDateFin());
-        demande.setNombreJours(nombreJours);
+        demande.setNombreJours(nouveauNombreJours);
         demande.setMotif(req.getMotif());
-        demande.setStatut(statutDepart(demandeur));
 
+        return demandeRepo.save(demande);
+    }
+
+    // Seul le Directeur peut annuler une demande déjà validée — rétablit le solde normal (jours
+    // de congé rendus, ou cumul d'autorisation retiré) et bascule la demande en ANNULEE, statut
+    // final au même titre que REJETEE. C'est la seule façon de revenir sur une demande validée :
+    // modifier() refuse toute correction tant qu'elle n'est pas passée par ici.
+    public DemandeAbsence annuler(String id) {
+        DemandeAbsence demande = demandeRepo.findById(id)
+                .orElseThrow(() -> new RuntimeException("Demande d'absence introuvable"));
+        if (!hasAuthority("DIRECTEUR"))
+            throw new RuntimeException("Seul le Directeur peut annuler une demande validée");
+        if (demande.getStatut() != StatutAbsence.VALIDEE)
+            throw new RuntimeException("Seule une demande validée peut être annulée");
+
+        Personnel personnel = personnelRepository.findById(demande.getDemandeurId()).orElse(null);
+        if (personnel != null) {
+            if (demande.getType() == TypeAbsence.CONGE && personnel.getSoldeConges() != null) {
+                personnel.setSoldeConges(personnel.getSoldeConges() + demande.getNombreJours());
+            } else if (demande.getType() == TypeAbsence.AUTORISATION) {
+                int cumul = personnel.getJoursAutorisationCumules() != null ? personnel.getJoursAutorisationCumules() : 0;
+                personnel.setJoursAutorisationCumules(Math.max(0, cumul - demande.getNombreJours()));
+            }
+            personnelRepository.save(personnel);
+            personnelCompteService.synchroniserCompteLie(personnel);
+        }
+
+        User caller = currentUser();
+        demande.setStatut(StatutAbsence.ANNULEE);
+        demande.setAnnuleePar(caller.getLogin());
+        demande.setAnnuleeParNom(nomComplet(caller));
+        demande.setDateAnnulation(LocalDateTime.now());
         return demandeRepo.save(demande);
     }
 
@@ -205,6 +256,12 @@ public class DemandeAbsenceService {
     public List<DemandeAbsence> mesDemandes(TypeAbsence type) {
         Personnel moi = monPersonnel(currentUser());
         return demandeRepo.findByDemandeurIdAndTypeOrderByDateCreationDesc(moi.getId(), type);
+    }
+
+    // Vue globale (tous statuts, tous agents, tous créateurs) réservée à l'Admin pour superviser
+    // l'ensemble des congés/autorisations et pouvoir les corriger (cf. modifier()).
+    public List<DemandeAbsence> toutes(TypeAbsence type) {
+        return demandeRepo.findByTypeOrderByDateCreationDesc(type);
     }
 
     public List<DemandeAbsence> aValider(TypeAbsence type) {

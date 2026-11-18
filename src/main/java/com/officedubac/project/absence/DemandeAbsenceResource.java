@@ -82,6 +82,13 @@ public class DemandeAbsenceResource {
         return ResponseEntity.ok(demandeAbsenceService.mesDemandes(type));
     }
 
+    // Vue globale (tous agents, tous statuts) réservée à l'Admin — supervision et correction.
+    @PreAuthorize("hasAuthority('ADMIN')")
+    @GetMapping("/toutes")
+    public ResponseEntity<List<DemandeAbsence>> toutes(@RequestParam TypeAbsence type) {
+        return ResponseEntity.ok(demandeAbsenceService.toutes(type));
+    }
+
     @GetMapping("/a-valider")
     public ResponseEntity<List<DemandeAbsence>> aValider(@RequestParam TypeAbsence type) {
         return ResponseEntity.ok(demandeAbsenceService.aValider(type));
@@ -123,6 +130,13 @@ public class DemandeAbsenceResource {
     @PutMapping("/{id}/rejeter")
     public ResponseEntity<DemandeAbsence> rejeter(@PathVariable String id, @Valid @RequestBody RejeterRequest req) {
         return ResponseEntity.ok(demandeAbsenceService.rejeter(id, req.getMotif()));
+    }
+
+    // Annulation d'une demande déjà validée — réservée au Directeur, rétablit le solde normal.
+    @PreAuthorize("hasAuthority('DIRECTEUR')")
+    @PutMapping("/{id}/annuler")
+    public ResponseEntity<DemandeAbsence> annuler(@PathVariable String id) {
+        return ResponseEntity.ok(demandeAbsenceService.annuler(id));
     }
 
     // Télécharger le PDF d'une autorisation d'absence validée
