@@ -75,12 +75,14 @@ public class DemandeAbsenceService {
         return demandeRepo.save(demande);
     }
 
-    // Même règle pour tout le monde, y compris l'Admin : dès qu'un validateur (chef, CSA ou
-    // Directeur) s'est prononcé — validé, rejeté, ou la demande ensuite annulée par le Directeur
-    // — plus aucune correction n'est possible, où que ce soit dans l'application ; il faut
-    // soumettre une nouvelle demande. Tant qu'elle n'a pas été traitée, l'Admin peut en plus
-    // corriger n'importe quelle demande (pas seulement les siennes) — bénéficiaire et type
-    // inchangés, seuls dates/motif se corrigent. Une demande déjà VALIDEE doit d'abord être
+    // Pour le créateur lui-même, règle inchangée et volontairement stricte : dès qu'un validateur
+    // a donné un avis — même un rejet intermédiaire qui n'arrête pas la chaîne (chef ou CSA) —
+    // il ne peut plus modifier sa propre demande, pour ne jamais changer silencieusement ce
+    // qu'un validateur vient d'examiner. L'Admin, lui, peut corriger n'importe quelle demande
+    // tant qu'elle n'est pas définitivement close (VALIDEE, REJETEE ou ANNULEE) — un avis
+    // intermédiaire ne bloque pas sa correction, puisque rien n'est encore figé (aucun solde
+    // décompté) tant que le Directeur n'a pas statué. Bénéficiaire et type restent inchangés
+    // pour l'Admin, seuls dates/motif se corrigent. Une demande déjà VALIDEE doit d'abord être
     // annulée par le Directeur (cf. annuler()), qui rétablit le solde normal.
     public DemandeAbsence modifier(String id, DemandeAbsenceRequest req) {
         DemandeAbsence demande = demandeRepo.findById(id)
@@ -88,11 +90,16 @@ public class DemandeAbsenceService {
         User createur = currentUser();
         boolean estAdmin = hasAuthority("ADMIN");
 
-        if (!pasEncoreTraitee(demande))
-            throw new RuntimeException("Cette demande a déjà été traitée (validée, rejetée ou annulée) : elle ne peut plus être corrigée, une nouvelle demande doit être soumise");
-
-        if (!estAdmin && !demande.getCreePar().equals(createur.getLogin()))
-            throw new RuntimeException("Vous ne pouvez modifier que vos propres demandes");
+        if (estAdmin) {
+            if (demande.getStatut() == StatutAbsence.VALIDEE || demande.getStatut() == StatutAbsence.REJETEE
+                    || demande.getStatut() == StatutAbsence.ANNULEE)
+                throw new RuntimeException("Cette demande a déjà été traitée (validée, rejetée ou annulée) : elle ne peut plus être corrigée, une nouvelle demande doit être soumise");
+        } else {
+            if (!demande.getCreePar().equals(createur.getLogin()))
+                throw new RuntimeException("Vous ne pouvez modifier que vos propres demandes");
+            if (!pasEncoreTraitee(demande))
+                throw new RuntimeException("Cette demande a déjà été traitée par un validateur, elle ne peut plus être modifiée");
+        }
 
         Personnel demandeur = estAdmin
                 ? personnelRepository.findById(demande.getDemandeurId())
